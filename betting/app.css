@@ -1298,3 +1298,54 @@ body:is([data-page="acct"],[data-page="play"],[data-page="jackpot"],[data-page="
   .cat{height:58px}
   .icon-row{background:#fff}
 }
+
+/* =========================================================
+   v8 – single 12px gutter grid (mobile)
+   ========================================================= */
+:root{--side:12px}
+.tiles{padding-left:var(--side);padding-right:var(--side);gap:8px}
+.icon-row{padding-left:6px;padding-right:6px}
+.cat-cards{padding-left:var(--side);padding-right:var(--side);gap:8px}
+.sec-head{padding-left:var(--side);padding-right:var(--side)}
+.sec-head h2{padding-right:12px;margin-right:8px}
+.txt-tabs button:first-child,.txt-tabs a:first-child{padding-left:4px}
+.sec-head.dark{padding-left:var(--side);padding-right:var(--side)}
+.lg-pills{padding-left:var(--side);padding-right:var(--side)}
+.feat{padding-left:var(--side);padding-right:var(--side);gap:8px;scroll-padding-left:var(--side)}
+.fcard{flex-basis:calc(100% - 36px)}
+.mkt-tabs button:first-child{padding-left:var(--side)}
+.mkt-tabs button.active:first-child::after{left:var(--side)}
+.day-sep,.league-head{padding-left:var(--side);padding-right:var(--side)}
+.ev{margin-left:var(--side);margin-right:var(--side)}
+.ev-meta .hot{margin-left:calc(var(--side) * -1)}
+.lg-acc{padding-left:var(--side);padding-right:var(--side)}
+.more-link,.more-link.dark{padding-left:var(--side);padding-right:var(--side)}
+.page-title,.sub-head{padding-left:var(--side);padding-right:var(--side)}
+.sub-head .icon-btn{margin-left:-10px}
+.group-chips,.market-tabs,.filter-bar{padding-left:var(--side);padding-right:var(--side)}
+.mkt-head{padding-left:var(--side);padding-right:var(--side)}
+.mkt-body{padding-left:var(--side);padding-right:var(--side)}
+.card-pad{padding-left:var(--side);padding-right:var(--side)}
+.me-dark{padding-left:var(--side);padding-right:var(--side)}
+.me-list a,.me-list button{padding-left:var(--side);padding-right:var(--side)}
+.gl-top,.g-h,.g-row,.g-grid{padding-left:var(--side);padding-right:var(--side)}
+.g-row{scroll-padding-left:var(--side)}
+.foot-strip{padding-left:var(--side);padding-right:var(--side)}
+.search{padding-left:var(--side);padding-right:var(--side)}
+.az-head{padding-left:var(--side);padding-right:var(--side)}
+.az-body a{padding-left:calc(var(--side) + 30px);padding-right:var(--side)}
+.jp-row,.jp-tools,.jp-foot{padding-left:var(--side);padding-right:var(--side)}
+.res-row{padding-left:var(--side);padding-right:var(--side)}
+.tx,.bonus,.msg{padding-left:var(--side);padding-right:var(--side)}
+.bet-card{padding-left:var(--side);padding-right:var(--side)}
+.cr-stage,.cr-panel,.cr-live{margin-left:var(--side);margin-right:var(--side)}
+.cr-head{padding-left:2px}
+.v-head{padding-left:var(--side);padding-right:var(--side)}
+.promo-grid{padding:var(--side)}
+.bs-item,.bs-foot{padding-left:var(--side);padding-right:var(--side)}
+.bs-item{padding-right:40px}
+.topbar-inner{padding-left:2px;padding-right:var(--side)}
+/* live block + sports block: column headers line up with odds */
+.day-sep .cols,.league-head .cols{margin-right:0}
+.ev-odds{margin-right:0}
+@media (min-width:1024px){ :root{--side:12px} .ev{margin-left:var(--side);margin-right:var(--side)} }
