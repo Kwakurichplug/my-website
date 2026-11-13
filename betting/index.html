@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cut" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>BetNova – Sports Betting</title>
+  <meta name="description" content="BetNova – live sports betting, best odds, instant payouts." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="icon-btn" id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <a class="logo" href="#" data-page="home">
+      <span class="logo-mark">N</span><span class="logo-text">Bet<b>Nova</b></span>
+    </a>
+    <div class="top-actions" id="authArea">
+      <button class="btn btn-ghost sm" data-open="loginModal">Login</button>
+      <button class="btn btn-accent sm" data-open="registerModal">Join Now</button>
+    </div>
+  </div>
+  <!-- Desktop nav -->
+  <nav class="desk-nav">
+    <a href="#" data-page="home" class="active">Home</a>
+    <a href="#" data-page="live">Live <span class="live-dot"></span></a>
+    <a href="#" data-page="sports">A–Z Sports</a>
+    <a href="#" data-page="jackpot">Jackpot</a>
+    <a href="#" data-page="promos">Promotions</a>
+    <a href="#" data-page="me">My Bets</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <!-- Left sidebar (desktop) -->
+  <aside class="left-rail">
+    <h4>Top Leagues</h4>
+    <ul id="leagueRail"></ul>
+    <h4>Sports</h4>
+    <ul id="sportRail"></ul>
+  </aside>
+
+  <main id="main">
+    <!-- ============ HOME PAGE ============ -->
+    <section class="page active" id="page-home">
+      <!-- Sports tabs -->
+      <div class="sport-tabs" id="sportTabs"></div>
+
+      <!-- Promo carousel -->
+      <div class="carousel" id="carousel">
+        <div class="slides" id="slides">
+          <div class="slide s1">
+            <div><small>WELCOME OFFER</small><h3>200% First Deposit Bonus</h3><p>Up to ₦100,000 on your first deposit</p><button class="btn btn-accent sm" data-open="registerModal">Claim Now</button></div>
+            <div class="slide-art">⚽</div>
+          </div>
+          <div class="slide s2">
+            <div><small>ACCA BOOST</small><h3>Up to 1000% Win Boost</h3><p>Add 3+ selections to your multiple</p><button class="btn btn-light sm" data-page="home">Build Acca</button></div>
+            <div class="slide-art">🚀</div>
+          </div>
+          <div class="slide s3">
+            <div><small>WEEKLY JACKPOT</small><h3>₦50,000,000 Jackpot</h3><p>Predict 12 games correctly</p><button class="btn btn-light sm" data-page="jackpot">Play Jackpot</button></div>
+            <div class="slide-art">🏆</div>
+          </div>
+        </div>
+        <div class="dots" id="dots"></div>
+      </div>
+
+      <!-- Quick links -->
+      <div class="quick-links">
+        <a href="#" data-page="live"><span class="ql-ic ql-live">●</span>Live</a>
+        <a href="#" data-page="jackpot"><span class="ql-ic">🏆</span>Jackpot</a>
+        <a href="#" data-filter="today"><span class="ql-ic">📅</span>Today</a>
+        <a href="#" data-page="promos"><span class="ql-ic">🎁</span>Promos</a>
+        <a href="#" data-open="codeModal"><span class="ql-ic">🔖</span>Load Code</a>
+      </div>
+
+      <!-- Live now strip -->
+      <div class="section-head">
+        <h2><span class="live-dot"></span> Live Now</h2>
+        <a href="#" data-page="live" class="see-all">See all ›</a>
+      </div>
+      <div class="live-strip" id="liveStrip"></div>
+
+      <!-- Match list tabs -->
+      <div class="list-tabs">
+        <button class="active" data-list="highlights">Highlights</button>
+        <button data-list="upcoming">Upcoming</button>
+        <button data-list="today">Today</button>
+      </div>
+      <div class="market-tabs" id="marketTabs">
+        <button class="active" data-market="1x2">1X2</button>
+        <button data-market="dc">Double Chance</button>
+        <button data-market="ou">Over/Under 2.5</button>
+        <button data-market="gg">GG/NG</button>
+      </div>
+      <div id="matchList" class="match-list"></div>
+    </section>
+
+    <!-- ============ LIVE PAGE ============ -->
+    <section class="page" id="page-live">
+      <div class="page-title"><h1><span class="live-dot"></span> Live Betting</h1><span class="muted" id="liveCount"></span></div>
+      <div class="sport-tabs" id="liveSportTabs"></div>
+      <div id="liveList" class="match-list"></div>
+    </section>
+
+    <!-- ============ A–Z SPORTS ============ -->
+    <section class="page" id="page-sports">
+      <div class="page-title"><h1>A–Z Sports</h1></div>
+      <div class="search"><input id="sportSearch" placeholder="Search sports or leagues…"></div>
+      <ul class="az-list" id="azList"></ul>
+    </section>
+
+    <!-- ============ JACKPOT ============ -->
+    <section class="page" id="page-jackpot">
+      <div class="jackpot-hero">
+        <small>THIS WEEK'S JACKPOT</small>
+        <h1>₦50,000,000</h1>
+        <p>Pick 1, X or 2 for all 12 games. Stake ₦100 per line.</p>
+        <div class="countdown" id="countdown"></div>
+      </div>
+      <div id="jackpotList" class="jp-list"></div>
+      <div class="jp-foot">
+        <span id="jpPicked">0/12 picked</span>
+        <button class="btn btn-accent" id="jpSubmit" disabled>Submit Jackpot</button>
+      </div>
+    </section>
+
+    <!-- ============ PROMOS ============ -->
+    <section class="page" id="page-promos">
+      <div class="page-title"><h1>Promotions</h1></div>
+      <div class="promo-grid">
+        <article class="promo s1"><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to ₦100,000.</p></article>
+        <article class="promo s2"><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on multiples.</p></article>
+        <article class="promo s3"><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
+        <article class="promo s4"><h3>Refer a Friend</h3><p>Get ₦1,000 for every friend who joins and bets.</p></article>
+      </div>
+    </section>
+
+    <!-- ============ ME / MY BETS ============ -->
+    <section class="page" id="page-me">
+      <div class="me-card">
+        <div class="avatar">👤</div>
+        <div>
+          <h3 id="meName">Guest</h3>
+          <p class="muted" id="meSub">Login to view your bets and balance</p>
+        </div>
+      </div>
+      <div class="wallet">
+        <div><small>Balance</small><strong id="meBal">₦0.00</strong></div>
+        <button class="btn btn-accent sm" data-open="depositModal">Deposit</button>
+        <button class="btn btn-ghost sm" data-open="depositModal" data-mode="withdraw">Withdraw</button>
+      </div>
+      <div class="list-tabs">
+        <button class="active" data-bets="open">Open Bets</button>
+        <button data-bets="settled">Settled</button>
+      </div>
+      <div id="myBets"></div>
+      <ul class="menu-list">
+        <li>Transactions</li><li>Bonuses</li><li>Account Settings</li><li>Responsible Gambling</li><li>Help Center</li>
+      </ul>
+    </section>
+
+    <footer class="site-foot">
+      <div class="pay-row"><span>VISA</span><span>Mastercard</span><span>Bank Transfer</span><span>USSD</span><span>Mobile Money</span></div>
+      <p><b>18+</b> Gambling can be addictive. Please play responsibly. Licensed and regulated by the relevant gaming authority.</p>
+      <p class="muted">© <span id="yr"></span> BetNova. All rights reserved.</p>
+    </footer>
+  </main>
+
+  <!-- Right betslip (desktop) / Drawer (mobile) -->
+  <aside class="betslip" id="betslip">
+    <div class="bs-head">
+      <h3>Betslip <span class="badge" id="bsCount">0</span></h3>
+      <button class="icon-btn bs-close" id="bsClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="bs-tabs">
+      <button class="active" data-bstype="single">Singles</button>
+      <button data-bstype="multi">Multiple</button>
+    </div>
+    <div class="bs-body" id="bsBody"></div>
+    <div class="bs-foot" id="bsFoot">
+      <div class="row"><span>Total Odds</span><b id="bsOdds">0.00</b></div>
+      <div class="stake-row">
+        <label>Stake (₦)</label>
+        <input id="bsStake" type="number" min="100" value="100" inputmode="numeric">
+      </div>
+      <div class="chips"><button data-add="100">+100</button><button data-add="500">+500</button><button data-add="1000">+1k</button><button data-add="5000">+5k</button></div>
+      <div class="row"><span>Win Boost</span><b id="bsBoost" class="accent">0%</b></div>
+      <div class="row big"><span>Potential Win</span><b id="bsWin">₦0.00</b></div>
+      <div class="bs-actions">
+        <button class="btn btn-ghost" id="bsClear">Remove All</button>
+        <button class="btn btn-accent" id="bsPlace">Place Bet</button>
+      </div>
+      <button class="link-btn" id="bsBook">Book bet &amp; get code</button>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<!-- Floating betslip pill (mobile) -->
+<button class="slip-pill" id="slipPill"><span>Betslip</span><b id="pillCount">0</b><em id="pillOdds">Odds 0.00</em></button>
+
+<!-- ============ BOTTOM NAV (mobile) ============ -->
+<nav class="bottom-nav">
+  <a href="#" data-page="home" class="active"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#" data-page="sports"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>A–Z</a>
+  <a href="#" data-page="live"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/></svg>Live</a>
+  <a href="#" id="navSlip"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Betslip<i class="nav-badge" id="navBadge">0</i></a>
+  <a href="#" data-page="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me</a>
+</nav>
+
+<!-- Side menu -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><span class="logo-text">Bet<b>Nova</b></span></div>
+  <a href="#" data-page="home">🏠 Home</a>
+  <a href="#" data-page="live">🔴 Live Betting</a>
+  <a href="#" data-page="sports">📋 A–Z Sports</a>
+  <a href="#" data-page="jackpot">🏆 Jackpot</a>
+  <a href="#" data-page="promos">🎁 Promotions</a>
+  <a href="#" data-page="me">🎫 My Bets</a>
+  <a href="#" data-open="depositModal">💳 Deposit</a>
+  <div class="drawer-foot"><b>18+</b> Bet responsibly</div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="modal" id="loginModal">
+  <form class="modal-card" data-auth="login">
+    <button type="button" class="modal-x" data-close>×</button>
+    <h2>Welcome back</h2>
+    <label>Mobile Number<div class="phone"><span>+234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>
+    <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
+    <button class="btn btn-accent block">Login</button>
+    <p class="muted center">No account? <a href="#" data-switch="registerModal">Join Now</a></p>
+  </form>
+</div>
+<div class="modal" id="registerModal">
+  <form class="modal-card" data-auth="register">
+    <button type="button" class="modal-x" data-close>×</button>
+    <h2>Create account</h2>
+    <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
+    <label>Mobile Number<div class="phone"><span>+234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>
+    <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
+    <label class="check"><input type="checkbox" required> I am 18+ and accept the Terms &amp; Conditions</label>
+    <button class="btn btn-accent block">Register</button>
+    <p class="muted center">Have an account? <a href="#" data-switch="loginModal">Login</a></p>
+  </form>
+</div>
+<div class="modal" id="depositModal">
+  <form class="modal-card" id="depositForm">
+    <button type="button" class="modal-x" data-close>×</button>
+    <h2 id="depTitle">Deposit</h2>
+    <div class="chips wide"><button type="button" data-amt="1000">₦1,000</button><button type="button" data-amt="5000">₦5,000</button><button type="button" data-amt="10000">₦10,000</button><button type="button" data-amt="50000">₦50,000</button></div>
+    <label>Amount (₦)<input id="depAmt" type="number" min="100" required value="1000"></label>
+    <label>Method<select><option>Card</option><option>Bank Transfer</option><option>USSD</option><option>Mobile Money</option></select></label>
+    <button class="btn btn-accent block" id="depBtn">Deposit</button>
+  </form>
+</div>
+<div class="modal" id="codeModal">
+  <form class="modal-card" id="codeForm">
+    <button type="button" class="modal-x" data-close>×</button>
+    <h2>Load Booking Code</h2>
+    <label>Booking Code<input id="codeInput" required placeholder="e.g. BN7K2Q" style="text-transform:uppercase"></label>
+    <button class="btn btn-accent block">Load</button>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
