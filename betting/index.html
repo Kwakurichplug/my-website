@@ -144,7 +144,7 @@
         <p>Pick 1, X or 2 for all 12 games. <span data-t="ticket"></span> per ticket.</p>
         <div class="countdown" id="countdown"></div>
       </div>
-      <div class="jp-tools"><button class="btn btn-ghost sm" id="jpAuto">🎲 Auto-pick</button><button class="btn btn-ghost sm" id="jpClear">Clear</button></div>
+      <div class="jp-tools"><button class="btn btn-ghost sm" id="jpAuto">Auto-pick</button><button class="btn btn-ghost sm" id="jpClear">Clear</button></div>
       <div id="jackpotList" class="jp-list"></div>
       <div class="jp-foot">
         <span id="jpPicked">0/12 picked</span>
@@ -321,7 +321,7 @@
     <button type="button" class="modal-x" data-close>×</button>
     <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Welcome back</h2>
-    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>🇳🇬 +234</button><input required name="phone" inputmode="tel"></div></label>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
     <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
     <button class="btn btn-accent block">Login</button>
     <p class="muted center">No account? <a href="#" data-switch="registerModal">Join Now</a></p>
@@ -333,7 +333,7 @@
     <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Create account</h2>
     <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
-    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>🇳🇬 +234</button><input required name="phone" inputmode="tel"></div></label>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
     <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
     <label class="check"><input type="checkbox" required> I am 18+ and accept the Terms &amp; Conditions</label>
     <button class="btn btn-accent block">Register</button>
@@ -363,13 +363,14 @@
   <div class="modal-card">
     <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
     <h2>Choose your country</h2>
-    <button class="cc-opt" data-cc="NG"><span class="f">🇳🇬</span><span><b>Nigeria</b><small>Naira (₦) · +234</small></span></button>
-    <button class="cc-opt" data-cc="GH"><span class="f">🇬🇭</span><span><b>Ghana</b><small>Cedis (GH₵) · +233</small></span></button>
+    <button class="cc-opt" data-cc="NG"><span class="f" data-flagc="ng"></span><span><b>Nigeria</b><small>Naira (₦) · +234</small></span></button>
+    <button class="cc-opt" data-cc="GH"><span class="f" data-flagc="gh"></span><span><b>Ghana</b><small>Cedis (GH₵) · +233</small></span></button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="icons.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -13,10 +13,10 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   /* ---------------- Country / currency ---------------- */
   const COUNTRIES = {
-    NG: { code: 'NG', flag: '🇳🇬', name: 'Nigeria', cur: '₦', curName: 'Naira', locale: 'en-NG', dial: '+234', ph: '801 234 5678', digits: 10,
+    NG: { code: 'NG', flag: 'ng', name: 'Nigeria', cur: '₦', curName: 'Naira', locale: 'en-NG', dial: '+234', ph: '801 234 5678', digits: 10,
       minStake: 100, defStake: 100, chips: [100, 500, 1000, 5000], dep: [1000, 5000, 10000, 50000], depDef: 1000, demo: 25000,
       jackpot: 50000000, jackpotShort: '₦50M', ticket: 100, bonusMax: 100000, referral: 1000, b1: 'img/banner-1.jpg', b3: 'img/banner-3.jpg' },
-    GH: { code: 'GH', flag: '🇬🇭', name: 'Ghana', cur: 'GH₵', curName: 'Cedis', locale: 'en-GH', dial: '+233', ph: '24 123 4567', digits: 9,
+    GH: { code: 'GH', flag: 'gh', name: 'Ghana', cur: 'GH₵', curName: 'Cedis', locale: 'en-GH', dial: '+233', ph: '24 123 4567', digits: 9,
       minStake: 1, defStake: 5, chips: [1, 5, 10, 50], dep: [10, 50, 100, 500], depDef: 50, demo: 250,
       jackpot: 500000, jackpotShort: 'GH₵500K', ticket: 1, bonusMax: 1000, referral: 10, b1: 'img/banner-1-gh.jpg', b3: 'img/banner-3-gh.jpg' },
   };
@@ -39,10 +39,11 @@
     document.querySelectorAll('[data-t]').forEach(el => { el.textContent = T[el.dataset.t]; });
     const IMG = { b1: C.b1, b2: 'img/banner-2.jpg', b3: C.b3 };
     document.querySelectorAll('[data-img]').forEach(el => { el.style.backgroundImage = `url(${IMG[el.dataset.img]})`; });
-    document.querySelectorAll('.cc-flag').forEach(el => { el.textContent = C.flag; });
+    document.querySelectorAll('.cc-flag').forEach(el => { el.innerHTML = LBA.flag(C.flag); });
+    document.querySelectorAll('[data-flagc]').forEach(el => { el.innerHTML = LBA.flag(el.dataset.flagc); });
     document.querySelectorAll('.cc-name').forEach(el => { el.textContent = `${C.name} (${C.cur})`; });
     document.querySelectorAll('.cc-code').forEach(el => { el.textContent = C.code; });
-    document.querySelectorAll('.dial').forEach(el => { el.textContent = `${C.flag} ${C.dial}`; });
+    document.querySelectorAll('.dial').forEach(el => { el.innerHTML = `${LBA.flag(C.flag)} ${C.dial}`; });
     document.querySelectorAll('input[name=phone]').forEach(el => { el.placeholder = C.ph; });
     document.querySelectorAll('.cc-opt').forEach(el => el.classList.toggle('on', el.dataset.cc === CC));
     document.getElementById('stakeChips').innerHTML = C.chips.map(v => `<button data-add="${v}">+${short(v)}</button>`).join('');
@@ -84,6 +85,7 @@
     { id: 'darts', name: 'Darts', em: '🎯' },
     { id: 'vfootball', name: 'Virtual Football', em: '🎮', hidden: true },
   ];
+  SPORTS.forEach(sp => { sp.em = LBA.sport(sp.id); });
   const VISIBLE = () => SPORTS.filter(s => !s.hidden);
   const sportOf = id => SPORTS.find(s => s.id === id);
   // Two-way model parameters: T = expected total, sd = total sd, msd = margin sd
@@ -121,7 +123,8 @@
     { sport: 'mma', name: 'Fight Series', country: 'World', flag: '🥋', teams: ['A. Okoro', 'D. Silva', 'R. Kamau', 'L. Petrov'] },
     { sport: 'darts', name: 'Grand Prix', country: 'World', flag: '🎯', teams: ['P. Hartley', 'S. van Dijk', 'O. Bello', 'R. Fischer'] },
   ];
-  LEAGUES.forEach((l, i) => { l.idx = i; l.full = `${l.country} · ${l.name}`; });
+  const FLAG_OF = { England: 'eng', Spain: 'es', Italy: 'it', Germany: 'de', France: 'fr', Nigeria: 'ng', Ghana: 'gh', 'South Africa': 'za', UEFA: 'eu', Europe: 'eu', USA: 'us' };
+  LEAGUES.forEach((l, i) => { l.idx = i; l.full = `${l.country} · ${l.name}`; l.flag = FLAG_OF[l.country] ? LBA.flag(FLAG_OF[l.country]) : LBA.sport(l.sport); });
 
   /* ---------------- Match generation ---------------- */
   const NOW = Date.now();
@@ -337,7 +340,7 @@
     return long ? [ds, tm] : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + tm;
   };
   const shirt = name => `<span class="mh-shirt" style="--h:${hue(name)}"><svg viewBox="0 0 24 24"><path d="M8 3l-5 3 2 5 2-1v11h10V10l2 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z"/></svg></span>`;
-  const crest = (name, big) => `<i class="crest${big ? ' big' : ''}" style="--h:${hue(name)}">${esc(initials(name))}</i>`;
+  const crest = (name, big, sp) => LBA.crest(name, sp || 'football', big);
   const LOCK = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const isSel = (id, mk, ok) => state.slip.some(s => s.mid === id && s.mk === mk && s.ok === ok);
   const liveLabel = m => {
@@ -361,7 +364,7 @@
   /* ---------------- Lists ---------------- */
   function renderSportTabs(el, active, liveOnly) {
     let list = VISIBLE();
-    if (liveOnly) list = [{ id: 'all', name: 'All', em: '🔥' }, ...VISIBLE().filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
+    if (liveOnly) list = [{ id: 'all', name: 'All', em: LBA.sport('all') }, ...VISIBLE().filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
     const x = el.scrollLeft;
     el.innerHTML = list.map(s => {
       const n = s.id === 'all' ? MATCHES.filter(m => m.live).length : MATCHES.filter(m => m.sport === s.id && (!liveOnly || m.live)).length;
@@ -382,8 +385,8 @@
     return `<div class="match" style="--n:${cfg.outs.length}">
       <a class="m-info" href="#/match/${m.id}">
         <div class="m-meta">${meta}<span class="mid">ID: ${m.id}</span>${fav}</div>
-        <div class="m-team"><span>${esc(m.home)}</span>${m.live ? `<b>${m.score[0]}</b>` : ''}</div>
-        <div class="m-team"><span>${esc(m.away)}</span>${m.live ? `<b>${m.score[1]}</b>` : ''}</div>
+        <div class="m-team">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span>${m.live ? `<b>${m.score[0]}</b>` : ''}</div>
+        <div class="m-team">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span>${m.live ? `<b>${m.score[1]}</b>` : ''}</div>
       </a>
       <div class="m-odds">${cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('')}</div>
       <a class="m-more" href="#/match/${m.id}" aria-label="All markets">+${m.mk.reduce((s, x) => s + x.outs.filter(o => o.k).length, 0)}<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
@@ -436,8 +439,8 @@
       return `<div class="live-card">
         <a href="#/match/${m.id}" class="lc-link">
           <div class="lc-top"><span>${sportOf(m.sport).em} ${esc(league(m).name)}</span><span class="lc-min">● ${liveLabel(m)}</span></div>
-          <div class="lc-team">${crest(m.home)}<span>${esc(m.home)}</span><b>${m.score[0]}</b></div>
-          <div class="lc-team">${crest(m.away)}<span>${esc(m.away)}</span><b>${m.score[1]}</b></div>
+          <div class="lc-team">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span><b>${m.score[0]}</b></div>
+          <div class="lc-team">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span><b>${m.score[1]}</b></div>
         </a>
         <div class="lc-odds" style="grid-template-columns:repeat(${outs.length},1fr)">${outs.map(o => oddBtn(m, mk, o, o)).join('')}</div>
       </div>`;
@@ -454,7 +457,7 @@
 
   function renderLeague(idx) {
     const lg = LEAGUES[idx]; if (!lg) return go('home');
-    $('#lgSport').textContent = `${sportOf(lg.sport).em} ${sportOf(lg.sport).name} · ${lg.country}`;
+    $('#lgSport').innerHTML = `${sportOf(lg.sport).em} ${sportOf(lg.sport).name} · ${esc(lg.country)}`;
     $('#lgTitle').innerHTML = `${lg.flag} ${esc(lg.name)}`;
     renderMarketTabs($('#lgMarketTabs'), lg.sport);
     const list = MATCHES.filter(m => m.lg === lg.idx && !m.finished).sort((a, b) => (b.live - a.live) || a.kick - b.kick);
@@ -483,7 +486,7 @@
   function renderMatch(id, keepScroll) {
     const m = byId(id); if (!m) return go('home');
     const lg = league(m), sp = sportOf(m.sport);
-    $('#mdSport').textContent = `${sp.em} ${sp.name} · ${lg.country}`;
+    $('#mdSport').innerHTML = `${sp.em} ${sp.name} · ${esc(lg.country)}`;
     $('#mdLeague').innerHTML = `<a href="#/league/${lg.idx}">${esc(lg.name)}</a>`;
     $('#mdFav').classList.toggle('on', state.favs.includes(m.id));
 
@@ -510,9 +513,9 @@
       bar = `<div class="mh-bar"><div class="mh-track"><i style="width:${m.prog * 100}%"></i></div></div>`;
     }
     $('#mdHero').innerHTML = `<div class="mh-teams">
-        <div class="mh-team">${shirt(m.home)}<span>${esc(m.home)}</span></div>
+        <div class="mh-team">${crest(m.home, 1, m.sport)}<span>${esc(m.home)}</span></div>
         <div class="mh-mid">${mid}</div>
-        <div class="mh-team">${shirt(m.away)}<span>${esc(m.away)}</span></div>
+        <div class="mh-team">${crest(m.away, 1, m.sport)}<span>${esc(m.away)}</span></div>
       </div>${bar}
       <div class="mh-foot"><span>ID ${m.id}</span><span>${m.mk.length} markets</span>${m.live ? '<span class="live-pill">LIVE</span>' : '<span>Cashout available</span>'}</div>`;
 
@@ -545,7 +548,7 @@
       <div class="sbar"><i class="h" style="width:${pa}%"></i><i class="a" style="width:${100 - pa}%"></i></div></div>`;
   }
   function statsHTML(m) {
-    const legend = `<div class="slegend"><span>${crest(m.home)} ${esc(m.home)}</span><span>${esc(m.away)} ${crest(m.away)}</span></div>`;
+    const legend = `<div class="slegend"><span>${crest(m.home, 0, m.sport)} ${esc(m.home)}</span><span>${esc(m.away)} ${crest(m.away, 0, m.sport)}</span></div>`;
     if (m.two) {
       return `<div class="card-pad">${legend}${m.live ? statRow('Score', m.score[0], m.score[1]) : ''}
         <p class="muted center pad">Detailed ${sportOf(m.sport).name.toLowerCase()} statistics will appear here from the data provider.</p></div>`;
@@ -590,8 +593,8 @@
     const lg = league(m);
     return `<div class="card-pad">
       <h4 class="sh">Recent form</h4>
-      <div class="form-row">${crest(m.home)}<span>${esc(m.home)}</span><div class="pills">${pill(fh)}</div></div>
-      <div class="form-row">${crest(m.away)}<span>${esc(m.away)}</span><div class="pills">${pill(fa)}</div></div>
+      <div class="form-row">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span><div class="pills">${pill(fh)}</div></div>
+      <div class="form-row">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span><div class="pills">${pill(fa)}</div></div>
       <h4 class="sh">Head-to-head (last 5)</h4>
       <ul class="h2h">${h2h}</ul>
       <h4 class="sh">Match info</h4>
@@ -751,7 +754,7 @@
   function renderJackpot() {
     $('#jackpotList').innerHTML = JP.map((m, k) => `<div class="jp-row">
       <span class="n">${k + 1}</span>
-      <div class="t"><small class="muted">${league(m).flag} ${esc(league(m).name)} · ${fmtKick(m.kick)}</small><span>${esc(m.home)}</span><span>${esc(m.away)}</span></div>
+      <div class="t"><small class="muted">${league(m).flag} ${esc(league(m).name)} · ${fmtKick(m.kick)}</small><span>${crest(m.home)}${esc(m.home)}</span><span>${crest(m.away)}${esc(m.away)}</span></div>
       <div class="opts">${['1', 'X', '2'].map(o => `<button data-jp="${m.id}" data-o="${o}" class="${state.jp[m.id] === o ? 'sel' : ''}">${o}</button>`).join('')}</div>
     </div>`).join('');
     const n = Object.keys(state.jp).length;
@@ -866,7 +869,7 @@
   /* ---------------- Virtual football ---------------- */
   const VTEAMS = ['Lagos City', 'Accra United', 'Kumasi Stars', 'Abuja Kings', 'Kano Falcons', 'Tema Mariners', 'Ibadan Lions', 'Takoradi Sharks', 'Port Harcourt Rivers', 'Tamale Eagles', 'Benin Royals', 'Sunyani Leopards'];
   const VLG = LEAGUES.length;
-  LEAGUES.push({ sport: 'vfootball', name: 'Virtual League', country: 'LetBet Virtuals', flag: '🎮', idx: VLG, full: 'LetBet Virtual League', teams: VTEAMS });
+  LEAGUES.push({ sport: 'vfootball', name: 'Virtual League', country: 'LetBet Virtuals', flag: LBA.sport('vfootball'), idx: VLG, full: 'LetBet Virtual League', teams: VTEAMS });
   const VR_LEN = 120000;
   const VR = { round: 1000 + Math.floor(Date.now() / VR_LEN) % 9000, endsAt: 0, ids: [], last: [], lastRound: null };
   function vNewRound() {
@@ -900,7 +903,7 @@
     $('#vBar').style.width = (100 - left / VR_LEN * 100) + '%';
   }
   function resRow(m) {
-    return `<div class="res-row"><span class="rh">${esc(m.home)}</span><b class="rs">${m.ft[0]} - ${m.ft[1]}</b><span class="ra">${esc(m.away)}</span>${m.ht ? `<small class="rht">HT ${m.ht[0]}-${m.ht[1]}</small>` : ''}</div>`;
+    return `<div class="res-row"><span class="rh"><span>${esc(m.home)}</span>${crest(m.home, 0, m.sport)}</span><b class="rs">${m.ft[0]} - ${m.ft[1]}</b><span class="ra">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span></span>${m.ht ? `<small class="rht">HT ${m.ht[0]}-${m.ht[1]}</small>` : ''}</div>`;
   }
   function renderVirtuals() {
     $('#vRound').textContent = '#' + VR.round;

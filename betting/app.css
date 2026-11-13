@@ -611,3 +611,28 @@ body[data-page="jackpot"] .slip-pill{display:none}
 .faq[open] summary::after{content:"−"}
 .faq p{margin-top:6px;color:#444a52}
 @media (min-width:768px){ .games-grid{grid-template-columns:repeat(4,1fr)} .acct-grid{grid-template-columns:repeat(8,1fr)} .acct-grid a:nth-child(4n){border-right:1px solid var(--line)} }
+
+/* ---------- Crests, flags, sport icons ---------- */
+.crest{display:inline-block;width:16px;height:19px;flex:none;vertical-align:middle}
+.crest.big{width:54px;height:65px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+.flg{display:inline-block;width:18px;height:12px;border-radius:2px;vertical-align:middle;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.1);overflow:hidden}
+.sp-ic{display:inline-block;width:16px;height:16px;vertical-align:-3px;flex:none;stroke-width:1.7}
+.m-team{justify-content:flex-start;align-items:center;gap:6px}
+.m-team span{flex:1;min-width:0}
+.lc-team .crest{margin-right:1px}
+.mh-team .crest{margin-bottom:2px}
+.sport-tabs button{display:flex;align-items:center;gap:6px}
+.sport-tabs button .em{display:inline-flex}
+.sport-tabs button .em .sp-ic{width:17px;height:17px}
+.az-list .em{display:inline-flex;width:auto}
+.az-list .em .sp-ic{width:18px;height:18px;color:var(--brand)}
+.left-rail .sp-ic{color:var(--brand)}
+.res-row .rh,.res-row .ra{display:flex;align-items:center;gap:6px;min-width:0}
+.res-row .rh{justify-content:flex-end}
+.res-row .rh span,.res-row .ra span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jp-row .t span{display:flex;align-items:center;gap:6px}
+.form-row .crest,.slegend .crest{width:18px;height:22px}
+.slegend span:first-child::before,.slegend span:last-child::after{display:none}
+.cc-opt .f .flg{width:30px;height:20px}
+.dial .flg{margin-right:3px}
+.lc-top .sp-ic{width:13px;height:13px;vertical-align:-2px}
