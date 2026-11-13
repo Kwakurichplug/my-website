@@ -686,7 +686,7 @@
     const total = valid.reduce((a, s) => a * s.odd, 1);
     $('#pillOdds').textContent = 'Total odds ' + (n ? total.toFixed(2) : '0.00');
     const pill = n > 0 && !$('#betslip').classList.contains('open');
-    $('#slipPill').classList.toggle('show', pill); document.body.classList.toggle('has-pill', n > 0);
+    $('#slipPill').classList.toggle('show', pill); $('#slipPill').classList.toggle('empty', n === 0); document.body.classList.toggle('has-pill', n > 0);
     $$('.bs-tabs button').forEach(b => b.classList.toggle('active', b.dataset.bstype === state.slipType));
 
     if (!n) {
@@ -765,17 +765,12 @@
   }
 
   /* ---------------- Account ---------------- */
-  function renderMe() {
+  function betsHTML() {
     const u = state.user;
-    $('#meName').textContent = u ? C.dial + ' ' + u.phone : 'Guest';
-    $('#meSub').textContent = u ? (u.verified ? 'Verified' : 'Not verified') + ' · ID ' + (u.uid || '—') : 'Login to view your bets and balance';
-    $('#meBal').textContent = naira(u ? u.balance : 0);
-    $('#logoutBtn').hidden = !u;
-    $$('[data-bets]').forEach(b => b.classList.toggle('active', b.dataset.bets === state.betsTab));
     const list = state.bets.filter(b => state.betsTab === 'open' ? b.status === 'open' : b.status !== 'open');
-    $('#myBets').innerHTML = !u
-      ? `<div class="empty"><span class="big">🔒</span>Login to see your bets<br><button class="btn btn-accent sm mt" data-open="loginModal">Login</button></div>`
-      : !list.length ? `<div class="empty"><span class="big">🎫</span>No ${state.betsTab} bets yet.<br><a class="btn btn-ghost sm mt" href="#/home">Browse matches</a></div>`
+    const tabs = `<div class="list-tabs"><button data-bets="open" class="${state.betsTab === 'open' ? 'active' : ''}">Open Bets (${state.bets.filter(b => b.status === 'open').length})</button><button data-bets="settled" class="${state.betsTab !== 'open' ? 'active' : ''}">Settled</button></div>`;
+    if (!u) return `<div class="empty">Log in to see your bets.<br><button class="btn btn-accent sm mt" data-open="loginModal">Log in</button></div>`;
+    return tabs + (!list.length ? `<div class="empty">No ${state.betsTab} bets yet.<br><a class="btn btn-ghost sm mt" href="#/home">Browse matches</a></div>`
       : list.map(b => {
         const co = b.status === 'open' ? cashoutValue(b) : null;
         return `<div class="bet-card">
@@ -784,7 +779,22 @@
           <div class="bf"><span>Stake ${naira(b.stake)}<br><small class="muted">Odds ${b.odds.toFixed(2)}${b.boost ? ` · +${b.boost}% boost` : ''}</small></span><span class="${b.status === 'lost' ? 'lostc' : 'accent'}">${b.status === 'cashout' ? 'Returned ' + naira(b.paid) : b.status === 'won' ? 'Paid ' + naira(b.paid) : b.status === 'void' ? 'Refunded ' + naira(b.paid) : b.status === 'lost' ? 'Lost' : 'To win ' + naira(b.win)}</span></div>
           ${b.status === 'open' ? `<button class="btn ${co ? 'btn-gold' : 'btn-ghost'} block mt" data-cashout="${b.id}" ${co ? '' : 'disabled'}>${co ? 'Cashout ' + naira(co) : 'Cashout unavailable'}</button>` : ''}
         </div>`;
-      }).join('');
+      }).join(''));
+  }
+  function renderMe() {
+    const u = state.user;
+    $('#meName').textContent = u ? C.dial + ' ' + u.phone : 'Login to View';
+    $('#meUserLink').dataset.open = u ? '' : 'loginModal';
+    $('#meSub').textContent = u ? `ID ${u.uid || '—'}` : '';
+    $('#meBal').textContent = u ? money(u.balance) : `${C.cur} --`;
+    $('#meLoyal').textContent = u ? 'Member · Bronze' : 'Log in to join';
+    $('#meVer').textContent = u ? (u.verified ? 'Verified' : 'Not verified') : '';
+    const open = state.bets.filter(b => b.status === 'open').length;
+    $('#meOpenCnt').textContent = u && open ? open : '';
+    $('#meMsgDot').hidden = !u;
+    $('#logoutBtn').hidden = !u;
+    if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML();
+    const nb = $('#navOpen'); if (nb) nb.textContent = u && open ? open : '';
   }
 
   let lastBal = null;
@@ -917,7 +927,7 @@
   }
   function updateLiveBadges() {
     const n = MATCHES.filter(m => m.live).length;
-    $('#navLive').textContent = n; $('#liveCountHome').textContent = n;
+    const nl = $('#navLive'); if (nl) nl.textContent = n; $('#liveCountHome').textContent = n;
   }
 
   /* ---------------- Virtual football ---------------- */
@@ -995,29 +1005,25 @@
   }
 
   /* ---------------- Games lobby ---------------- */
-  const GAMES = [
-    { n: 'Rocket Crash', d: 'Cash out before it crashes', c: '#c62828', i: '<path d="M12 3c3 2 4 6 4 9l-4 4-4-4c0-3 1-7 4-9z"/><circle cx="12" cy="10" r="1.5"/><path d="M8 16l-2 4 4-2M16 16l2 4-4-2"/>' },
-    { n: 'Spin & Win', d: 'Spin the wheel for multipliers', c: '#6a1b9a', i: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/>' },
-    { n: 'Penalty Kick', d: 'Pick your corner and score', c: '#0a7d3e', i: '<rect x="3" y="6" width="18" height="10"/><circle cx="12" cy="19" r="2"/>' },
-    { n: 'Lucky Dice', d: 'High, low or seven', c: '#1565c0', i: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/><circle cx="15" cy="9" r="1"/><circle cx="9" cy="15" r="1"/>' },
-    { n: 'Keno', d: 'Pick up to 10 numbers', c: '#ef6c00', i: '<circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="7" cy="17" r="3"/><circle cx="17" cy="17" r="3"/>' },
-    { n: 'Scratch Cards', d: 'Match three to win', c: '#00838f', i: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10l3 3M10 10l-3 3M14 10h3M14 13h3"/>' },
-    { n: 'Hi-Lo Cards', d: 'Higher or lower?', c: '#4e342e', i: '<rect x="5" y="3" width="11" height="16" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/>' },
-    { n: 'Number Rush', d: 'Daily lucky numbers draw', c: '#37474f', i: '<path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16"/>' },
-  ];
-  function renderGames() {
-    $('#gamesGrid').innerHTML = GAMES.map(g => `<button class="game" data-game="${esc(g.n)}"><span class="g-ic" style="background:${g.c}"><svg viewBox="0 0 24 24">${g.i}</svg></span><b>${g.n}</b><small>${g.d}</small><em>Coming soon</em></button>`).join('');
-  }
+  function renderGames() { window.Games && Games.renderLobby(C.name); }
 
   /* ---------------- Account sub-pages ---------------- */
-  const ACCT = { tx: 'Transactions', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
+  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
     $('#acTitle').textContent = ACCT[sec];
     const u = state.user;
-    const needLogin = !['help', 'limits'].includes(sec) && !u;
+    const needLogin = !['help', 'limits', 'how', 'bets'].includes(sec) && !u;
     if (needLogin) { $('#acBody').innerHTML = `<div class="empty">Please login to continue.<br><button class="btn btn-accent sm mt" data-open="loginModal">Login</button></div>`; return; }
     const H = {
+      bets: () => betsHTML(),
+      how: () => `<div class="card-pad how">${[
+        ['1', 'Pick your odds', 'Tap any price on a match. It goes into your betslip.'],
+        ['2', 'Single or multiple', 'Bet each pick on its own, or combine 3+ picks for an Acca Win Boost.'],
+        ['3', 'Enter your stake', `Minimum stake is ${whole(C.minStake)}. Your potential win updates as you type.`],
+        ['4', 'Place your bet', 'Log in and tap Place Bet. Follow it live under Open Bets.'],
+        ['5', 'Cash out or collect', 'Take a cashout early, or let it ride. Winnings land in your balance automatically.']]
+        .map(([n, t, d]) => `<div class="how-step"><b>${n}</b><div><strong>${t}</strong><p>${d}</p></div></div>`).join('')}</div>`,
       tx: () => {
         const f = state.txFilter || 'all';
         const F = { all: 'All', in: 'Money in', out: 'Money out' };
@@ -1083,7 +1089,7 @@
   });
 
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;
@@ -1098,7 +1104,7 @@
     if (page === 'match' && state.arg !== arg) { state.mdTab = 'markets'; state.mdGroup = 'All'; }
     state.route = page; state.arg = arg;
     $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
-    const navKey = page === 'match' || page === 'league' ? null : page === 'acct' ? 'me' : page;
+    const navKey = page === 'match' || page === 'league' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' ? 'games' : page;
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
     closeDrawer(); closeSlip(); closeSearch();
     document.body.dataset.page = page;
@@ -1191,7 +1197,7 @@
     if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
     if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
     if (d.break) { if (!state.user) return openModal('loginModal'); return toast(`Self-exclusion request for ${d.break} received`); }
-    if (d.game) return toast(`${d.game} is coming soon`);
+    if (d.soon) { e.preventDefault(); return toast(`${d.soon} is coming soon`); }
     if ('chat' in d) return toast('Live chat will connect to your support desk');
     if (d.list) { state.list = d.list; return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
@@ -1258,6 +1264,8 @@
     $('#bsPlace').textContent = `Place Bet · ${naira(valid.reduce((a, x) => a + (+x.stake || 0), 0))}`;
   });
   $('#sportSearch').addEventListener('input', e => renderAZ(e.target.value));
+  $('#gSearch').addEventListener('input', renderGames);
+  $('#gCat').addEventListener('change', renderGames);
   $('#searchInput').addEventListener('input', e => renderSearch(e.target.value));
 
   $$('form[data-auth]').forEach(f => f.addEventListener('submit', e => {
@@ -1335,6 +1343,15 @@
   /* ---------------- Init ---------------- */
   applyCountry();
   $('#yr').textContent = new Date().getFullYear();
+  $('#payRow').innerHTML = (CC === 'GH' ? ['MTN MoMo', 'Telecel Cash', 'AT Money', 'VISA', 'Mastercard', 'Bank'] : ['OPay', 'PalmPay', 'Quickteller', 'Verve', 'VISA', 'Mastercard']).map(x => `<span>${x}</span>`).join('');
+  $('#footLic').textContent = `Age 18 and above only. Betting can be addictive – please play responsibly. LetBetAfrika ${C.name} operates under licence from ${CC === 'GH' ? 'the Gaming Commission of Ghana' : 'the National Lottery Regulatory Commission of Nigeria'} (licence pending).`;
+  if (window.Games) Games.initCrash({
+    C, money, whole, toast,
+    user: () => state.user,
+    login: () => openModal('loginModal'),
+    debit: (v, why) => { state.user.balance -= v; addTx(why, -v); saveUser(); renderAuth(); },
+    credit: (v, why) => { if (!state.user) return; state.user.balance += v; addTx(why, v); saveUser(); renderAuth(); },
+  });
   syncSlipOdds();
   seedResults(); vNewRound();
   renderRails(); renderAuth(); renderSlip(); updateLiveBadges();

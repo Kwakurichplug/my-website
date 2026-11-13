@@ -186,34 +186,34 @@
 
     <!-- ============ ME ============ -->
     <section class="page" id="page-me">
-      <div class="me-card">
-        <div class="avatar"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></div>
-        <div>
-          <h3 id="meName">Guest</h3>
-          <p class="muted" id="meSub">Login to view your bets and balance</p>
+      <div class="me-dark">
+        <div class="me-top">
+          <a href="#" class="me-user" id="meUserLink"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><circle cx="12" cy="9.5" r="3.6" fill="#1b1e25" stroke="none"/><path d="M5.6 18.6c1.4-2.6 3.6-3.9 6.4-3.9s5 1.3 6.4 3.9" fill="#1b1e25" stroke="none"/></svg><span id="meName">Login to View</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
+          <span class="me-sub" id="meSub"></span>
+        </div>
+        <div class="me-bal"><span>Total Balance</span><b id="meBal">--</b></div>
+        <div class="me-actions">
+          <button class="me-dep" data-open="depositModal"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Deposit</button>
+          <button class="me-wd" data-open="depositModal" data-mode="withdraw"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="1.5"/><path d="M9 9h6M12 7v8M9.5 13.5c.4.8 1.4 1.3 2.5 1.3"/></svg>Withdraw</button>
+        </div>
+        <a class="me-loyal" href="#/promos"><b>LetBet Rewards</b><span id="meLoyal">Log in to join</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
+        <div class="me-quick">
+          <a href="#/acct/bets"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Bet History</span><em id="meOpenCnt"></em></a>
+          <a href="#/acct/tx"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/><path d="M12 8v8M10 10.5c0-1 .9-1.5 2-1.5s2 .5 2 1.5-1 1.3-2 1.5-2 .5-2 1.5.9 1.5 2 1.5 2-.5 2-1.5"/></svg><span>Transaction Records</span></a>
+          <a href="#/acct/bonus"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg><span>Bonuses &amp; Gifts</span></a>
         </div>
       </div>
-      <div class="wallet">
-        <div><small>Balance</small><strong id="meBal">0.00</strong></div>
-        <button class="btn btn-dark sm" data-open="depositModal">Deposit</button>
-        <button class="btn btn-glass sm" data-open="depositModal" data-mode="withdraw">Withdraw</button>
-      </div>
-      <div class="list-tabs">
-        <button class="active" data-bets="open">Open Bets</button>
-        <button data-bets="settled">Settled</button>
-      </div>
-      <div id="myBets"></div>
-      <div class="acct-grid">
-        <a href="#/acct/tx"><svg viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transactions</span></a>
-        <a href="#/acct/bonus"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg><span>Bonuses</span></a>
-        <a href="#/acct/refer"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M17 8v6M14 11h6"/></svg><span>Refer & Earn</span></a>
-        <a href="#/acct/messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Messages</span></a>
-        <a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span></a>
-        <a href="#/acct/security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Password</span></a>
-        <a href="#/acct/limits"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg><span>Responsible Gambling</span></a>
-        <a href="#/acct/help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></svg><span>Help & Support</span></a>
-      </div>
-      <button class="logout-btn" id="logoutBtn" hidden>Log out</button>
+      <ul class="me-list">
+        <li><a href="#/acct/refer"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M17 8v6M14 11h6"/></svg><span>Refer &amp; Earn</span><em class="new">NEW</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Messages</span><em class="dot" id="meMsgDot"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span><em class="muted" id="meVer"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Change Password</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/limits"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg><span>Responsible Gambling</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/help"><svg viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 16 0"/><rect x="2.5" y="13" width="4" height="6" rx="1.5"/><rect x="17.5" y="13" width="4" height="6" rx="1.5"/><path d="M19.5 19c0 1.5-2 2.5-5 2.5"/></svg><span>Customer Service</span><em class="muted">Online 24/7</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/how"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg><span>How to Play</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><button data-open-cc><span class="cc-flag"></span><span>Country &amp; Currency</span><em class="muted cc-name"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button></li>
+        <li id="logoutBtn" hidden><button><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg><span>Log out</span></button></li>
+      </ul>
     </section>
 
     <!-- ============ VIRTUALS ============ -->
@@ -231,8 +231,26 @@
 
     <!-- ============ GAMES ============ -->
     <section class="page" id="page-games">
-      <div class="page-title"><h1>Games</h1><span class="muted">Instant win</span></div>
-      <div class="games-grid" id="gamesGrid"></div>
+      <div class="gl">
+        <div class="gl-top"><label class="gl-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="gSearch" placeholder="Search games"></label>
+          <select id="gCat"><option value="all">All games</option><option value="crash">Crash</option><option value="instant">Instant win</option><option value="sports">Sports games</option></select></div>
+        <div id="gLobby"></div>
+      </div>
+    </section>
+
+    <!-- ============ ROCKET CRASH ============ -->
+    <section class="page" id="page-play">
+      <div class="cr">
+        <div class="cr-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><b>Rocket Crash</b><span class="cr-hist" id="crHist"></span></div>
+        <div class="cr-stage"><canvas id="crCanvas"></canvas><div class="cr-mult" id="crMult">1.00x</div><div class="cr-msg" id="crMsg">Next round in 5s</div></div>
+        <div class="cr-panel">
+          <div class="cr-stake"><button data-cr="-">−</button><input id="crStake" type="number" inputmode="decimal"><button data-cr="+">+</button></div>
+          <div class="cr-quick" id="crQuick"></div>
+          <label class="cr-auto">Auto cash-out at <input id="crAuto" type="number" step="0.1" min="1.1" placeholder="off">x</label>
+          <button class="cr-btn" id="crBtn">Bet</button>
+        </div>
+        <div class="cr-live"><div class="cr-live-h"><span>All bets</span><b id="crCount"></b></div><div id="crBets"></div></div>
+      </div>
     </section>
 
     <!-- ============ RESULTS ============ -->
@@ -252,12 +270,16 @@
     </section>
 
     <footer class="site-foot">
-      <div class="foot-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
-      <div class="foot-links"><a href="#">About</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Responsible Gambling</a><a href="#">Help</a></div>
-      <button class="cc-foot" data-open-cc><span class="cc-flag"></span> <span class="cc-name"></span> · Change country</button>
-      <div class="pay-row"><span>VISA</span><span>Mastercard</span><span>Verve</span><span>Bank Transfer</span><span>USSD</span><span>Mobile Money</span></div>
-      <p><b class="age">18+</b> Gambling can be addictive. Please play responsibly. Licensed and regulated by the relevant gaming authority.</p>
-      <p class="muted">© <span id="yr"></span> LetBetAfrika. All rights reserved.</p>
+      <div class="foot-strip"><span class="age">18+</span><span>© <span id="yr"></span> LetBetAfrika. All rights reserved.</span></div>
+      <div class="foot-dark">
+        <div class="foot-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+        <p class="foot-tag">Africa's home of sports betting</p>
+        <p class="foot-h">Payment methods</p>
+        <div class="pay-row" id="payRow"></div>
+        <div class="foot-links"><a href="#/acct/how">How to Play</a><a href="#/acct/help">Help</a><a href="#/acct/limits">Responsible Gambling</a><a href="#">Terms</a><a href="#">Privacy</a></div>
+        <button class="cc-foot" data-open-cc><span class="cc-flag"></span> <span class="cc-name"></span> · Change</button>
+        <p class="foot-lic" id="footLic"></p>
+      </div>
     </footer>
   </main>
 
@@ -302,8 +324,8 @@
 <nav class="bottom-nav">
   <a href="#/home" data-route="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
   <a href="#/sports" data-route="sports"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>AZ Menu</a>
-  <a href="#/live" data-route="live"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4M10 11l5 2.5-5 2.5z"/></svg>Live<i class="nav-badge live-badge" id="navLive"></i></a>
-  <a href="#/games" data-route="games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
+  <a href="#/games" data-route="games" class="nav-games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
+  <a href="#/acct/bets" data-route="bets"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/><path d="M12 8v8M10 10.5c0-1 .9-1.5 2-1.5s2 .5 2 1.5-1 1.3-2 1.5-2 .5-2 1.5.9 1.5 2 1.5 2-.5 2-1.5"/></svg>Open Bets<i class="nav-badge" id="navOpen"></i></a>
   <a href="#/me" data-route="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me</a>
 </nav>
 
@@ -391,6 +413,7 @@
 
 <script src="motion.js"></script>
 <script src="icons.js"></script>
+<script src="games.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
