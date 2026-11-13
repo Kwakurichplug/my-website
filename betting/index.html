@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1220" />
-  <title>LetBetAfrika – Sports Betting</title>
+  <meta name="theme-color" content="#0a7d3e" />
+  <title>LetBetAfrika Sportsbook</title>
   <meta name="description" content="LetBetAfrika – live sports betting, best odds, instant payouts." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Kanit:ital,wght@1,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="app.css" />
 </head>
 <body>
@@ -19,7 +19,7 @@
       <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <a class="logo" href="#/home">
-      <span class="logo-mark">L</span><span class="logo-text">LetBet<b>Afrika</b></span>
+      <span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt="">
     </a>
     <button class="icon-btn search-btn" id="searchBtn" aria-label="Search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
@@ -51,28 +51,19 @@
 
       <div class="carousel" id="carousel">
         <div class="slides" id="slides">
-          <div class="slide s1">
-            <div><small>WELCOME OFFER</small><h3>200% First Deposit Bonus</h3><p>Up to ₦100,000 on your first deposit</p><button class="btn btn-dark sm" data-open="registerModal">Claim Now</button></div>
-            <div class="slide-art">⚽</div>
-          </div>
-          <div class="slide s2">
-            <div><small>ACCA BOOST</small><h3>Up to 1000% Win Boost</h3><p>Add 3+ selections to your multiple</p><a class="btn btn-light sm" href="#/home">Build Acca</a></div>
-            <div class="slide-art">🚀</div>
-          </div>
-          <div class="slide s3">
-            <div><small>WEEKLY JACKPOT</small><h3>₦50,000,000 Jackpot</h3><p>Predict 12 games correctly</p><a class="btn btn-light sm" href="#/jackpot">Play Jackpot</a></div>
-            <div class="slide-art">🏆</div>
-          </div>
+          <a class="slide" href="#" data-open="registerModal" style="background-image:url(img/banner-1.jpg)" aria-label="200% welcome bonus up to ₦100,000"></a>
+          <a class="slide" href="#/home" style="background-image:url(img/banner-2.jpg)" aria-label="Acca win boost up to 1000%"></a>
+          <a class="slide" href="#/jackpot" style="background-image:url(img/banner-3.jpg)" aria-label="₦50,000,000 jackpot"></a>
         </div>
         <div class="dots" id="dots"></div>
       </div>
 
       <div class="quick-links">
-        <a href="#/live"><span class="ql-ic ql-live"><span class="live-dot"></span></span>Live</a>
-        <a href="#/jackpot"><span class="ql-ic">🏆</span>Jackpot</a>
-        <a href="#" data-filter="today"><span class="ql-ic">📅</span>Today</a>
-        <a href="#/promos"><span class="ql-ic">🎁</span>Promos</a>
-        <a href="#" data-open="codeModal"><span class="ql-ic">🔖</span>Load Code</a>
+        <a href="#/live"><span class="ql-ic red"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/></svg></span>Live</a>
+        <a href="#/jackpot"><span class="ql-ic gold"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg></span>Jackpot</a>
+        <a href="#" data-filter="today"><span class="ql-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span>Today</a>
+        <a href="#/promos"><span class="ql-ic"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg></span>Promotions</a>
+        <a href="#" data-open="codeModal"><span class="ql-ic"><svg viewBox="0 0 24 24"><path d="M5 4h14v16l-7-4-7 4z"/></svg></span>Booking Code</a>
       </div>
 
       <div class="section-head">
@@ -82,7 +73,7 @@
       <div class="live-strip" id="liveStrip"></div>
 
       <div class="section-head">
-        <h2>🔥 Top Leagues</h2>
+        <h2>Top Leagues</h2>
       </div>
       <div class="league-chips" id="leagueChips"></div>
 
@@ -160,19 +151,19 @@
     <section class="page" id="page-promos">
       <div class="page-title"><h1>Promotions</h1></div>
       <div class="promo-grid">
-        <article class="promo s1"><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to ₦100,000.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
-        <article class="promo s2"><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
-        <article class="promo s3"><span class="tag">WEEKLY</span><h3>₦50M Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
-        <article class="promo s4"><span class="tag">ALL USERS</span><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
-        <article class="promo s5"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get ₦1,000 for every friend who joins and bets.</p></article>
-        <article class="promo s6"><span class="tag">LIVE</span><h3>Live Odds Boost</h3><p>Daily boosted odds on top live matches.</p></article>
+        <article class="promo"><span class="ph" style="background-image:url(img/banner-1.jpg)"></span><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to ₦100,000.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
+        <article class="promo"><span class="ph" style="background-image:url(img/banner-2.jpg)"></span><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
+        <article class="promo"><span class="ph" style="background-image:url(img/banner-3.jpg)"></span><span class="tag">WEEKLY</span><h3>₦50M Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
+        <article class="promo"><span class="tag">ALL USERS</span><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
+        <article class="promo"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get ₦1,000 for every friend who joins and bets.</p></article>
+        <article class="promo"><span class="tag">LIVE</span><h3>Live Odds Boost</h3><p>Daily boosted odds on top live matches.</p></article>
       </div>
     </section>
 
     <!-- ============ ME ============ -->
     <section class="page" id="page-me">
       <div class="me-card">
-        <div class="avatar">👤</div>
+        <div class="avatar"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></div>
         <div>
           <h3 id="meName">Guest</h3>
           <p class="muted" id="meSub">Login to view your bets and balance</p>
@@ -195,7 +186,7 @@
     </section>
 
     <footer class="site-foot">
-      <div class="foot-logo"><span class="logo-mark">L</span><span class="logo-text">LetBet<b>Afrika</b></span></div>
+      <div class="foot-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
       <div class="foot-links"><a href="#">About</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Responsible Gambling</a><a href="#">Help</a></div>
       <div class="pay-row"><span>VISA</span><span>Mastercard</span><span>Verve</span><span>Bank Transfer</span><span>USSD</span><span>Mobile Money</span></div>
       <p><b class="age">18+</b> Gambling can be addictive. Please play responsibly. Licensed and regulated by the relevant gaming authority.</p>
@@ -251,15 +242,15 @@
 
 <!-- Side drawer -->
 <div class="drawer" id="drawer">
-  <div class="drawer-head"><span class="logo-mark">L</span><span class="logo-text">LetBet<b>Afrika</b></span></div>
-  <a href="#/home">🏠 Home</a>
-  <a href="#/live">🔴 Live Betting</a>
-  <a href="#/sports">📋 A–Z Sports</a>
-  <a href="#/jackpot">🏆 Jackpot</a>
-  <a href="#/promos">🎁 Promotions</a>
-  <a href="#/me">🎫 My Bets</a>
-  <a href="#" data-open="depositModal">💳 Deposit</a>
-  <a href="#" data-open="codeModal">🔖 Load Booking Code</a>
+  <div class="drawer-head"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+  <a href="#/home">Home</a>
+  <a href="#/live">Live Betting</a>
+  <a href="#/sports">A–Z Sports</a>
+  <a href="#/jackpot">Jackpot</a>
+  <a href="#/promos">Promotions</a>
+  <a href="#/me">My Bets</a>
+  <a href="#" data-open="depositModal">Deposit</a>
+  <a href="#" data-open="codeModal">Load Booking Code</a>
   <div class="drawer-foot"><b class="age">18+</b> Bet responsibly</div>
 </div>
 
@@ -276,7 +267,7 @@
 <div class="modal" id="loginModal">
   <form class="modal-card" data-auth="login">
     <button type="button" class="modal-x" data-close>×</button>
-    <div class="modal-logo"><span class="logo-mark">L</span></div>
+    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Welcome back</h2>
     <label>Mobile Number<div class="phone"><span>🇳🇬 +234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>
     <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
@@ -287,7 +278,7 @@
 <div class="modal" id="registerModal">
   <form class="modal-card" data-auth="register">
     <button type="button" class="modal-x" data-close>×</button>
-    <div class="modal-logo"><span class="logo-mark">L</span></div>
+    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Create account</h2>
     <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
     <label>Mobile Number<div class="phone"><span>🇳🇬 +234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>

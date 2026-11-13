@@ -300,6 +300,7 @@
     const ds = d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' });
     return long ? [ds, tm] : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + tm;
   };
+  const shirt = name => `<span class="mh-shirt" style="--h:${hue(name)}"><svg viewBox="0 0 24 24"><path d="M8 3l-5 3 2 5 2-1v11h10V10l2 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z"/></svg></span>`;
   const crest = (name, big) => `<i class="crest${big ? ' big' : ''}" style="--h:${hue(name)}">${esc(initials(name))}</i>`;
   const LOCK = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const isSel = (id, mk, ok) => state.slip.some(s => s.mid === id && s.mk === mk && s.ok === ok);
@@ -344,7 +345,7 @@
     const fav = state.favs.includes(m.id) ? '<span class="star">★</span>' : '';
     return `<div class="match" style="--n:${cfg.outs.length}">
       <a class="m-info" href="#/match/${m.id}">
-        <div class="m-meta">${meta}<span class="mid">ID ${m.id}</span>${fav}</div>
+        <div class="m-meta">${meta}<span class="mid">ID: ${m.id}</span>${fav}</div>
         <div class="m-team"><span>${esc(m.home)}</span>${m.live ? `<b>${m.score[0]}</b>` : ''}</div>
         <div class="m-team"><span>${esc(m.away)}</span>${m.live ? `<b>${m.score[1]}</b>` : ''}</div>
       </a>
@@ -457,16 +458,16 @@
         <div class="mh-mini">
           <div><b>${m.st.poss[0]}%</b><span>Possession</span><b>${m.st.poss[1]}%</b></div>
           <div class="pbar"><i style="width:${m.st.poss[0]}%"></i></div>
-          <div class="mini-row"><span>🎯 ${m.st.sot[0]}</span><span>Shots on target</span><span>${m.st.sot[1]} 🎯</span></div>
-          <div class="mini-row"><span>⛳ ${m.st.corners[0]}</span><span>Corners</span><span>${m.st.corners[1]} ⛳</span></div>
+          <div class="mini-row"><span>${m.st.sot[0]}</span><span>Shots on target</span><span>${m.st.sot[1]}</span></div>
+          <div class="mini-row"><span>${m.st.corners[0]}</span><span>Corners</span><span>${m.st.corners[1]}</span></div>
         </div>`;
     } else if (m.live) {
       bar = `<div class="mh-bar"><div class="mh-track"><i style="width:${m.prog * 100}%"></i></div></div>`;
     }
     $('#mdHero').innerHTML = `<div class="mh-teams">
-        <div class="mh-team">${crest(m.home, 1)}<span>${esc(m.home)}</span></div>
+        <div class="mh-team">${shirt(m.home)}<span>${esc(m.home)}</span></div>
         <div class="mh-mid">${mid}</div>
-        <div class="mh-team">${crest(m.away, 1)}<span>${esc(m.away)}</span></div>
+        <div class="mh-team">${shirt(m.away)}<span>${esc(m.away)}</span></div>
       </div>${bar}
       <div class="mh-foot"><span>ID ${m.id}</span><span>${m.mk.length} markets</span>${m.live ? '<span class="live-pill">LIVE</span>' : '<span>Cashout available</span>'}</div>`;
 
@@ -593,8 +594,9 @@
     $('#pillCount').textContent = n;
     const valid = state.slip.filter(s => !s.susp);
     const total = valid.reduce((a, s) => a * s.odd, 1);
-    $('#pillOdds').textContent = 'Odds ' + (n ? total.toFixed(2) : '0.00');
-    $('#slipPill').classList.toggle('show', n > 0 && !$('#betslip').classList.contains('open'));
+    $('#pillOdds').textContent = 'Total odds ' + (n ? total.toFixed(2) : '0.00');
+    const pill = n > 0 && !$('#betslip').classList.contains('open');
+    $('#slipPill').classList.toggle('show', pill); document.body.classList.toggle('has-pill', n > 0);
     $$('.bs-tabs button').forEach(b => b.classList.toggle('active', b.dataset.bstype === state.slipType));
 
     if (!n) {
@@ -651,7 +653,7 @@
       state.bets.unshift({ id: 'T' + Date.now().toString(36).toUpperCase(), at: Date.now(), type: `Multiple · ${legs.length} legs`, legs, stake, odds: total, boost, win: base + (base - stake) * boost / 100, status: 'open' });
     }
     state.slip = []; state.slipType = 'multi'; saveSlip(); saveUser(); saveBets();
-    toast('✅ Bet placed successfully!');
+    toast('Bet placed successfully');
     closeSlip(); renderAfterSlipChange(); renderAuth();
   }
 
@@ -815,7 +817,7 @@
       const b = state.bets.find(x => x.id === d.cashout), v = b && cashoutValue(b);
       if (!v) return;
       b.status = 'cashout'; b.paid = v; state.user.balance += v; saveBets(); saveUser();
-      toast(`💰 Cashed out ${naira(v)}`); renderMe(); return renderAuth();
+      toast(`Cashed out ${naira(v)}`); renderMe(); return renderAuth();
     }
     switch (t.id) {
       case 'menuBtn': $('#drawer').classList.add('open'); $('#scrim').classList.add('on'); break;
@@ -844,7 +846,7 @@
         if (!state.user) { openModal('loginModal'); break; }
         if (state.user.balance < 100) { openModal('depositModal'); toast('Insufficient balance', 'err'); break; }
         state.user.balance -= 100; saveUser(); state.jp = {}; renderJackpot(); renderAuth();
-        toast('🏆 Jackpot ticket submitted. Good luck!'); break;
+        toast('Jackpot ticket submitted. Good luck!'); break;
     }
   });
   $('#logoutBtn').addEventListener('click', () => { state.user = null; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
@@ -871,7 +873,7 @@
     const prev = store.get('user', null);
     state.user = !reg && prev && prev.phone === phone ? prev : { phone, balance: reg ? 0 : 25000, uid: Math.floor(1e7 + Math.random() * 9e7) };
     saveUser(); closeModals(); renderAuth(); renderCurrent(true);
-    toast(reg ? '🎉 Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back! Demo balance ₦25,000');
+    toast(reg ? 'Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back! Demo balance ₦25,000');
   }));
   $('#depositForm').addEventListener('submit', e => {
     e.preventDefault();
