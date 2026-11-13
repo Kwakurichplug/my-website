@@ -82,7 +82,9 @@
     { id: 'boxing', name: 'Boxing', em: '🥊' },
     { id: 'mma', name: 'MMA', em: '🥋' },
     { id: 'darts', name: 'Darts', em: '🎯' },
+    { id: 'vfootball', name: 'Virtual Football', em: '🎮', hidden: true },
   ];
+  const VISIBLE = () => SPORTS.filter(s => !s.hidden);
   const sportOf = id => SPORTS.find(s => s.id === id);
   // Two-way model parameters: T = expected total, sd = total sd, msd = margin sd
   const TW = {
@@ -294,7 +296,7 @@
 
   // Which columns show in match lists for each sport
   function listMarkets(sport) {
-    if (sport === 'football') return [
+    if (sport === 'football' || sport === 'vfootball') return [
       { id: '1x2', name: '1X2', mk: '1x2', outs: ['1', 'X', '2'], lab: ['1', 'X', '2'] },
       { id: 'dc', name: 'Double Chance', mk: 'dc', outs: ['1X', '12', 'X2'], lab: ['1X', '12', 'X2'] },
       { id: 'ou', name: 'Over/Under 2.5', mk: 'ou', outs: ['o2.5', 'u2.5'], lab: ['Over', 'Under'] },
@@ -310,7 +312,7 @@
 
   /* ---------------- State ---------------- */
   const state = {
-    sport: 'football', liveSport: 'all', list: 'highlights', market: {},
+    sport: 'football', liveSport: 'all', list: 'highlights', market: {}, day: 'all', tx: store.get('tx', []), resSport: 'all',
     slip: store.get('slip', []), slipType: 'multi', user: store.get('user', null),
     bets: store.get('bets', []), jp: {}, betsTab: 'open', favs: store.get('favs', []),
     route: 'home', arg: null, mdTab: 'markets', mdGroup: 'All', collapsed: new Set(), azOpen: new Set(['football']),
@@ -358,8 +360,8 @@
 
   /* ---------------- Lists ---------------- */
   function renderSportTabs(el, active, liveOnly) {
-    let list = SPORTS;
-    if (liveOnly) list = [{ id: 'all', name: 'All', em: '🔥' }, ...SPORTS.filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
+    let list = VISIBLE();
+    if (liveOnly) list = [{ id: 'all', name: 'All', em: '🔥' }, ...VISIBLE().filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
     const x = el.scrollLeft;
     el.innerHTML = list.map(s => {
       const n = s.id === 'all' ? MATCHES.filter(m => m.live).length : MATCHES.filter(m => m.sport === s.id && (!liveOnly || m.live)).length;
@@ -406,9 +408,18 @@
   function renderHome() {
     renderSportTabs($('#sportTabs'), state.sport);
     renderMarketTabs($('#marketTabs'), state.sport);
-    let list = MATCHES.filter(m => m.sport === state.sport && !m.live);
+    let list = MATCHES.filter(m => m.sport === state.sport && !m.live && !m.finished);
     const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
     if (state.list === 'today') list = list.filter(m => m.kick <= endToday.getTime());
+    const dayKey = ts => new Date(ts).toDateString();
+    const days = [...new Set(list.map(m => dayKey(m.kick)))].sort((a, b) => new Date(a) - new Date(b));
+    if (state.day !== 'all' && !days.includes(state.day)) state.day = 'all';
+    $('#dayChips').hidden = state.list !== 'upcoming';
+    $('#dayChips').innerHTML = ['all', ...days].map(d => {
+      const lbl = d === 'all' ? 'All' : d === new Date().toDateString() ? 'Today' : d === new Date(Date.now() + 864e5).toDateString() ? 'Tomorrow' : new Date(d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+      return `<button data-day="${d}" class="${d === state.day ? 'active' : ''}">${lbl}</button>`;
+    }).join('');
+    if (state.list === 'upcoming' && state.day !== 'all') list = list.filter(m => dayKey(m.kick) === state.day);
     list.sort((a, b) => a.kick - b.kick);
     if (state.list === 'highlights') list = list.filter(m => LEAGUES[m.lg].top || m.sport !== 'football').slice(0, 16);
     $('#matchList').innerHTML = groupRender(list, mktFor);
@@ -446,18 +457,18 @@
     $('#lgSport').textContent = `${sportOf(lg.sport).em} ${sportOf(lg.sport).name} · ${lg.country}`;
     $('#lgTitle').innerHTML = `${lg.flag} ${esc(lg.name)}`;
     renderMarketTabs($('#lgMarketTabs'), lg.sport);
-    const list = MATCHES.filter(m => m.lg === lg.idx).sort((a, b) => (b.live - a.live) || a.kick - b.kick);
+    const list = MATCHES.filter(m => m.lg === lg.idx && !m.finished).sort((a, b) => (b.live - a.live) || a.kick - b.kick);
     $('#lgList').innerHTML = groupRender(list, mktFor, true);
   }
 
   function renderRails() {
     $('#leagueRail').innerHTML = LEAGUES.filter(l => l.top).map(l => `<li><a href="#/league/${l.idx}">${l.flag} ${esc(l.name)}${l.country === 'England' || l.country === 'Nigeria' ? ` <small class="muted">${l.country}</small>` : ''}</a></li>`).join('');
-    $('#sportRail').innerHTML = SPORTS.map(s => `<li><a href="#/sport/${s.id}">${s.em} ${s.name}<i>${MATCHES.filter(m => m.sport === s.id).length}</i></a></li>`).join('');
+    $('#sportRail').innerHTML = VISIBLE().map(s => `<li><a href="#/sport/${s.id}">${s.em} ${s.name}<i>${MATCHES.filter(m => m.sport === s.id).length}</i></a></li>`).join('');
   }
 
   function renderAZ(q = '') {
     q = q.trim().toLowerCase();
-    $('#azList').innerHTML = [...SPORTS].sort((a, b) => a.name.localeCompare(b.name)).map(s => {
+    $('#azList').innerHTML = VISIBLE().sort((a, b) => a.name.localeCompare(b.name)).map(s => {
       const lgs = LEAGUES.filter(l => l.sport === s.id && (!q || s.name.toLowerCase().includes(q) || l.full.toLowerCase().includes(q)));
       if (!lgs.length) return '';
       const open = q || state.azOpen.has(s.id);
@@ -594,6 +605,7 @@
 
   function toggleSel(mid, mk, ok) {
     const m = byId(mid), o = m?.map[mk]?.[ok]; if (!o || !o.o) return;
+    if (m.finished) return toast('This event has finished', 'err');
     const mkObj = m.mk.find(x => x.key === mk);
     const ix = state.slip.findIndex(s => s.mid === mid);
     if (ix > -1 && state.slip[ix].mk === mk && state.slip[ix].ok === ok) state.slip.splice(ix, 1);
@@ -608,7 +620,7 @@
   function syncSlipOdds() {
     let changed = false;
     state.slip.forEach(s => {
-      const m = byId(s.mid), o = m?.map[s.mk]?.[s.ok];
+      const m = byId(s.mid), o = m && !m.finished ? m.map[s.mk]?.[s.ok] : null;
       const cur = o ? o.o : null;
       if (cur !== s.odd) {
         changed = true; s.susp = cur == null;
@@ -678,7 +690,7 @@
     const stake = single ? state.slip.reduce((a, s) => a + (+s.stake || 0), 0) : +$('#bsStake').value;
     if (single ? state.slip.some(s => (+s.stake || 0) < C.minStake) : stake < C.minStake) return toast('Minimum stake is ' + whole(C.minStake), 'err');
     if (stake > state.user.balance) { openModal('depositModal'); return toast('Insufficient balance – please deposit', 'err'); }
-    state.user.balance -= stake;
+    state.user.balance -= stake; addTx('Bet placed', -stake);
     const legs = state.slip.map(({ mid, mk, ok, odd, label, mname, match }) => ({ mid, mk, ok, odd, label, mname, match }));
     if (single) {
       legs.forEach((l, i) => { const st = +state.slip[i].stake; state.bets.unshift({ id: 'T' + Date.now().toString(36).toUpperCase() + i, at: Date.now(), type: 'Single', legs: [l], stake: st, odds: l.odd, win: st * l.odd, status: 'open' }); });
@@ -709,7 +721,7 @@
   function renderMe() {
     const u = state.user;
     $('#meName').textContent = u ? C.dial + ' ' + u.phone : 'Guest';
-    $('#meSub').textContent = u ? 'Verified account · ID ' + (u.uid || '—') : 'Login to view your bets and balance';
+    $('#meSub').textContent = u ? (u.verified ? 'Verified' : 'Not verified') + ' · ID ' + (u.uid || '—') : 'Login to view your bets and balance';
     $('#meBal').textContent = naira(u ? u.balance : 0);
     $('#logoutBtn').hidden = !u;
     $$('[data-bets]').forEach(b => b.classList.toggle('active', b.dataset.bets === state.betsTab));
@@ -721,8 +733,8 @@
         const co = b.status === 'open' ? cashoutValue(b) : null;
         return `<div class="bet-card">
           <div class="bh"><span><b>${b.type}</b><br><small>${new Date(b.at).toLocaleString()} · ${b.id}</small></span><span class="status ${b.status}">${b.status === 'cashout' ? 'CASHED OUT' : b.status.toUpperCase()}</span></div>
-          ${b.legs.map(l => `<a class="bl" href="#/match/${l.mid}"><span>${esc(l.match)}<br><small class="muted">${esc(l.mname)}: <b>${esc(l.label)}</b></small></span><b>${l.odd.toFixed(2)}</b></a>`).join('')}
-          <div class="bf"><span>Stake ${naira(b.stake)}<br><small class="muted">Odds ${b.odds.toFixed(2)}${b.boost ? ` · +${b.boost}% boost` : ''}</small></span><span class="accent">${b.status === 'cashout' ? 'Returned ' + naira(b.paid) : 'To win ' + naira(b.win)}</span></div>
+          ${b.legs.map(l => { const r = legResult(l), m = byId(l.mid); return `<a class="bl" href="${m && m.finished ? '#/results' : '#/match/' + l.mid}"><span>${esc(l.match)}${m && m.finished ? ` <small class="ftag">FT ${m.ft[0]}-${m.ft[1]}</small>` : ''}<br><small class="muted">${esc(l.mname)}: <b>${esc(l.label)}</b></small></span><b class="lr ${r || ''}">${l.odd.toFixed(2)}</b></a>`; }).join('')}
+          <div class="bf"><span>Stake ${naira(b.stake)}<br><small class="muted">Odds ${b.odds.toFixed(2)}${b.boost ? ` · +${b.boost}% boost` : ''}</small></span><span class="${b.status === 'lost' ? 'lostc' : 'accent'}">${b.status === 'cashout' ? 'Returned ' + naira(b.paid) : b.status === 'won' ? 'Paid ' + naira(b.paid) : b.status === 'void' ? 'Refunded ' + naira(b.paid) : b.status === 'lost' ? 'Lost' : 'To win ' + naira(b.win)}</span></div>
           ${b.status === 'open' ? `<button class="btn ${co ? 'btn-gold' : 'btn-ghost'} block mt" data-cashout="${b.id}" ${co ? '' : 'disabled'}>${co ? 'Cashout ' + naira(co) : 'Cashout unavailable'}</button>` : ''}
         </div>`;
       }).join('');
@@ -757,15 +769,264 @@
   function renderSearch(q) {
     q = q.trim().toLowerCase();
     if (q.length < 2) { $('#searchRes').innerHTML = `<p class="muted pad">Popular searches</p><div class="tags">${['Arsenal', 'Real Madrid', 'Enyimba', 'Lakers', 'Kotoko', 'Sundowns'].map(t => `<button class="tag-btn" data-q="${t}">${t}</button>`).join('')}</div>`; return; }
-    const res = MATCHES.filter(m => (m.home + ' ' + m.away + ' ' + league(m).full).toLowerCase().includes(q)).slice(0, 30);
+    const res = MATCHES.filter(m => !m.finished && (m.home + ' ' + m.away + ' ' + league(m).full).toLowerCase().includes(q)).slice(0, 30);
     $('#searchRes').innerHTML = res.length ? res.map(m => `<a class="sr" href="#/match/${m.id}">
       <span class="sr-sp">${sportOf(m.sport).em}</span>
       <span class="sr-t"><b>${esc(m.home)} vs ${esc(m.away)}</b><small class="muted">${league(m).flag} ${esc(league(m).full)} · ${m.live ? '<span class="live-t">LIVE ' + liveLabel(m) + '</span>' : fmtKick(m.kick)}</small></span>
       <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>`).join('') : `<div class="empty">No matches for “${esc(q)}”</div>`;
   }
 
+
+  /* ---------------- Match lifecycle & settlement ---------------- */
+  const RESULTS = [];
+  function finishMatch(m) {
+    m.live = false; m.finished = true; m.endAt = Date.now(); m.ft = [...m.score];
+    if (!m.two) {
+      const g = side => m.ev.filter(e => e.type === 'goal' && e.side === side && e.min <= 45).length;
+      m.ht = [g(0), g(1)]; m.ftc = m.st.corners[0] + m.st.corners[1];
+    } else {
+      const P = TW[m.sport] || TW.default;
+      m.ftTotal = m.sport === 'basketball' ? m.ft[0] + m.ft[1] : Math.round(P.T * m.tf + (Math.random() - 0.5) * 2 * P.sd);
+    }
+    RESULTS.unshift(m);
+  }
+  // when live football gets thin, the next scheduled match kicks off
+  function kickOffs() {
+    const liveFb = MATCHES.filter(m => m.live && m.sport === 'football').length;
+    if (liveFb >= 8) return;
+    const next = MATCHES.filter(m => m.sport === 'football' && !m.live && !m.finished).sort((a, b) => a.kick - b.kick)[0];
+    if (!next || JP.includes(next)) return;
+    next.live = true; next.minute = 1; next.kick = Date.now(); next.score = [0, 0];
+    computeMarkets(next, false);
+  }
+  function legResult(l) {
+    const m = byId(l.mid); if (!m || !m.finished) return null;
+    const [h, a] = m.ft, d = h - a, t = h + a, ok = l.ok;
+    const ou = (v, k) => { const L = parseFloat(k.slice(1)); return k[0] === 'o' ? v > L : v < L; };
+    const r3 = (x, y) => x > y ? '1' : x === y ? 'X' : '2';
+    let w;
+    if (!m.two) {
+      switch (l.mk) {
+        case '1x2': w = r3(h, a) === ok; break;
+        case 'dc': w = ok.includes(r3(h, a)); break;
+        case 'dnb': if (d === 0) return 'void'; w = r3(h, a) === ok; break;
+        case 'gg': w = (h > 0 && a > 0) === (ok === 'gg'); break;
+        case 'ou': w = ou(t, ok); break;
+        case 'hou': w = ou(h, ok); break;
+        case 'aou': w = ou(a, ok); break;
+        case 'cor': w = ou(m.ftc, ok); break;
+        case '1hou': w = ou(m.ht[0] + m.ht[1], ok); break;
+        case 'oe': w = (t % 2 === 1) === (ok === 'odd'); break;
+        case '1h1x2': w = r3(m.ht[0], m.ht[1]) === ok; break;
+        case 'htft': w = r3(m.ht[0], m.ht[1]) + '/' + r3(h, a) === ok; break;
+        case 'cs': w = ok === 'oth' ? (h > 4 || a > 4) : ok === h + '-' + a; break;
+        case 'eh-1': w = (d >= 2 ? '1' : d === 1 ? 'X' : '2') === ok; break;
+        case 'eh+1': w = (d >= 0 ? '1' : d === -1 ? 'X' : '2') === ok; break;
+        case 'next': {
+          const n = +((l.mname.match(/\((\d+)\)/) || [0, 1])[1]);
+          const goal = m.ev.filter(e => e.type === 'goal').sort((x, y) => x.min - y.min)[n - 1];
+          w = goal ? (goal.side ? '2' : '1') === ok : ok === 'none'; break;
+        }
+        default: return 'void';
+      }
+    } else {
+      const P = TW[m.sport] || TW.default;
+      if (l.mk === 'win') { if (d === 0) return 'void'; w = (d > 0 ? '1' : '2') === ok; }
+      else if (l.mk === 'hcp') { const cover = d + P.hl[+ok[1]] > 0; w = ok.endsWith('1') ? cover : !cover; }
+      else if (l.mk === 'tot') w = ou(m.ftTotal, ok);
+      else return 'void';
+    }
+    return w ? 'won' : 'lost';
+  }
+  function settleBets() {
+    let changed = false;
+    state.bets.filter(b => b.status === 'open').forEach(b => {
+      const rs = b.legs.map(legResult);
+      if (rs.includes('lost')) { b.status = 'lost'; b.paid = 0; b.settledAt = Date.now(); changed = true; return; }
+      if (!rs.every(Boolean)) return;
+      const odds = b.legs.reduce((acc, l, i) => acc * (rs[i] === 'void' ? 1 : l.odd), 1);
+      const base = b.stake * odds;
+      b.paid = r2(b.boost && rs.every(r => r === 'won') ? base + (base - b.stake) * b.boost / 100 : base);
+      b.status = rs.every(r => r === 'void') ? 'void' : 'won'; b.settledAt = Date.now(); changed = true;
+      if (state.user) { state.user.balance += b.paid; addTx(b.status === 'won' ? 'Winnings' : 'Refund', b.paid); }
+      if (b.status === 'won') toast(`You won ${money(b.paid)} 🎉`);
+    });
+    if (changed) { saveBets(); saveUser(); renderAuth(); if (state.route === 'me') renderMe(); }
+  }
+  function addTx(type, amt) {
+    if (!state.user) return;
+    state.tx.unshift({ at: Date.now(), type, amt: r2(amt), bal: r2(state.user.balance) });
+    state.tx = state.tx.slice(0, 200); store.set('tx', state.tx);
+  }
+  function updateLiveBadges() {
+    const n = MATCHES.filter(m => m.live).length;
+    $('#navLive').textContent = n; $('#liveCountHome').textContent = n;
+  }
+
+  /* ---------------- Virtual football ---------------- */
+  const VTEAMS = ['Lagos City', 'Accra United', 'Kumasi Stars', 'Abuja Kings', 'Kano Falcons', 'Tema Mariners', 'Ibadan Lions', 'Takoradi Sharks', 'Port Harcourt Rivers', 'Tamale Eagles', 'Benin Royals', 'Sunyani Leopards'];
+  const VLG = LEAGUES.length;
+  LEAGUES.push({ sport: 'vfootball', name: 'Virtual League', country: 'LetBet Virtuals', flag: '🎮', idx: VLG, full: 'LetBet Virtual League', teams: VTEAMS });
+  const VR_LEN = 120000;
+  const VR = { round: 1000 + Math.floor(Date.now() / VR_LEN) % 9000, endsAt: 0, ids: [], last: [], lastRound: null };
+  function vNewRound() {
+    VR.round++; VR.endsAt = Date.now() + VR_LEN; VR.ids = [];
+    const t = [...VTEAMS].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < 6; i++) {
+      const m = { id: nextId++, sport: 'vfootball', lg: VLG, home: t[2 * i], away: t[2 * i + 1], live: false, kick: VR.endsAt,
+        score: [0, 0], minute: 0, prog: 0, ev: [], flash: {}, two: false, virtual: true, round: VR.round,
+        lh: 0.7 + Math.random() * 1.4, la: 0.5 + Math.random() * 1.2, lc: 8 + Math.random() * 4,
+        st: { poss: [50, 50], shots: [0, 0], sot: [0, 0], corners: [0, 0], yc: [0, 0], att: [0, 0] } };
+      computeMarkets(m, false); MATCHES.push(m); VR.ids.push(m.id);
+    }
+  }
+  function vEndRound() {
+    const Rn = Math.random;
+    VR.last = VR.ids.map(id => {
+      const m = byId(id);
+      const h1 = samplePois(m.lh * 0.45, Rn), a1 = samplePois(m.la * 0.45, Rn), h2 = samplePois(m.lh * 0.55, Rn), a2 = samplePois(m.la * 0.55, Rn);
+      m.ht = [h1, a1]; m.ft = [h1 + h2, a1 + a2]; m.score = [...m.ft]; m.ftc = samplePois(m.lc, Rn);
+      m.finished = true; m.endAt = Date.now(); RESULTS.unshift(m); return m;
+    });
+    VR.lastRound = VR.round;
+    settleBets(); vNewRound(); syncSlipOdds(); renderSlip();
+    if (state.route === 'virtuals') renderVirtuals();
+  }
+  function vTick() {
+    if (Date.now() >= VR.endsAt) return vEndRound();
+    if (state.route !== 'virtuals') return;
+    const left = Math.max(0, VR.endsAt - Date.now()), sec = Math.ceil(left / 1000);
+    $('#vClock').textContent = `${String(sec / 60 | 0).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    $('#vBar').style.width = (100 - left / VR_LEN * 100) + '%';
+  }
+  function resRow(m) {
+    return `<div class="res-row"><span class="rh">${esc(m.home)}</span><b class="rs">${m.ft[0]} - ${m.ft[1]}</b><span class="ra">${esc(m.away)}</span>${m.ht ? `<small class="rht">HT ${m.ht[0]}-${m.ht[1]}</small>` : ''}</div>`;
+  }
+  function renderVirtuals() {
+    $('#vRound').textContent = '#' + VR.round;
+    renderMarketTabs($('#vMarketTabs'), 'vfootball');
+    $('#vList').innerHTML = groupRender(VR.ids.map(byId), mktFor, true);
+    $('#vLastRound').textContent = VR.lastRound ? 'Round #' + VR.lastRound : 'waiting for first result';
+    $('#vResults').innerHTML = VR.last.length ? `<div class="res-block">${VR.last.map(resRow).join('')}</div>` : '<div class="empty">Results appear here when the countdown ends.</div>';
+    vTick();
+  }
+
+  /* ---------------- Results ---------------- */
+  function seedResults() {
+    const r = mkRng(4242), yd = new Date(); yd.setHours(0, 0, 0, 0);
+    LEAGUES.filter(l => l.sport === 'football').forEach(lg => {
+      for (let i = 0; i < 3; i++) {
+        const t = [...lg.teams].sort(() => r() - 0.5), lh = 0.8 + r() * 1.2, la = 0.6 + r() * 1;
+        const h1 = samplePois(lh * 0.45, r), a1 = samplePois(la * 0.45, r);
+        const ft = [h1 + samplePois(lh * 0.55, r), a1 + samplePois(la * 0.55, r)];
+        RESULTS.push({ id: 'p' + lg.idx + i, sport: 'football', lg: lg.idx, home: t[0], away: t[1], ft, ht: [h1, a1], past: true,
+          endAt: yd.getTime() - (1 + Math.floor(r() * 2)) * 864e5 + (13 + Math.floor(r() * 9)) * 36e5 });
+      }
+    });
+  }
+  function renderResults() {
+    const sports = ['all', ...new Set(RESULTS.map(m => m.sport))];
+    $('#resTabs').innerHTML = sports.map(id => `<button data-res="${id}" class="${id === state.resSport ? 'active' : ''}">${id === 'all' ? 'All' : sportOf(id).name}</button>`).join('');
+    const list = RESULTS.filter(m => state.resSport === 'all' || m.sport === state.resSport).sort((a, b) => b.endAt - a.endAt);
+    $('#resCount').textContent = list.length + ' events';
+    const dayLbl = ts => { const d = new Date(ts).toDateString(); return d === new Date().toDateString() ? 'Today' : d === new Date(Date.now() - 864e5).toDateString() ? 'Yesterday' : new Date(ts).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }); };
+    const byDay = new Map();
+    list.forEach(m => { const k = dayLbl(m.endAt); if (!byDay.has(k)) byDay.set(k, new Map()); const g = byDay.get(k); if (!g.has(m.lg)) g.set(m.lg, []); g.get(m.lg).push(m); });
+    $('#resList').innerHTML = list.length ? [...byDay].map(([day, g]) => `<div class="res-day">${day}</div>` + [...g].map(([lgi, ms]) =>
+      `<div class="res-block"><div class="league-head"><span class="lh-name"><span class="flag">${LEAGUES[lgi].flag}</span><span class="lh-t">${esc(LEAGUES[lgi].full)}</span></span></div>${ms.map(resRow).join('')}</div>`).join('')).join('')
+      : '<div class="empty">No results yet.</div>';
+  }
+
+  /* ---------------- Games lobby ---------------- */
+  const GAMES = [
+    { n: 'Rocket Crash', d: 'Cash out before it crashes', c: '#c62828', i: '<path d="M12 3c3 2 4 6 4 9l-4 4-4-4c0-3 1-7 4-9z"/><circle cx="12" cy="10" r="1.5"/><path d="M8 16l-2 4 4-2M16 16l2 4-4-2"/>' },
+    { n: 'Spin & Win', d: 'Spin the wheel for multipliers', c: '#6a1b9a', i: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/>' },
+    { n: 'Penalty Kick', d: 'Pick your corner and score', c: '#0a7d3e', i: '<rect x="3" y="6" width="18" height="10"/><circle cx="12" cy="19" r="2"/>' },
+    { n: 'Lucky Dice', d: 'High, low or seven', c: '#1565c0', i: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/><circle cx="15" cy="9" r="1"/><circle cx="9" cy="15" r="1"/>' },
+    { n: 'Keno', d: 'Pick up to 10 numbers', c: '#ef6c00', i: '<circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="7" cy="17" r="3"/><circle cx="17" cy="17" r="3"/>' },
+    { n: 'Scratch Cards', d: 'Match three to win', c: '#00838f', i: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10l3 3M10 10l-3 3M14 10h3M14 13h3"/>' },
+    { n: 'Hi-Lo Cards', d: 'Higher or lower?', c: '#4e342e', i: '<rect x="5" y="3" width="11" height="16" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/>' },
+    { n: 'Number Rush', d: 'Daily lucky numbers draw', c: '#37474f', i: '<path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16"/>' },
+  ];
+  function renderGames() {
+    $('#gamesGrid').innerHTML = GAMES.map(g => `<button class="game" data-game="${esc(g.n)}"><span class="g-ic" style="background:${g.c}"><svg viewBox="0 0 24 24">${g.i}</svg></span><b>${g.n}</b><small>${g.d}</small><em>Coming soon</em></button>`).join('');
+  }
+
+  /* ---------------- Account sub-pages ---------------- */
+  const ACCT = { tx: 'Transactions', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
+  function renderAcct(sec) {
+    if (!ACCT[sec]) return go('me');
+    $('#acTitle').textContent = ACCT[sec];
+    const u = state.user;
+    const needLogin = !['help', 'limits'].includes(sec) && !u;
+    if (needLogin) { $('#acBody').innerHTML = `<div class="empty">Please login to continue.<br><button class="btn btn-accent sm mt" data-open="loginModal">Login</button></div>`; return; }
+    const H = {
+      tx: () => {
+        const f = state.txFilter || 'all';
+        const F = { all: 'All', in: 'Money in', out: 'Money out' };
+        const list = state.tx.filter(t => f === 'all' || (f === 'in' ? t.amt > 0 : t.amt < 0));
+        return `<div class="market-tabs">${Object.entries(F).map(([k, v]) => `<button data-txf="${k}" class="${k === f ? 'active' : ''}">${v}</button>`).join('')}</div>
+          <div class="tx-list">${list.length ? list.map(t => `<div class="tx"><div><b>${t.type}</b><small>${new Date(t.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</small></div><div class="tx-r"><b class="${t.amt > 0 ? 'pos' : 'neg'}">${t.amt > 0 ? '+' : '−'}${money(Math.abs(t.amt))}</b><small>Bal ${money(t.bal)}</small></div></div>`).join('') : '<div class="empty">No transactions yet. Deposits, bets and winnings appear here.</div>'}</div>`;
+      },
+      bonus: () => `<div class="card-list">
+          <div class="bonus"><div><b>200% Welcome Bonus</b><small>Up to ${whole(C.bonusMax)} on your first deposit</small></div><span class="status ${state.tx.some(t => t.type === 'Deposit') ? 'open' : 'won'}">${state.tx.some(t => t.type === 'Deposit') ? 'ACTIVE' : 'AVAILABLE'}</span></div>
+          <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 1000% extra on 3+ selection multiples</small></div><span class="status open">ACTIVE</span></div>
+          <div class="bonus"><div><b>Free Bets</b><small>You have no free bets right now</small></div><span class="status lost">NONE</span></div>
+        </div>`,
+      refer: () => { const code = 'LBA' + String(u.uid).slice(-5); const msg = encodeURIComponent(`Join me on LetBetAfrika and get a 200% welcome bonus. Use my code ${code}`);
+        return `<div class="card-pad refer"><p>Invite friends and get <b>${whole(C.referral)}</b> when they join and place their first bet.</p>
+          <div class="code-box"><span>Your code</span><b>${code}</b><button class="btn btn-accent sm" data-copy="${code}">Copy</button></div>
+          <a class="btn btn-ghost block mt" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a>
+          <div class="ref-stats"><div><b>0</b><small>Friends joined</small></div><div><b>${whole(0)}</b><small>Earned</small></div></div></div>`; },
+      messages: () => `<div class="card-list">${[
+          ['Welcome to LetBetAfrika', 'Your account is ready. Make your first deposit to unlock the 200% welcome bonus.'],
+          ['Acca Win Boost is on', 'Add 3 or more selections to a multiple and get up to 1000% extra winnings.'],
+          ['Play responsibly', 'Set deposit limits any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${new Date(Date.now() - i * 864e5).toLocaleDateString()}</small></div>`).join('')}</div>`,
+      verify: () => u.verified ? `<div class="empty"><b>Your account is verified ✔</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
+          <p class="muted">Verify your identity to withdraw winnings.</p>
+          <label>Full name<input name="name" required placeholder="As shown on your ID"></label>
+          <label>Date of birth<input name="dob" type="date" required></label>
+          <label>ID type<select name="idt">${(CC === 'GH' ? ['Ghana Card', 'Passport', "Driver's Licence", "Voter's ID"] : ['NIN', 'BVN', 'International Passport', "Driver's Licence", "Voter's Card"]).map(x => `<option>${x}</option>`).join('')}</select></label>
+          <label>ID number<input name="idn" required></label>
+          <button class="btn btn-accent block">Submit for verification</button></form>`,
+      security: () => `<form class="card-pad form" data-acform="security">
+          <label>Current password<input type="password" name="cur" required></label>
+          <label>New password<input type="password" name="pw1" minlength="6" required></label>
+          <label>Confirm new password<input type="password" name="pw2" minlength="6" required></label>
+          <button class="btn btn-accent block">Update password</button></form>`,
+      limits: () => { const L = (u && u.limits) || {};
+        return `<form class="card-pad form" data-acform="limits">
+          <p class="muted">Set limits to stay in control. Lower limits apply straight away.</p>
+          <label>Deposit limit<select name="period">${['Daily', 'Weekly', 'Monthly'].map(x => `<option ${L.period === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+          <label>Amount (${C.cur})<input name="amt" type="number" min="${C.minStake}" value="${L.amt || ''}" placeholder="No limit"></label>
+          <label>Session reminder<select name="rem">${['Off', 'Every 30 minutes', 'Every hour', 'Every 2 hours'].map(x => `<option ${L.rem === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+          <button class="btn btn-accent block">Save limits</button>
+          <h4 class="sh" style="margin-top:18px">Take a break</h4>
+          <div class="chips">${['24 hours', '7 days', '30 days', '6 months'].map(x => `<button type="button" data-break="${x}">${x}</button>`).join('')}</div>
+        </form>`; },
+      help: () => `<div class="card-pad"><h4 class="sh">Frequently asked questions</h4>${[
+          ['How do I deposit?', 'Tap Deposit, choose an amount and pay by card, bank transfer, USSD or mobile money.'],
+          ['How long do withdrawals take?', 'Most withdrawals are paid within minutes once your account is verified.'],
+          ['What is a booking code?', 'A code that loads a saved betslip. Share yours from the betslip or load one from the menu.'],
+          ['How does Cashout work?', 'Open bets show a cashout value that follows the live odds. Tap it to settle early.'],
+          ['Why was my selection suspended?', 'Markets pause during key moments such as goals. Remove the selection or wait for it to reopen.']]
+          .map(([q, a]) => `<details class="faq"><summary>${q}</summary><p>${a}</p></details>`).join('')}
+          <h4 class="sh" style="margin-top:16px">Contact us</h4>
+          <button class="btn btn-accent block" data-chat>Live chat</button></div>`,
+    };
+    $('#acBody').innerHTML = H[sec]();
+  }
+  document.addEventListener('submit', e => {
+    const f = e.target.closest('[data-acform]'); if (!f) return;
+    e.preventDefault();
+    const k = f.dataset.acform, u = state.user;
+    if (k === 'verify') { u.verified = true; u.fullName = f.name.value; saveUser(); toast('Documents submitted – account verified'); renderAcct('verify'); }
+    if (k === 'security') { if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); toast('Password updated'); f.reset(); }
+    if (k === 'limits') { if (!u) return openModal('loginModal'); u.limits = { period: f.period.value, amt: +f.amt.value || 0, rem: f.rem.value }; saveUser(); toast('Limits saved'); }
+  });
+
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct'];
   function go(r) { location.hash = '#/' + r; }
   function route() {
     const [r, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
@@ -774,7 +1035,7 @@
     if (page === 'match' && state.arg !== arg) { state.mdTab = 'markets'; state.mdGroup = 'All'; }
     state.route = page; state.arg = arg;
     $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
-    const navKey = page === 'match' || page === 'league' ? null : page;
+    const navKey = page === 'match' || page === 'league' ? null : page === 'acct' ? 'me' : page;
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
     closeDrawer(); closeSlip(); closeSearch();
     document.body.dataset.page = page;
@@ -784,6 +1045,10 @@
     if (page === 'me') renderMe();
     if (page === 'jackpot') { renderJackpot(); tickCountdown(); }
     if (page === 'league') renderLeague(+arg);
+    if (page === 'virtuals') renderVirtuals();
+    if (page === 'games') renderGames();
+    if (page === 'results') renderResults();
+    if (page === 'acct') renderAcct(arg);
     if (page === 'match') renderMatch(+arg);
     else window.scrollTo(0, 0);
   }
@@ -803,6 +1068,8 @@
     if (state.route === 'league') renderLeague(+state.arg);
     if (state.route === 'match') renderMatch(+state.arg, true);
     if (state.route === 'me') renderMe();
+    if (state.route === 'results') renderResults();
+    if (state.route === 'virtuals') renderVirtuals();
     if (keepScroll) window.scrollTo(0, y);
   }
   function renderAfterSlipChange() { renderCurrent(true); renderSlip(); }
@@ -839,6 +1106,13 @@
       if (t.closest('#liveSportTabs')) { state.liveSport = d.sport; return renderLive(); }
       state.sport = d.sport; return state.route === 'home' ? renderHome() : go('home');
     }
+    if (d.day) { state.day = d.day; return renderHome(); }
+    if (d.res) { state.resSport = d.res; return renderResults(); }
+    if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
+    if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
+    if (d.break) { if (!state.user) return openModal('loginModal'); return toast(`Self-exclusion request for ${d.break} received`); }
+    if (d.game) return toast(`${d.game} is coming soon`);
+    if ('chat' in d) return toast('Live chat will connect to your support desk');
     if (d.list) { state.list = d.list; $$('[data-list]').forEach(b => b.classList.toggle('active', b === t)); return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
@@ -856,7 +1130,7 @@
     if (d.cashout) {
       const b = state.bets.find(x => x.id === d.cashout), v = b && cashoutValue(b);
       if (!v) return;
-      b.status = 'cashout'; b.paid = v; state.user.balance += v; saveBets(); saveUser();
+      b.status = 'cashout'; b.paid = v; state.user.balance += v; addTx('Cashout', v); saveBets(); saveUser();
       toast(`Cashed out ${naira(v)}`); renderMe(); return renderAuth();
     }
     switch (t.id) {
@@ -885,7 +1159,7 @@
       case 'jpSubmit':
         if (!state.user) { openModal('loginModal'); break; }
         if (state.user.balance < C.ticket) { openModal('depositModal'); toast('Insufficient balance', 'err'); break; }
-        state.user.balance -= C.ticket; saveUser(); state.jp = {}; renderJackpot(); renderAuth();
+        state.user.balance -= C.ticket; addTx('Jackpot ticket', -C.ticket); saveUser(); state.jp = {}; renderJackpot(); renderAuth();
         toast('Jackpot ticket submitted. Good luck!'); break;
     }
   });
@@ -920,7 +1194,7 @@
     const amt = +$('#depAmt').value, w = e.target.dataset.mode === 'withdraw';
     if (amt < C.minStake) return toast('Minimum amount is ' + whole(C.minStake), 'err');
     if (w && amt > state.user.balance) return toast('Insufficient balance', 'err');
-    state.user.balance += w ? -amt : amt; saveUser();
+    state.user.balance += w ? -amt : amt; addTx(w ? 'Withdrawal' : 'Deposit', w ? -amt : amt); saveUser();
     closeModals(); renderAuth(); renderCurrent(true);
     toast(w ? `Withdrawal of ${naira(amt)} requested` : `${naira(amt)} deposited`);
   });
@@ -964,18 +1238,23 @@
           const p = Math.max(30, Math.min(70, m.st.poss[0] + Math.round((R() - 0.5) * 3)));
           m.st.poss = [p, 100 - p];
         }
+        if (m.minute >= 90 && R() < 0.35) finishMatch(m);
       } else {
+        if (m.prog >= 0.98 && R() < 0.3) { finishMatch(m); return; }
         m.prog = Math.min(0.98, m.prog + 0.004);
         if (m.sport === 'basketball') { if (R() < 0.5) m.score[0] += 1 + Math.floor(R() * 3); if (R() < 0.5) m.score[1] += 1 + Math.floor(R() * 3); }
         else if (R() < 0.04) m.score[R() < 0.5 ? 0 : 1]++;
         m.mu += (R() - 0.5) * 0.3;
       }
-      computeMarkets(m, true);
+      if (!m.finished) computeMarkets(m, true);
     });
+    kickOffs();
+    settleBets();
     syncSlipOdds();
+    updateLiveBadges();
     const y = window.scrollY;
     if (state.route === 'home') renderLiveStrip();
-    else if (['live', 'match', 'league'].includes(state.route)) renderCurrent(false);
+    else if (['live', 'match', 'league', 'results'].includes(state.route)) renderCurrent(false);
     window.scrollTo(0, y);
     renderSlip();
   }
@@ -985,8 +1264,9 @@
   applyCountry();
   $('#yr').textContent = new Date().getFullYear();
   syncSlipOdds();
-  renderRails(); renderAuth(); renderSlip();
+  seedResults(); vNewRound();
+  renderRails(); renderAuth(); renderSlip(); updateLiveBadges();
   window.addEventListener('hashchange', route);
   route();
-  setInterval(tickCountdown, 1000);
+  setInterval(() => { tickCountdown(); vTick(); }, 1000);
 })();

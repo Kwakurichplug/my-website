@@ -31,7 +31,10 @@
     <a href="#/home" data-route="home">Home</a>
     <a href="#/live" data-route="live">Live <span class="live-dot"></span></a>
     <a href="#/sports" data-route="sports">A–Z Sports</a>
+    <a href="#/virtuals" data-route="virtuals">Virtuals</a>
     <a href="#/jackpot" data-route="jackpot">Jackpot</a>
+    <a href="#/games" data-route="games">Games</a>
+    <a href="#/results" data-route="results">Results</a>
     <a href="#/promos" data-route="promos">Promotions</a>
     <a href="#/me" data-route="me">My Bets</a>
   </nav>
@@ -61,14 +64,14 @@
 
       <div class="quick-links">
         <a href="#/live"><span class="ql-ic red"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/></svg></span>Live</a>
+        <a href="#/virtuals"><span class="ql-ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M8 10v4M6 12h4M15 11h.01M17 13h.01"/></svg></span>Virtuals</a>
         <a href="#/jackpot"><span class="ql-ic gold"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg></span>Jackpot</a>
-        <a href="#" data-filter="today"><span class="ql-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span>Today</a>
-        <a href="#/promos"><span class="ql-ic"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg></span>Promotions</a>
-        <a href="#" data-open="codeModal"><span class="ql-ic"><svg viewBox="0 0 24 24"><path d="M5 4h14v16l-7-4-7 4z"/></svg></span>Booking Code</a>
+        <a href="#/games"><span class="ql-ic"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg></span>Games</a>
+        <a href="#/results"><span class="ql-ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>Results</a>
       </div>
 
       <div class="section-head">
-        <h2><span class="live-dot"></span> Live Now</h2>
+        <h2><span class="live-dot"></span> Live Now <span class="cnt-pill" id="liveCountHome"></span></h2>
         <a href="#/live" class="see-all">See all ›</a>
       </div>
       <div class="live-strip" id="liveStrip"></div>
@@ -83,6 +86,7 @@
         <button data-list="upcoming">Upcoming</button>
         <button data-list="today">Today</button>
       </div>
+      <div class="day-chips" id="dayChips"></div>
       <div class="market-tabs" id="marketTabs"></div>
       <div id="matchList" class="match-list"></div>
     </section>
@@ -180,10 +184,52 @@
         <button data-bets="settled">Settled</button>
       </div>
       <div id="myBets"></div>
-      <ul class="menu-list">
-        <li>Transactions</li><li>Bonuses</li><li>Account Settings</li><li>Responsible Gambling</li><li>Help Center</li>
-        <li id="logoutBtn" hidden>Log out</li>
-      </ul>
+      <div class="acct-grid">
+        <a href="#/acct/tx"><svg viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transactions</span></a>
+        <a href="#/acct/bonus"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg><span>Bonuses</span></a>
+        <a href="#/acct/refer"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M17 8v6M14 11h6"/></svg><span>Refer & Earn</span></a>
+        <a href="#/acct/messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Messages</span></a>
+        <a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span></a>
+        <a href="#/acct/security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Password</span></a>
+        <a href="#/acct/limits"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg><span>Responsible Gambling</span></a>
+        <a href="#/acct/help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></svg><span>Help & Support</span></a>
+      </div>
+      <button class="logout-btn" id="logoutBtn" hidden>Log out</button>
+    </section>
+
+    <!-- ============ VIRTUALS ============ -->
+    <section class="page" id="page-virtuals">
+      <div class="v-head">
+        <div><small>LETBET VIRTUAL LEAGUE</small><h1>Round <span id="vRound"></span></h1><p>New round every 2 minutes · results in seconds</p></div>
+        <div class="v-clock"><small>Kick-off in</small><b id="vClock">--:--</b></div>
+      </div>
+      <div class="v-bar"><i id="vBar"></i></div>
+      <div class="market-tabs" id="vMarketTabs"></div>
+      <div id="vList" class="match-list"></div>
+      <div class="section-head"><h2>Last round · <span id="vLastRound"></span></h2><a href="#/results" class="see-all">All results ›</a></div>
+      <div id="vResults" class="res-list"></div>
+    </section>
+
+    <!-- ============ GAMES ============ -->
+    <section class="page" id="page-games">
+      <div class="page-title"><h1>Games</h1><span class="muted">Instant win</span></div>
+      <div class="games-grid" id="gamesGrid"></div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="page" id="page-results">
+      <div class="page-title"><h1>Results</h1><span class="muted" id="resCount"></span></div>
+      <div class="market-tabs" id="resTabs"></div>
+      <div id="resList" class="res-list"></div>
+    </section>
+
+    <!-- ============ ACCOUNT SUB-PAGES ============ -->
+    <section class="page" id="page-acct">
+      <div class="sub-head">
+        <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="sh-mid"><h1 id="acTitle"></h1></div>
+      </div>
+      <div id="acBody"></div>
     </section>
 
     <footer class="site-foot">
@@ -237,7 +283,7 @@
 <nav class="bottom-nav">
   <a href="#/home" data-route="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
   <a href="#/sports" data-route="sports"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>A–Z</a>
-  <a href="#/live" data-route="live"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/></svg>Live</a>
+  <a href="#/live" data-route="live"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/></svg>Live<i class="nav-badge live-badge" id="navLive"></i></a>
   <a href="#" id="navSlip"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Betslip<i class="nav-badge" id="navBadge" data-z="1">0</i></a>
   <a href="#/me" data-route="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me</a>
 </nav>
@@ -249,7 +295,10 @@
   <a href="#/home">Home</a>
   <a href="#/live">Live Betting</a>
   <a href="#/sports">A–Z Sports</a>
+  <a href="#/virtuals">Virtual Football</a>
   <a href="#/jackpot">Jackpot</a>
+  <a href="#/games">Games</a>
+  <a href="#/results">Results</a>
   <a href="#/promos">Promotions</a>
   <a href="#/me">My Bets</a>
   <a href="#" data-open="depositModal">Deposit</a>
