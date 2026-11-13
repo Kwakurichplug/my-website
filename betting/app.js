@@ -221,13 +221,13 @@
     const deq = d => diff[d] || 0;
     const teamOver = (arr, base, l) => arr.reduce((s, p, i) => s + (base + i > l ? p : 0), 0);
 
-    add('1x2', '1X2', 'Main', 3, [['1', '1', H], ['X', 'X', D], ['2', '2', A]]);
-    add('dc', 'Double Chance', 'Main', 3, [['1X', '1X', H + D], ['12', '12', H + A], ['X2', 'X2', D + A]]);
+    add('1x2', '1X2', 'Main', 3, [['1', 'Home', H], ['X', 'Draw', D], ['2', 'Away', A]]);
+    add('dc', 'Double Chance', 'Main', 3, [['1X', 'Home or Draw', H + D], ['12', 'Home or Away', H + A], ['X2', 'Draw or Away', D + A]]);
     if (m.live && rem > 0) {
       const L = (m.lh + m.la) * rem, pn = Math.exp(-L);
-      add('next', `Next Goal (${sh + sa + 1})`, 'Main', 3, [['1', '1', (1 - pn) * m.lh / (m.lh + m.la)], ['none', 'No Goal', pn], ['2', '2', (1 - pn) * m.la / (m.lh + m.la)]]);
+      add('next', `Next Goal (${sh + sa + 1})`, 'Main', 3, [['1', 'Home', (1 - pn) * m.lh / (m.lh + m.la)], ['none', 'None', pn], ['2', 'Away', (1 - pn) * m.la / (m.lh + m.la)]]);
     }
-    add('dnb', 'Draw No Bet', 'Main', 2, [['1', '1', H / (H + A)], ['2', '2', A / (H + A)]]);
+    add('dnb', 'Draw No Bet', 'Main', 2, [['1', 'Home', H / (H + A)], ['2', 'Away', A / (H + A)]]);
     add('gg', 'Both Teams To Score', 'Main', 2, [['gg', 'GG (Yes)', GG], ['ng', 'NG (No)', 1 - GG]]);
     add('ou', 'Over/Under', 'Goals', 2, [0.5, 1.5, 2.5, 3.5, 4.5, 5.5].flatMap(l => [[`o${l}`, `Over ${l}`, over(l)], [`u${l}`, `Under ${l}`, 1 - over(l)]]));
     add('hou', `${m.home} Total Goals`, 'Goals', 2, [0.5, 1.5, 2.5].flatMap(l => { const p = teamOver(ph, sh, l); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
@@ -245,8 +245,8 @@
         t1[x + y] = (t1[x + y] || 0) + p;
       }
       const o1 = l => Object.entries(t1).reduce((s, [k, p]) => s + (+k > l ? p : 0), 0);
-      add('1h1x2', '1st Half – 1X2', 'Half', 3, [['1', '1', h], ['X', 'X', d], ['2', '2', a]]);
-      add('1hou', '1st Half – Over/Under', 'Half', 2, [0.5, 1.5].flatMap(l => [[`o${l}`, `Over ${l}`, o1(l)], [`u${l}`, `Under ${l}`, 1 - o1(l)]]));
+      add('1h1x2', '1st Half - 1X2', 'Half', 3, [['1', 'Home', h], ['X', 'Draw', d], ['2', 'Away', a]]);
+      add('1hou', '1st Half - Over/Under', 'Half', 2, [0.5, 1.5].flatMap(l => [[`o${l}`, `Over ${l}`, o1(l)], [`u${l}`, `Under ${l}`, 1 - o1(l)]]));
     }
     if (!m.live) {
       const n = 6, h1 = pois(m.lh * 0.45, n), a1 = pois(m.la * 0.45, n), h2 = pois(m.lh * 0.55, n), a2 = pois(m.la * 0.55, n);
@@ -291,7 +291,7 @@
     const mu = d0 + m.mu * rem, sd = P.msd * Math.sqrt(rem);
     const tm = t0 + P.T * m.tf * rem, tsd = P.sd * Math.sqrt(rem);
     const pw = 1 - ncdf(-mu / sd);
-    add('win', 'Winner', 'Main', 2, [['1', '1', pw], ['2', '2', 1 - pw]]);
+    add('win', 'Winner', 'Main', 2, [['1', 'Home', pw], ['2', 'Away', 1 - pw]]);
     add('hcp', 'Handicap', 'Handicap', 2, P.hl.flatMap((h, i) => { const p = 1 - ncdf((-h - mu) / sd); return [[`h${i}1`, `1 (${h})`, p], [`h${i}2`, `2 (+${-h})`, 1 - p]]; }));
     add('tot', `Total ${P.unit}`, 'Totals', 2, P.tl.flatMap(l => { const p = 1 - ncdf((l - tm) / tsd); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
     return out;
@@ -354,9 +354,11 @@
     const o = m.map[mk]?.[ok];
     if (!o) return `<span class="odd void"></span>`;
     if (!o.o) return `<button class="odd ${style || ''} locked" disabled>${style === 'ob' ? `<span>${esc(o.l)}</span>` : ''}${LOCK}</button>`;
+    if (style === 'tb' && !o) return '<span class="odd void"></span>';
     const cls = ['odd', style || '', isSel(m.id, mk, ok) ? 'sel' : '', m.flash[mk + '|' + ok] || ''].join(' ');
     const inner = style === 'ob'
       ? `<span>${esc(o.l)}</span><b>${o.o.toFixed(2)}</b>`
+      : style === 'tb' ? `<b>${o.o.toFixed(2)}</b>`
       : `${label ? `<small>${esc(label)}</small>` : ''}<b>${o.o.toFixed(2)}</b>`;
     return `<button class="${cls}" data-mid="${m.id}" data-mk="${mk}" data-ok="${esc(ok)}">${inner}</button>`;
   }
@@ -554,12 +556,15 @@
     } else if (m.live) {
       bar = `<div class="mh-bar"><div class="mh-track"><i style="width:${m.prog * 100}%"></i></div></div>`;
     }
-    $('#mdHero').innerHTML = `<div class="mh-teams">
-        <div class="mh-team">${crest(m.home, 1, m.sport)}<span>${esc(m.home)}</span></div>
-        <div class="mh-mid">${mid}</div>
-        <div class="mh-team">${crest(m.away, 1, m.sport)}<span>${esc(m.away)}</span></div>
-      </div>${bar}
-      <div class="mh-foot"><span>ID ${m.id}</span><span>${m.mk.length} markets</span>${m.live ? '<span class="live-pill">LIVE</span>' : '<span>Cashout available</span>'}</div>`;
+    const [kd, kt] = fmtKick(m.kick, true);
+    const clock = m.live
+      ? `<span class="mh-clock">${m.two ? liveLabel(m) : `<b data-clk="${m.id}">${String(m.minute).padStart(2, '0')}:00</b> ${m.minute <= 45 ? 'H1' : 'H2'}`}</span>`
+      : `<span class="mh-clock pre">${kd} ${kt}</span>`;
+    const bar2 = (name, sc, side) => `<div class="mh-row"><span class="mh-name">${crest(name, 0, m.sport)}<i>${esc(name)}</i></span>${m.live ? `<b class="mh-sc${recentGoal(m) && m.goalSide === side ? ' pop' : ''}">${sc}</b>` : ''}</div>`;
+    $('#mdHero').innerHTML = `<a class="mh-lg" href="#/league/${lg.idx}">${esc(sp.name)} - ${esc(lg.country)} - ${esc(lg.name)}</a>
+      <div class="mh-clockrow">${clock}<span class="mh-id">ID ${m.id}</span></div>
+      ${bar2(m.home, m.score[0], 0)}${bar2(m.away, m.score[1], 1)}
+      ${bar}`;
 
     $$('#mdTabs button').forEach(b => b.classList.toggle('active', b.dataset.mdtab === state.mdTab));
     $('#mdMarketsWrap').hidden = state.mdTab !== 'markets';
@@ -575,7 +580,9 @@
         const allLocked = x.outs.every(o => !o.k || !o.o);
         return `<div class="mkt ${closed ? 'closed' : ''}">
           <button class="mkt-head" data-collapse="${ck}"><span>${esc(x.name)}</span>${allLocked ? '<em class="susp">Suspended</em>' : ''}<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-          <div class="mkt-body" style="--c:${x.cols}">${x.outs.map(o => o.k ? oddBtn(m, x.key, o.k, null, 'ob') : '<span class="odd void"></span>').join('')}</div>
+          ${['ou', 'hou', 'aou', 'cor', '1hou', 'tot'].includes(x.key)
+            ? `<div class="mkt-body tbl"><span class="th"></span><span class="th">Over</span><span class="th">Under</span>${(() => { let h = ''; for (let i = 0; i + 1 < x.outs.length; i += 2) { const o = x.outs[i], u = x.outs[i + 1]; h += `<span class="line">${esc(o.l.replace(/^Over\s*/, ''))}</span>${oddBtn(m, x.key, o.k, null, 'tb')}${oddBtn(m, x.key, u.k, null, 'tb')}`; } return h; })()}</div>`
+            : `<div class="mkt-body" style="--c:${x.cols}">${x.outs.map(o => o.k ? oddBtn(m, x.key, o.k, null, 'ob') : '<span class="odd void"></span>').join('')}</div>`}
         </div>`;
       }).join('');
     }
