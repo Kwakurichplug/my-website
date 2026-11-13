@@ -301,8 +301,8 @@
   function listMarkets(sport) {
     if (sport === 'football' || sport === 'vfootball') return [
       { id: '1x2', name: '1X2', mk: '1x2', outs: ['1', 'X', '2'], lab: ['1', 'X', '2'] },
-      { id: 'dc', name: 'Double Chance', mk: 'dc', outs: ['1X', '12', 'X2'], lab: ['1X', '12', 'X2'] },
-      { id: 'ou', name: 'Over/Under 2.5', mk: 'ou', outs: ['o2.5', 'u2.5'], lab: ['Over', 'Under'] },
+      { id: 'dc', name: 'DC', mk: 'dc', outs: ['1X', '12', 'X2'], lab: ['1X', '12', 'X2'] },
+      { id: 'ou', name: 'O/U 2.5', mk: 'ou', outs: ['o2.5', 'u2.5'], lab: ['Over', 'Under'] },
       { id: 'gg', name: 'GG/NG', mk: 'gg', outs: ['gg', 'ng'], lab: ['GG', 'NG'] },
     ];
     const P = TW[sport] || TW.default, mid = P.tl[Math.floor(P.tl.length / 2)];
@@ -455,7 +455,7 @@
         <div class="fc-top"><span class="hot">HOT</span><a href="#/league/${m.lg}">Football - ${esc(LEAGUES[m.lg].country)} - ${esc(LEAGUES[m.lg].name)}</a></div>
         <a class="fc-mid" href="#/match/${m.id}">
           <span class="fc-team">${crest(m.home, 1, m.sport)}<i>${esc(m.home)}</i></span>
-          <span class="fc-time"><b>${t}</b><small>${d}</small><em>1X2</em></span>
+          <span class="fc-time"><span class="fc-dt"><b>${t}</b><i></i><small>${d}</small></span><em>1X2</em></span>
           <span class="fc-team">${crest(m.away, 1, m.sport)}<i>${esc(m.away)}</i></span>
         </a>
         <div class="fc-odds">${['1', 'X', '2'].map(k => oddBtn(m, '1x2', k, null, 'ob')).join('')}</div>
@@ -467,7 +467,8 @@
     renderMarketTabs($('#marketTabs'), state.sport);
     const F = { all: 'All', today: 'Today', '3h': 'Next 3 hours', tomorrow: 'Tomorrow' };
     if (!F[state.list]) state.list = 'all';
-    $('#filterBar').innerHTML = Object.entries(F).map(([k, v]) => `<button data-list="${k}" class="${k === state.list ? 'active' : ''}">${v}</button>`).join('');
+    $('#filterBar').innerHTML = state.list === 'all' ? '' : `<button data-list="all" class="active">${F[state.list]} ✕</button>`;
+    $('#filterBar').hidden = state.list === 'all';
     let list = MATCHES.filter(m => m.sport === state.sport && !m.live && !m.finished).sort((a, b) => a.kick - b.kick);
     const now = Date.now(), dayOf = ts => new Date(ts).toDateString();
     if (state.list === 'today') list = list.filter(m => dayOf(m.kick) === dayOf(now));
@@ -792,7 +793,7 @@
     lastBal = state.user ? state.user.balance : null;
     $('#authArea').innerHTML = state.user
       ? `<a class="balance" href="#/me"><small>Balance</small><b>${naira(state.user.balance)}</b></a><button class="btn btn-accent sm dep" data-open="depositModal" aria-label="Deposit"><span class="dep-full">Deposit</span><span class="dep-plus">+</span></button>`
-      : `<button class="btn btn-ghost sm" data-open="loginModal">Login</button><button class="btn btn-accent sm" data-open="registerModal">Join Now</button>`;
+      : `<button class="btn btn-accent sm" data-open="registerModal">Join Now</button><button class="btn btn-ghost sm" data-open="loginModal">Log in</button>`;
     if (state.user && prevBal != null && prevBal !== state.user.balance && window.Motion) Motion.countUp($('.balance b'), prevBal, state.user.balance, money);
   }
 

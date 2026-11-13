@@ -978,3 +978,154 @@ body[data-page="match"] .slip-pill,body[data-page="jackpot"] .slip-pill{bottom:c
   .splashing .topbar .logo{opacity:1}
 }
 .is-live .odd.sel,.live-block .odd.sel{animation:none}
+
+/* =========================================================
+   v6 – exact metrics (measured from the reference sportsbook
+   at 390px: base 13.06px, small 10.89px, tab 15.24px, title 19.6px)
+   ========================================================= */
+:root{--fs:13.06px;--fs-s:10.89px;--fs-t:15.24px;--fs-h:19.6px;--ink:#1b1e25;--ink-2:#353a45;--mute:#9ca0ab;--g:#0d9737;--g-ink:#096b27;--g-bg:#d6ebdc;--live-g:#32ce62;--ow:67px;--og:1px;--side:11px;--nav-h:56px;--top-h:48px}
+html,body{font-size:var(--fs);line-height:1.5;background:#fafafa;color:var(--ink)}
+
+/* header 48px, buttons 30px */
+.topbar-inner{height:48px;padding:0 8px 0 4px}
+.logo-text{font-size:19px}
+.logo-ball{width:17px;height:17px}
+.top-actions{gap:8px}
+.top-actions .btn.sm{height:30px;padding:0 8px;font-size:var(--fs);font-weight:500;border-radius:2px;line-height:30px}
+.topbar .btn-accent{background:#fff;color:var(--brand)}
+.topbar .btn-ghost{border:1px solid #fff}
+.balance b{font-size:var(--fs)}
+.icon-btn{width:40px;height:48px}
+
+/* story tiles 70×70 */
+.tiles{gap:8px;padding:0 9px;height:74px;align-items:flex-start;background:#fafafa}
+.tile{flex:0 0 70px;height:70px;border-radius:4px;padding:4px 6px}
+.tile b{font-size:8.7px;line-height:1.2;font-weight:700}
+.tile-match .tm{top:10px;gap:2px}
+.tile-match .crest.big{width:22px;height:26px}
+.tile-match em{font-size:8px}
+.tile-game svg{top:12px;width:28px;height:28px}
+
+/* sport shortcut row: 64px cells, 22px icons */
+.icon-row{grid-template-columns:repeat(6,1fr);height:65px;padding:11px 0 0;background:#fafafa}
+.icon-row a{gap:0;font-size:var(--fs-s);line-height:1;color:var(--ink-2)}
+.icon-row svg{width:22px;height:22px;margin-bottom:11px;stroke-width:1.5}
+
+/* popular cards 113×52 */
+.cat-cards{gap:4px;padding:0 11px 5px;background:#fafafa}
+.cat{flex:0 0 113px;min-height:52px;height:52px;padding:7px 9px;font-size:11.5px;line-height:1.15;font-weight:900;border-top-width:3px;box-shadow:0 1px 3px rgba(0,0,0,.1);background:#f2f3f5;display:flex;align-items:center}
+
+/* section heads */
+.sec-head{padding:6.5px 6.5px 0 13px;gap:0;min-height:38px}
+.sec-head h2{font-size:var(--fs-h);font-weight:700;color:var(--ink-2);padding-right:13px;margin-right:13px;line-height:1;border-right:1px solid #c9ccd2}
+.txt-tabs{gap:0}
+.txt-tabs button,.txt-tabs a{font-size:var(--fs-t);padding:0 4.7px;line-height:23px;color:var(--ink-2)}
+.txt-tabs .active{color:var(--g)}
+.hot{margin-top:0;padding-bottom:7.6px}
+.lg-pills{gap:8px;padding:6px 9px 7px}
+.lpill{height:32px;padding:0 10.9px;border-radius:16px;font-size:14.15px;border:1px solid #c9ccd2;gap:6px}
+.lpill.active{border:1.5px solid var(--ink-2)}
+.lpill .flg{width:18px;height:12px}
+
+/* featured card 343×137 */
+.feat{gap:8px;padding:2px 13px 4px}
+.fcard{flex:0 0 343px;height:137px;padding:0 2px 2px;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.14);display:flex;flex-direction:column}
+.fc-top{margin:0;height:16px;font-size:var(--fs-s);gap:6px}
+.fc-top a{color:var(--g)}
+.fc-top .hot{font-size:9.5px;padding:0 9px 0 5px;line-height:14px}
+.fc-mid{flex:1;padding:4px 0 2px;grid-template-columns:1fr 90px 1fr}
+.fc-team{gap:2px;font-size:11.97px;color:var(--mute)}
+.fc-team .crest.big{width:34px;height:40px;filter:none}
+.fc-time{gap:0}
+.fc-time b{font-size:var(--fs)}
+.fc-time small{font-size:var(--fs);color:var(--ink)}
+.fc-time em{font-size:var(--fs);margin-top:6px;color:var(--g)}
+.fc-odds{gap:2px}
+.fc-odds .odd.ob{height:33px;padding:0 17.4px}
+.fc-odds .odd.ob span,.fc-odds .odd.ob b{font-size:var(--fs-t);font-weight:700;color:var(--g-ink)}
+.fc-odds .odd.ob.sel span,.fc-odds .odd.ob.sel b{color:#fff}
+
+/* live block */
+.live-block{margin-top:0;background:var(--ink)}
+.sec-head.dark{background:var(--ink);padding:13px 13px 6.5px;min-height:0}
+.sec-head.dark h2{color:#fff;border-color:#4a4e57}
+.sec-head.dark .txt-tabs button{color:#fff;line-height:15px}
+.sec-head.dark .txt-tabs .active{color:var(--live-g);font-weight:700}
+.mkt-tabs{height:46px;align-items:stretch}
+.mkt-tabs button{padding:11.4px 10.9px;font-size:var(--fs-t);font-weight:500;color:var(--ink-2)}
+.mkt-tabs button.active{font-weight:700;color:var(--ink)}
+.mkt-tabs button.active::after{height:3px;background:var(--g)}
+.mkt-tabs.dark{background:var(--ink);border-bottom:0}
+.mkt-tabs.dark button{color:#fff}
+.mkt-tabs.dark button.active{color:#fff}
+.more-link,.more-link.dark{padding:18.5px 11px;font-size:var(--fs);text-align:right;background:var(--ink);border:0;color:var(--live-g)}
+.more-link:not(.dark){background:#fff;color:var(--g)}
+
+/* column header rows (26px) */
+.day-sep{height:26px;padding:0 var(--side);font-size:var(--fs);color:var(--ink-2);background:#eceef1}
+.day-sep .cols{font-size:var(--fs);color:var(--mute)}
+.day-sep.dark{background:#3a3c42;color:var(--mute)}
+
+/* event rows */
+.ev{margin:0 var(--side);padding:8.7px 0;border-bottom:1px solid #eceef1;background:transparent;overflow:visible}
+.sports-block,.league-block,#lgList,#liveList,#vList{background:#fff}
+.live-block .ev{border-bottom:1px solid rgba(242,243,245,.15);background:transparent}
+.ev-meta{height:20px;margin-bottom:4.35px;gap:8.7px;font-size:var(--fs-s);color:var(--mute)}
+.ev-meta>span:first-of-type:not(.hot),.ev-meta .lv-clock{font-size:var(--fs);color:var(--ink-2)}
+.ev-meta .lv-clock,.ev-meta .lv-half{font-size:var(--fs);font-weight:700;color:var(--g)}
+.live-block .ev-meta .lv-clock,.live-block .ev-meta .lv-half{color:var(--live-g)}
+.ev-meta .ev-lg{font-size:var(--fs-s);color:var(--mute)}
+.ev-meta .hot{margin-left:-11px;font-size:9.5px;padding:0 10px 0 6px;line-height:15px}
+.ev-body{gap:0;align-items:flex-start}
+.ev-teams{font-size:var(--fs);line-height:18.29px;color:var(--ink)}
+.ev-teams span{padding-right:0}
+.ev-teams i{padding-right:10.9px}
+.ev-teams b{width:28px;text-align:center;flex:none;font-weight:400}
+.ev-teams small{font-size:var(--fs-s);font-weight:500;color:var(--mute);margin-top:3.27px;line-height:15.24px}
+.live-block .ev-teams{color:#f2f3f5}
+.ev-odds{gap:var(--og);margin-top:1px}
+
+/* odds 67×37 */
+.odd{height:37px;border-radius:0;font-size:var(--fs-t);font-weight:700;background:var(--g-bg);color:var(--g-ink)}
+.odd b{font-weight:700}
+.odd:hover{background:#c7e3cf}
+.odd.sel{background:var(--g);color:#fff}
+.live-block .odd{background:rgba(214,235,220,.13);color:var(--live-g)}
+.live-block .odd.locked{background:#22252d}
+.live-block .odd .lock{color:#50545f}
+.odd.ob{height:37px}
+.mkt-body{gap:2px}
+.mkt-body .odd.ob span{font-size:var(--fs);color:var(--ink-2);font-weight:400}
+
+/* league list & heads */
+.lg-acc{padding:13px var(--side);font-size:14.15px;font-weight:500}
+.league-head{height:26px;font-size:var(--fs);padding:0 var(--side);background:#eceef1}
+.league-head .cols{font-size:var(--fs);color:var(--mute)}
+.league-block .ev:last-child{border-bottom:0}
+
+/* bottom nav & betslip float */
+.bottom-nav a{font-size:12px;gap:1px}
+.bottom-nav a svg{width:22px;height:22px}
+.slip-pill{width:61px;height:61px;background:var(--g);right:16px}
+.slip-pill svg{width:26px;height:26px}
+.slip-pill b{width:22px;min-width:22px;height:22px;top:-2px;right:-2px;font-size:var(--fs);font-weight:500;padding:0}
+
+/* other lists a notch smaller to match */
+.page-title h1{font-size:var(--fs-h)}
+.res-row{font-size:var(--fs)}
+.filter-bar{padding:6px var(--side)}
+.filter-bar button{font-size:12px;padding:3px 10px}
+@media (max-width:370px){ :root{--ow:60px} }
+@media (min-width:768px){ :root{--ow:80px} .fcard{flex-basis:360px} }
+/* v6.1 polish from side-by-side */
+.tiles{margin-top:10px}
+.cat{font-size:13px;line-height:1.08;padding:6px 10px}
+.fc-dt{display:flex;align-items:center;gap:6px}
+.fc-dt i{width:1px;height:13px;background:#c9ccd2}
+.fc-time small{font-size:var(--fs)}
+.fc-odds .odd.ob span{font-weight:400}
+.fc-team .crest.big{width:36px;height:43px}
+.bottom-nav{--nav-h:52px;height:calc(52px + env(safe-area-inset-bottom))}
+body{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
+.slip-pill{bottom:calc(52px + 14px + env(safe-area-inset-bottom))}
+.top-actions .btn-ghost.sm{padding:0 8px}
