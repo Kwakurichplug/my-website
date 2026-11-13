@@ -377,19 +377,23 @@
     el.innerHTML = listMarkets(sport).map(x => `<button data-market="${x.id}" data-msport="${sport}" class="${x.id === cur.id ? 'active' : ''}">${x.name}</button>`).join('');
   }
 
-  function matchRow(m, cfg) {
+  const isHot = m => LEAGUES[m.lg].top && m.id % 3 === 0;
+  function matchRow(m, cfg, withLeague) {
     const meta = m.live
-      ? `<span class="live">● ${liveLabel(m)}</span>`
-      : `<span>${fmtKick(m.kick)}</span>`;
-    const fav = state.favs.includes(m.id) ? '<span class="star">★</span>' : '';
-    return `<div class="match" style="--n:${cfg.outs.length}">
-      <a class="m-info" href="#/match/${m.id}">
-        <div class="m-meta">${meta}<span class="mid">ID: ${m.id}</span>${fav}</div>
-        <div class="m-team">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span>${m.live ? `<b>${m.score[0]}</b>` : ''}</div>
-        <div class="m-team">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span>${m.live ? `<b>${m.score[1]}</b>` : ''}</div>
-      </a>
-      <div class="m-odds">${cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('')}</div>
-      <a class="m-more" href="#/match/${m.id}" aria-label="All markets">+${m.mk.reduce((s, x) => s + x.outs.filter(o => o.k).length, 0)}<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
+      ? `<span class="lv-clock">${m.two ? liveLabel(m) : String(m.minute).padStart(2, '0') + ':' + String((m.id * 7) % 60).padStart(2, '0')}</span><span class="lv-half">${m.two ? '' : m.minute <= 45 ? 'H1' : 'H2'}</span>`
+      : `${isHot(m) ? '<span class="hot">HOT</span>' : ''}<span>${new Date(m.kick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span><span>ID ${m.id}</span>`;
+    const lg = LEAGUES[m.lg];
+    const n = m.mk.reduce((acc, x) => acc + x.outs.filter(o => o.k).length, 0);
+    return `<div class="ev${m.live ? ' is-live' : ''}" style="--n:${cfg.outs.length}">
+      <div class="ev-meta">${meta}${withLeague ? `<span class="ev-lg">${esc(lg.country)} - ${esc(lg.name)}</span>` : ''}${state.favs.includes(m.id) ? '<span class="star">★</span>' : ''}</div>
+      <div class="ev-body">
+        <a class="ev-teams" href="#/match/${m.id}">
+          <span><i>${esc(m.home)}</i>${m.live ? `<b>${m.score[0]}</b>` : ''}</span>
+          <span><i>${esc(m.away)}</i>${m.live ? `<b>${m.score[1]}</b>` : ''}</span>
+          <small>+${n} ›</small>
+        </a>
+        <div class="ev-odds">${cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('')}</div>
+      </div>
     </div>`;
   }
 
@@ -403,49 +407,86 @@
         <div class="league-head" style="--n:${cfg.outs.length}">
           ${hideHead ? `<span class="lh-name">${esc(cfg.name)}</span>` : `<a class="lh-name" href="#/league/${lgi}"><span class="flag">${lg.flag}</span><span class="lh-t">${esc(lg.full)}</span></a>`}
           <div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div><span class="cols-pad"></span></div>
-        ${ms.map(m => matchRow(m, cfg)).join('')}
+        ${ms.map(m => matchRow(m, cfg, false)).join('')}
       </div>`;
     }).join('');
   }
 
+  const fmtDay = ts => { const d = new Date(ts); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${d.toLocaleDateString([], { weekday: 'long' })}`; };
+  function flatList(list, cfg) {
+    let day = '', html = '';
+    list.forEach(m => {
+      const d = new Date(m.kick).toDateString();
+      if (d !== day) { day = d; html += `<div class="day-sep" style="--n:${cfg.outs.length}"><span>${fmtDay(m.kick)}</span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div></div>`; }
+      html += matchRow(m, cfg, true);
+    });
+    return html || '<div class="empty">No events for this filter.</div>';
+  }
   function renderHome() {
+    const big = MATCHES.filter(m => m.sport === 'football' && !m.finished && !m.live && LEAGUES[m.lg].top).sort((a, b) => a.kick - b.kick);
+    const t1 = big[0], t2 = big[3] || big[1];
+    const mt = m => m ? `<a class="tile tile-match" href="#/match/${m.id}"><span class="tm">${crest(m.home, 1, m.sport)}<em>vs</em>${crest(m.away, 1, m.sport)}</span><b>${esc(LBA.code(m.home))} vs ${esc(LBA.code(m.away))}</b></a>` : '';
+    $('#tiles').innerHTML = `
+      <a class="tile" href="#" data-open="registerModal" style="background-image:url(${C.b1})"><b>Welcome Bonus</b></a>
+      ${mt(t1)}
+      <a class="tile" href="#/virtuals" style="background-image:url(img/banner-2.jpg)"><b>Virtuals</b></a>
+      ${mt(t2)}
+      <a class="tile" href="#/jackpot" style="background-image:url(${C.b3})"><b>Jackpot</b></a>
+      <a class="tile tile-game" href="#/games"><svg viewBox="0 0 24 24"><path d="M12 3c3 2 4 6 4 9l-4 4-4-4c0-3 1-7 4-9z"/><circle cx="12" cy="10" r="1.5"/><path d="M8 16l-2 4 4-2M16 16l2 4-4-2"/></svg><b>Rocket Crash</b></a>`;
+    const lgIdx = (c, n) => LEAGUES.find(l => l.country === c && l.name === n)?.idx;
+    $('#catCards').innerHTML = [
+      ["TODAY'S FOOTBALL", '#e5163a', 'data-cat="today"'],
+      ['FOOTBALL IN NEXT 3 HOURS', '#7d838c', 'data-cat="3h"'],
+      ['NIGERIA NPFL', '#0a7d3e', `href="#/league/${lgIdx('Nigeria', 'NPFL')}"`],
+      ['GHANA PREMIER LEAGUE', '#ffc20e', `href="#/league/${lgIdx('Ghana', 'Premier League')}"`],
+      ['ENGLAND PREMIER LEAGUE', '#3d1a6e', `href="#/league/${lgIdx('England', 'Premier League')}"`],
+    ].map(([t, c, a]) => `<a class="cat" ${a.startsWith('href') ? a : 'href="#" ' + a} style="--c:${c}">${t}</a>`).join('');
+    $('#hotTabs').innerHTML = `<button class="active">Matches</button><a href="#/virtuals">Virtuals</a><a href="#/jackpot">Jackpot</a><a href="#/results">Results</a>`;
+    const hotLgs = LEAGUES.filter(l => l.sport === 'football' && MATCHES.some(m => m.lg === l.idx && !m.live && !m.finished));
+    if (state.hotLg == null || !hotLgs.some(l => l.idx === state.hotLg)) state.hotLg = hotLgs[0] ? hotLgs[0].idx : null;
+    const pl = $('#leagueChips'), px = pl.scrollLeft;
+    pl.innerHTML = hotLgs.map(l => `<button class="lpill ${l.idx === state.hotLg ? 'active' : ''}" data-hlg="${l.idx}">${l.flag}<span>${esc(l.name)}</span></button>`).join('');
+    pl.scrollLeft = px;
+    const feat = MATCHES.filter(m => m.lg === state.hotLg && !m.live && !m.finished).sort((a, b) => a.kick - b.kick).slice(0, 6);
+    const fe = $('#featured'), fx = fe.scrollLeft;
+    fe.innerHTML = feat.map(m => {
+      const [d, t] = fmtKick(m.kick, true);
+      return `<div class="fcard">
+        <div class="fc-top"><span class="hot">HOT</span><a href="#/league/${m.lg}">Football - ${esc(LEAGUES[m.lg].country)} - ${esc(LEAGUES[m.lg].name)}</a></div>
+        <a class="fc-mid" href="#/match/${m.id}">
+          <span class="fc-team">${crest(m.home, 1, m.sport)}<i>${esc(m.home)}</i></span>
+          <span class="fc-time"><b>${t}</b><small>${d}</small><em>1X2</em></span>
+          <span class="fc-team">${crest(m.away, 1, m.sport)}<i>${esc(m.away)}</i></span>
+        </a>
+        <div class="fc-odds">${['1', 'X', '2'].map(k => oddBtn(m, '1x2', k, null, 'ob')).join('')}</div>
+      </div>`;
+    }).join('');
+    fe.scrollLeft = fx;
+    renderLiveStrip();
     renderSportTabs($('#sportTabs'), state.sport);
     renderMarketTabs($('#marketTabs'), state.sport);
-    let list = MATCHES.filter(m => m.sport === state.sport && !m.live && !m.finished);
-    const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
-    if (state.list === 'today') list = list.filter(m => m.kick <= endToday.getTime());
-    const dayKey = ts => new Date(ts).toDateString();
-    const days = [...new Set(list.map(m => dayKey(m.kick)))].sort((a, b) => new Date(a) - new Date(b));
-    if (state.day !== 'all' && !days.includes(state.day)) state.day = 'all';
-    $('#dayChips').hidden = state.list !== 'upcoming';
-    $('#dayChips').innerHTML = ['all', ...days].map(d => {
-      const lbl = d === 'all' ? 'All' : d === new Date().toDateString() ? 'Today' : d === new Date(Date.now() + 864e5).toDateString() ? 'Tomorrow' : new Date(d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-      return `<button data-day="${d}" class="${d === state.day ? 'active' : ''}">${lbl}</button>`;
-    }).join('');
-    if (state.list === 'upcoming' && state.day !== 'all') list = list.filter(m => dayKey(m.kick) === state.day);
-    list.sort((a, b) => a.kick - b.kick);
-    if (state.list === 'highlights') list = list.filter(m => LEAGUES[m.lg].top || m.sport !== 'football').slice(0, 16);
-    $('#matchList').innerHTML = groupRender(list, mktFor);
-    const lgs = LEAGUES.filter(l => l.sport === state.sport);
-    $('#leagueChips').innerHTML = lgs.map(l => `<a href="#/league/${l.idx}" class="lchip"><span class="flag">${l.flag}</span><span><b>${esc(l.name)}</b><small>${esc(l.country)}</small></span></a>`).join('');
-    renderLiveStrip();
+    const F = { all: 'All', today: 'Today', '3h': 'Next 3 hours', tomorrow: 'Tomorrow' };
+    if (!F[state.list]) state.list = 'all';
+    $('#filterBar').innerHTML = Object.entries(F).map(([k, v]) => `<button data-list="${k}" class="${k === state.list ? 'active' : ''}">${v}</button>`).join('');
+    let list = MATCHES.filter(m => m.sport === state.sport && !m.live && !m.finished).sort((a, b) => a.kick - b.kick);
+    const now = Date.now(), dayOf = ts => new Date(ts).toDateString();
+    if (state.list === 'today') list = list.filter(m => dayOf(m.kick) === dayOf(now));
+    if (state.list === 'tomorrow') list = list.filter(m => dayOf(m.kick) === dayOf(now + 864e5));
+    if (state.list === '3h') list = list.filter(m => m.kick - now <= 3 * 36e5);
+    $('#matchList').innerHTML = flatList(list.slice(0, 30), mktFor(state.sport));
+    $('#leagueAcc').innerHTML = LEAGUES.filter(l => l.sport === state.sport).map(l => `<a class="lg-acc" href="#/league/${l.idx}"><i></i>${l.flag}<span>${esc(l.country)} - ${esc(l.name)}</span><b>${MATCHES.filter(m => m.lg === l.idx && !m.finished).length}</b></a>`).join('');
   }
 
   function renderLiveStrip() {
-    const el = $('#liveStrip'), x = el.scrollLeft;
-    const live = MATCHES.filter(m => m.live).slice(0, 12);
-    el.innerHTML = live.map(m => {
-      const mk = m.two ? 'win' : '1x2', outs = m.two ? ['1', '2'] : ['1', 'X', '2'];
-      return `<div class="live-card">
-        <a href="#/match/${m.id}" class="lc-link">
-          <div class="lc-top"><span>${sportOf(m.sport).em} ${esc(league(m).name)}</span><span class="lc-min">● ${liveLabel(m)}</span></div>
-          <div class="lc-team">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span><b>${m.score[0]}</b></div>
-          <div class="lc-team">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span><b>${m.score[1]}</b></div>
-        </a>
-        <div class="lc-odds" style="grid-template-columns:repeat(${outs.length},1fr)">${outs.map(o => oddBtn(m, mk, o, o)).join('')}</div>
-      </div>`;
-    }).join('');
+    const sports = [...new Set(MATCHES.filter(m => m.live).map(m => m.sport))];
+    if (!state.hls || !sports.includes(state.hls)) state.hls = sports[0] || 'football';
+    const el = $('#homeLiveTabs'), x = el.scrollLeft;
+    el.innerHTML = sports.map(id => `<button data-hls="${id}" class="${id === state.hls ? 'active' : ''}">${sportOf(id).name}</button>`).join('');
     el.scrollLeft = x;
+    renderMarketTabs($('#homeLiveMkt'), state.hls);
+    const cfg = mktFor(state.hls);
+    const live = MATCHES.filter(m => m.live && m.sport === state.hls).slice(0, 6);
+    $('#liveStrip').innerHTML = `<div class="day-sep dark" style="--n:${cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div></div>` + live.map(m => matchRow(m, cfg, true)).join('');
   }
 
   function renderLive() {
@@ -639,8 +680,7 @@
   function renderSlip() {
     const n = state.slip.length;
     $('#bsCount').textContent = n;
-    $('#navBadge').textContent = n; $('#navBadge').dataset.z = n ? 0 : 1;
-    $('#pillCount').textContent = n;
+        $('#pillCount').textContent = n;
     const valid = state.slip.filter(s => !s.susp);
     const total = valid.reduce((a, s) => a * s.odd, 1);
     $('#pillOdds').textContent = 'Total odds ' + (n ? total.toFixed(2) : '0.00');
@@ -1110,13 +1150,16 @@
       state.sport = d.sport; return state.route === 'home' ? renderHome() : go('home');
     }
     if (d.day) { state.day = d.day; return renderHome(); }
+    if (d.hlg) { state.hotLg = +d.hlg; return renderHome(); }
+    if (d.hls) { state.hls = d.hls; return renderLiveStrip(); }
+    if (d.cat) { state.list = d.cat; state.sport = 'football'; renderHome(); return $('.sports-block').scrollIntoView({ behavior: 'smooth' }); }
     if (d.res) { state.resSport = d.res; return renderResults(); }
     if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
     if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
     if (d.break) { if (!state.user) return openModal('loginModal'); return toast(`Self-exclusion request for ${d.break} received`); }
     if (d.game) return toast(`${d.game} is coming soon`);
     if ('chat' in d) return toast('Live chat will connect to your support desk');
-    if (d.list) { state.list = d.list; $$('[data-list]').forEach(b => b.classList.toggle('active', b === t)); return renderHome(); }
+    if (d.list) { state.list = d.list; return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
     if (d.bstype) { state.slipType = d.bstype; return renderSlip(); }
@@ -1137,6 +1180,7 @@
       toast(`Cashed out ${naira(v)}`); renderMe(); return renderAuth();
     }
     switch (t.id) {
+      case 'moreBtn': e.preventDefault(); $('#drawer').classList.add('open'); $('#scrim').classList.add('on'); break;
       case 'menuBtn': $('#drawer').classList.add('open'); $('#scrim').classList.add('on'); break;
       case 'searchBtn': openSearch(); break;
       case 'searchClose': closeSearch(); break;
@@ -1213,15 +1257,6 @@
     saveSlip(); closeModals(); renderAfterSlipChange(); openSlip();
     toast(`Loaded ${state.slip.length} selection(s)`);
   });
-
-  /* ---------------- Carousel ---------------- */
-  const slides = $$('.slide'); let cur = 0;
-  $('#dots').innerHTML = slides.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('');
-  const show = i => { cur = (i + slides.length) % slides.length; $('#slides').style.transform = `translateX(-${cur * 100}%)`; $$('#dots i').forEach((d, k) => d.classList.toggle('on', k === cur)); };
-  let auto = setInterval(() => show(cur + 1), 5000);
-  let sx = 0;
-  $('#carousel').addEventListener('touchstart', e => { sx = e.touches[0].clientX; clearInterval(auto); }, { passive: true });
-  $('#carousel').addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1)); auto = setInterval(() => show(cur + 1), 5000); });
 
   /* ---------------- Live simulation ---------------- */
   function simTick() {

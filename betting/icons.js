@@ -157,5 +157,6 @@
     </svg>`;
   }
 
-  window.LBA = { crest, flag, sport };
+  const code = name => (T[name] && T[name][4]) || codeOf(name);
+  window.LBA = { crest, flag, sport, code };
 })();
