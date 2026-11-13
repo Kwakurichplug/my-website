@@ -295,34 +295,33 @@
 
   <!-- ============ BETSLIP ============ -->
   <aside class="betslip" id="betslip">
-    <div class="bs-grip"></div>
     <div class="bs-head">
-      <h3>Betslip <span class="badge" id="bsCount">0</span></h3>
-      <button class="icon-btn bs-close" id="bsClose" aria-label="Close">
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+      <span class="bs-cnt" id="bsCount">0</span>
+      <span class="bs-title">Betslip</span>
+      <button class="bs-x" id="bsClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
+    <div class="bs-tools"><button class="bs-tool" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg>Load Code</button><button class="bs-tool" id="bsClear"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 7l1 13h6l1-13M10 11l4 5M14 11l-4 5"/></svg></button></div>
     <div class="bs-tabs">
-      <button data-bstype="single">Singles</button>
+      <button data-bstype="single">Single</button>
       <button class="active" data-bstype="multi">Multiple</button>
+      <button data-bstype="system" disabled>System</button>
     </div>
     <div class="bs-body" id="bsBody"></div>
     <div class="bs-foot" id="bsFoot">
-      <label class="accept"><input type="checkbox" id="bsAccept" checked> Accept odds changes</label>
-      <div class="row"><span>Total Odds</span><b id="bsOdds">0.00</b></div>
-      <div class="stake-row">
-        <label for="bsStake">Stake (<span data-t="cur"></span>)</label>
-        <input id="bsStake" type="number" inputmode="decimal">
+      <div class="bs-stake-row">
+        <span id="bsStakeLbl">Stake</span>
+        <label class="bs-stake"><i data-t="curCode"></i><input id="bsStake" type="number" inputmode="decimal"></label>
       </div>
       <div class="chips" id="stakeChips"></div>
+      <div class="row"><span>Total Odds</span><b id="bsOdds">0.00</b></div>
+      <div class="row"><span>Total Stake</span><b id="bsTotStake">0.00</b></div>
       <div class="boost-bar" id="boostBar"><div class="bb-track"><i id="bbFill"></i></div><span id="bbText"></span></div>
-      <div class="row"><span>Win Boost</span><b id="bsBoost" class="gold">0%</b></div>
-      <div class="row big"><span>Potential Win</span><b id="bsWin">0.00</b></div>
-      <div class="bs-actions">
-        <button class="btn btn-ghost" id="bsClear">Remove All</button>
-        <button class="btn btn-accent" id="bsPlace">Place Bet</button>
-      </div>
-      <button class="link-btn" id="bsBook">Book bet &amp; get code</button>
+      <div class="row boost"><span>Win Boost <b id="bsBoost" class="gold">0%</b></span><label class="accept"><input type="checkbox" id="bsAccept" checked> Accept odds changes</label></div>
+      <div class="bs-win"><span>Potential Win</span><b id="bsWin">0.00</b></div>
+    </div>
+    <div class="bs-bar" id="bsBar">
+      <button class="bs-book" id="bsBook">Book Bet</button>
+      <button class="bs-place" id="bsPlace"><b>Place Bet</b><small id="bsPay"></small></button>
     </div>
   </aside>
 </div>

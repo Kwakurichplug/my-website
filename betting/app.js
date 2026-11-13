@@ -35,7 +35,7 @@
   };
   function applyCountry() {
     const short = n => n >= 1000 ? (n / 1000) + 'k' : String(n);
-    const T = { cur: C.cur, jackpot: whole(C.jackpot), jackpotShort: C.jackpotShort, ticket: whole(C.ticket), bonusMax: whole(C.bonusMax), referral: whole(C.referral) };
+    const T = { curCode: CC === 'GH' ? 'GHS' : 'NGN', cur: C.cur, jackpot: whole(C.jackpot), jackpotShort: C.jackpotShort, ticket: whole(C.ticket), bonusMax: whole(C.bonusMax), referral: whole(C.referral) };
     document.querySelectorAll('[data-t]').forEach(el => { el.textContent = T[el.dataset.t]; });
     const IMG = { b1: C.b1, b2: 'img/banner-2.jpg', b3: C.b3 };
     document.querySelectorAll('[data-img]').forEach(el => { el.style.backgroundImage = `url(${IMG[el.dataset.img]})`; });
@@ -688,53 +688,59 @@
   function renderSlip() {
     const n = state.slip.length;
     $('#bsCount').textContent = n;
-        $('#pillCount').textContent = n;
+    $('#pillCount').textContent = n;
     const valid = state.slip.filter(s => !s.susp);
     const total = valid.reduce((a, s) => a * s.odd, 1);
-    $('#pillOdds').textContent = 'Total odds ' + (n ? total.toFixed(2) : '0.00');
     const pill = n > 0 && !$('#betslip').classList.contains('open');
     $('#slipPill').classList.toggle('show', pill); $('#slipPill').classList.toggle('empty', n === 0); document.body.classList.toggle('has-pill', n > 0);
-    $$('.bs-tabs button').forEach(b => b.classList.toggle('active', b.dataset.bstype === state.slipType));
+    if (state.slipType === 'multi' && n < 2) state.slipType = 'single';
+    $$('.bs-tabs button').forEach(b => { b.classList.toggle('active', b.dataset.bstype === state.slipType); if (b.dataset.bstype === 'multi') b.disabled = n < 2; });
+    const single = state.slipType === 'single';
 
     if (!n) {
-      $('#bsBody').innerHTML = `<div class="empty"><span class="big">🎫</span><b>Your betslip is empty</b><br>Tap any odds to add a selection.<br><button class="btn btn-ghost sm mt" data-open="codeModal">Load booking code</button></div>`;
-      $('#bsFoot').style.display = 'none'; return;
+      $('#bsBody').innerHTML = `<div class="bs-empty"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><b>Your betslip is empty</b><span>Tap any odds to add a selection</span></div>`;
+      $('#bsFoot').hidden = true; $('#bsBar').hidden = true; return;
     }
-    $('#bsFoot').style.display = '';
-    const single = state.slipType === 'single';
-    $('#bsBody').innerHTML = state.slip.map((s, k) => `<div class="bs-item ${s.susp ? 'susp' : ''}">
-      <button class="x" data-rm="${k}" aria-label="Remove">×</button>
-      <div class="pick"><span>${s.live ? '<em class="lv">LIVE</em>' : ''}${esc(s.label)}</span><b class="${s.chg || ''}">${s.susp ? LOCK : s.odd.toFixed(2)}</b></div>
-      <div class="mk">${esc(s.mname)}</div>
-      <a class="mt-link" href="#/match/${s.mid}">${esc(s.match)}</a>
-      ${single && !s.susp ? `<div class="single-stake"><input type="number" min="${C.minStake}" value="${s.stake}" data-stake="${k}" inputmode="numeric"><span class="sw">Win ${naira(s.stake * s.odd)}</span></div>` : ''}
-      ${s.susp ? '<div class="susp-msg">Market suspended – remove to continue</div>' : ''}
+    $('#bsFoot').hidden = false; $('#bsBar').hidden = false;
+    $('#bsBody').innerHTML = state.slip.map((s, k) => `<div class="bs-item${s.susp ? ' susp' : ''}">
+      <button class="bs-rm" data-rm="${k}" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="bs-main">
+        <div class="bs-l1"><span class="bs-sp">${sportOf(byId(s.mid)?.sport || 'football').em}</span><span class="bs-pick">${esc(s.label)}</span><b class="bs-odd ${s.chg || ''}">${s.susp ? LOCK : s.odd.toFixed(2)}</b></div>
+        <a class="bs-l2" href="#/match/${s.mid}">${s.live ? '<em class="lv">Live</em>' : ''}${esc(s.match)}</a>
+        <div class="bs-l3"><span>${esc(s.mname)}</span>${single && !s.susp ? `<input type="number" min="${C.minStake}" value="${s.stake}" data-stake="${k}" inputmode="decimal">` : ''}</div>
+        ${s.susp ? '<div class="susp-msg">Market suspended – remove to continue</div>' : ''}
+      </div>
     </div>`).join('');
 
-    $('.stake-row').style.display = single ? 'none' : '';
-    $('.bs-foot .chips').style.display = single ? 'none' : '';
-    $('#boostBar').style.display = single ? 'none' : '';
+    $('#boostBar').hidden = single; $('.row.boost').hidden = single;
     const stake = +$('#bsStake').value || 0;
     if (single) {
       const totStake = valid.reduce((a, s) => a + (+s.stake || 0), 0);
-      $('#bsOdds').textContent = '—';
-      $('#bsBoost').textContent = '—';
-      $('#bsWin').textContent = naira(valid.reduce((a, s) => a + (+s.stake || 0) * s.odd, 0));
-      $('#bsPlace').textContent = `Place Bet · ${naira(totStake)}`;
+      $('#bsStakeLbl').textContent = `Stake per bet (${valid.length} bet${valid.length === 1 ? '' : 's'})`;
+      $('#bsOdds').parentElement.hidden = true;
+      $('#bsTotStake').textContent = money(totStake).replace(C.cur, '');
+      const wins = valid.map(s => (+s.stake || 0) * s.odd);
+      const lo = Math.min(...wins), hi = Math.max(...wins);
+      $('#bsWin').textContent = valid.length > 1 ? `${fmtN(lo)} ~ ${fmtN(wins.reduce((a, w) => a + w, 0))}` : fmtN(hi);
+      $('#bsPay').textContent = `About to pay ${fmtN(totStake)}`;
     } else {
       const c = valid.length, boost = BOOST(c), base = stake * total;
       const next = BOOST_STEPS.find(x => x > c);
+      $('#bsStakeLbl').textContent = 'Stake';
+      $('#bsOdds').parentElement.hidden = false;
       $('#bsOdds').textContent = total.toFixed(2);
+      $('#bsTotStake').textContent = fmtN(stake);
       $('#bsBoost').textContent = boost + '%';
       $('#bbFill').style.width = Math.min(100, c / 20 * 100) + '%';
-      $('#bbText').textContent = next ? `Add ${next - c} more for ${BOOST(next)}% boost` : 'Max boost unlocked 🚀';
+      $('#bbText').textContent = next ? `Add ${next - c} more for ${BOOST(next)}% boost` : 'Max boost unlocked';
       const winV = base + (base - stake) * boost / 100;
-      if (window.Motion && state._lastWin != null && Math.abs(state._lastWin - winV) > 0.004) Motion.countUp($('#bsWin'), state._lastWin, winV, naira, 380);
-      else $('#bsWin').textContent = naira(winV);
+      if (window.Motion && state._lastWin != null && Math.abs(state._lastWin - winV) > 0.004) Motion.countUp($('#bsWin'), state._lastWin, winV, fmtN, 380);
+      else $('#bsWin').textContent = fmtN(winV);
       state._lastWin = winV;
-      $('#bsPlace').textContent = 'Place Bet';
+      $('#bsPay').textContent = `About to pay ${fmtN(stake)}`;
     }
   }
+  const fmtN = n => Number(n || 0).toLocaleString(C.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   function placeBet() {
     if (state.slip.some(s => s.susp)) return toast('Remove suspended selections first', 'err');
@@ -1209,7 +1215,7 @@
     if (d.list) { state.list = d.list; return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
-    if (d.bstype) { state.slipType = d.bstype; return renderSlip(); }
+    if (d.bstype) { if (d.bstype === 'system') return toast('System bets are coming soon'); state.slipType = d.bstype; return renderSlip(); }
     if (d.rm) { state.slip.splice(+d.rm, 1); saveSlip(); return renderAfterSlipChange(); }
     if (d.add) { $('#bsStake').value = (+$('#bsStake').value || 0) + +d.add; return renderSlip(); }
     if (d.amt) { $('#depAmt').value = d.amt; return; }
@@ -1261,14 +1267,15 @@
   $('#scrim').addEventListener('click', () => { closeSlip(); closeDrawer(); });
   $$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModals(); closeSlip(); closeDrawer(); closeSearch(); } });
-  $('#bsStake').addEventListener('input', renderSlip);
+  $('#bsStake').addEventListener('input', () => { if (state.slipType === 'single') { const v = +$('#bsStake').value || 0; state.slip.forEach(s => s.stake = v); saveSlip(); } renderSlip(); });
   $('#bsBody').addEventListener('input', e => {
     const k = e.target.dataset.stake; if (k == null) return;
     const s = state.slip[+k]; s.stake = +e.target.value; saveSlip();
-    e.target.nextElementSibling.textContent = 'Win ' + naira(s.stake * s.odd);
-    const valid = state.slip.filter(x => !x.susp);
-    $('#bsWin').textContent = naira(valid.reduce((a, x) => a + (+x.stake || 0) * x.odd, 0));
-    $('#bsPlace').textContent = `Place Bet · ${naira(valid.reduce((a, x) => a + (+x.stake || 0), 0))}`;
+    const valid = state.slip.filter(x => !x.susp), tot = valid.reduce((a, x) => a + (+x.stake || 0), 0);
+    const wins = valid.map(x => (+x.stake || 0) * x.odd);
+    $('#bsTotStake').textContent = fmtN(tot);
+    $('#bsWin').textContent = valid.length > 1 ? `${fmtN(Math.min(...wins))} ~ ${fmtN(wins.reduce((a, w) => a + w, 0))}` : fmtN(wins[0] || 0);
+    $('#bsPay').textContent = `About to pay ${fmtN(tot)}`;
   });
   $('#sportSearch').addEventListener('input', e => renderAZ(e.target.value));
   $('#gSearch').addEventListener('input', renderGames);
