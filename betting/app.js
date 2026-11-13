@@ -1106,7 +1106,7 @@
     $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
     const navKey = page === 'match' || page === 'league' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' ? 'games' : page;
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
-    closeDrawer(); closeSlip(); closeSearch();
+    closeDrawer(); closeSlip(); closeSearch(); closeModals();
     document.body.dataset.page = page;
     if (page === 'home') renderHome();
     if (page === 'live') renderLive();

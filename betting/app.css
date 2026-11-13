@@ -1263,3 +1263,38 @@ body{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
 .me-list em{margin-left:0}
 .me-list svg:last-child{margin-left:8px!important}
 body:is([data-page="me"],[data-page="games"],[data-page="play"],[data-page="acct"]) .slip-pill.empty{display:none}
+
+/* v7.1 – page-by-page clean-up */
+button:focus,a:focus{outline:none}
+:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+.modal-card label>span{display:block}
+/* footer only on home & me (like the reference) */
+body:not([data-page="home"]):not([data-page="me"]) .site-foot{display:none}
+main{min-height:calc(100vh - 48px - 52px)}
+#page-acct{background:#fff;min-height:calc(100vh - 100px)}
+/* floating slip: keep off full-width forms and the jackpot bar */
+body:is([data-page="acct"],[data-page="play"],[data-page="jackpot"],[data-page="promos"]) .slip-pill{display:none}
+/* jackpot rows */
+.jp-row .t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jp-row .opts{grid-template-columns:repeat(3,52px)}
+.jp-foot{bottom:calc(52px + env(safe-area-inset-bottom))}
+/* drawer */
+.drawer a{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:var(--fs-t);color:var(--ink)}
+.drawer a svg{width:20px;height:20px;color:var(--ink-2);stroke-width:1.6}
+.drawer a:active{background:#f2f3f5}
+.drawer .cc-row{font-size:var(--fs)}
+/* toasts sit under the header, never over content controls */
+.toast{top:56px;font-size:var(--fs)}
+/* match page markets: market title size */
+.mkt-head{font-size:var(--fs-t)}
+.md-tabs button{font-size:var(--fs-t)}
+.group-chips button{font-size:var(--fs);padding:4px 12px}
+@media (min-width:1024px){
+  .tiles{display:grid;grid-template-columns:repeat(6,1fr);height:auto;padding:10px 0 0;margin-top:0}
+  .tile{height:auto;aspect-ratio:1.25;border-radius:6px}
+  .tile b{font-size:12px}
+  .tile-match .crest.big{width:34px;height:40px}
+  .cat-cards{display:grid;grid-template-columns:repeat(5,1fr);padding:0 0 8px}
+  .cat{height:58px}
+  .icon-row{background:#fff}
+}
