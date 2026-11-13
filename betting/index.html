@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="splashing">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
@@ -11,6 +11,32 @@
   <link rel="stylesheet" href="app.css" />
 </head>
 <body>
+
+<!-- ============ SPLASH ============ -->
+<div id="splash" aria-hidden="true">
+  <div class="sp-bg"></div>
+  <div class="sp-stripes"></div>
+  <svg class="sp-pitch" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
+    <rect x="30" y="40" width="340" height="720" rx="2"/>
+    <path d="M30 400h340"/>
+    <circle cx="200" cy="400" r="62"/>
+    <circle cx="200" cy="400" r="3" class="dot"/>
+    <rect x="110" y="40" width="180" height="96"/>
+    <rect x="155" y="40" width="90" height="36"/>
+    <rect x="110" y="664" width="180" height="96"/>
+    <rect x="155" y="724" width="90" height="36"/>
+    <path d="M160 136a50 50 0 0 0 80 0M160 664a50 50 0 0 1 80 0"/>
+  </svg>
+  <div class="sp-light l"></div><div class="sp-light r"></div>
+  <div class="sp-glow"></div>
+  <div class="sp-mark">
+    <div class="sp-word"><span class="w1">LetBet</span><span class="w2">Afrika</span></div>
+    <img class="sp-ball" src="img/ball.png" alt="">
+  </div>
+  <p class="sp-tag">Bet smart &middot; Win big</p>
+  <div class="sp-bar"><i></i></div>
+  <small class="sp-lic"><b>18+</b> Play responsibly</small>
+</div>
 
 <!-- ============ HEADER ============ -->
 <header class="topbar">
@@ -363,6 +389,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="motion.js"></script>
 <script src="icons.js"></script>
 <script src="app.js"></script>
 </body>

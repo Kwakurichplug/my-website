@@ -138,7 +138,11 @@
   };
   const initials = name => name.replace(/\./g, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
+  let LOGOS = {};
+  // Official logos from a licensed data feed: LBA.setLogos({ 'Arsenal': 'https://…/arsenal.png', … })
+  const setLogos = map => { LOGOS = Object.assign({}, LOGOS, map); };
   function crest(name, sportId, big) {
+    if (LOGOS[name]) return `<img class="crest logo-img${big ? ' big' : ''}" src="${esc(LOGOS[name])}" alt="" loading="lazy">`;
     const h = hash(name);
     if (PERSON.has(sportId)) {
       const hue = h % 360;
@@ -158,5 +162,5 @@
   }
 
   const code = name => (T[name] && T[name][4]) || codeOf(name);
-  window.LBA = { crest, flag, sport, code };
+  window.LBA = { crest, flag, sport, code, setLogos };
 })();

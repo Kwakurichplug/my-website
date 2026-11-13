@@ -380,16 +380,16 @@
   const isHot = m => LEAGUES[m.lg].top && m.id % 3 === 0;
   function matchRow(m, cfg, withLeague) {
     const meta = m.live
-      ? `<span class="lv-clock">${m.two ? liveLabel(m) : String(m.minute).padStart(2, '0') + ':' + String((m.id * 7) % 60).padStart(2, '0')}</span><span class="lv-half">${m.two ? '' : m.minute <= 45 ? 'H1' : 'H2'}</span>`
+      ? `<span class="lv-clock"${m.two ? '' : ` data-clk="${m.id}"`}>${m.two ? liveLabel(m) : String(m.minute).padStart(2, '0') + ':' + String((m.id * 7) % 60).padStart(2, '0')}</span><span class="lv-half">${m.two ? '' : m.minute <= 45 ? 'H1' : 'H2'}</span>`
       : `${isHot(m) ? '<span class="hot">HOT</span>' : ''}<span>${new Date(m.kick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span><span>ID ${m.id}</span>`;
     const lg = LEAGUES[m.lg];
     const n = m.mk.reduce((acc, x) => acc + x.outs.filter(o => o.k).length, 0);
-    return `<div class="ev${m.live ? ' is-live' : ''}" style="--n:${cfg.outs.length}">
+    return `<div class="ev${m.live ? ' is-live' : ''}${m.live && recentGoal(m) ? ' goal' : ''}" style="--n:${cfg.outs.length}">
       <div class="ev-meta">${meta}${withLeague ? `<span class="ev-lg">${esc(lg.country)} - ${esc(lg.name)}</span>` : ''}${state.favs.includes(m.id) ? '<span class="star">★</span>' : ''}</div>
       <div class="ev-body">
         <a class="ev-teams" href="#/match/${m.id}">
-          <span><i>${esc(m.home)}</i>${m.live ? `<b>${m.score[0]}</b>` : ''}</span>
-          <span><i>${esc(m.away)}</i>${m.live ? `<b>${m.score[1]}</b>` : ''}</span>
+          <span><i>${esc(m.home)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 0 ? 'pop' : ''}">${m.score[0]}</b>` : ''}</span>
+          <span><i>${esc(m.away)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 1 ? 'pop' : ''}">${m.score[1]}</b>` : ''}</span>
           <small>+${n} ›</small>
         </a>
         <div class="ev-odds">${cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('')}</div>
@@ -534,7 +534,7 @@
     // Hero
     let mid;
     if (m.live) {
-      mid = `<div class="mh-score"><span>${m.score[0]}</span><i>:</i><span>${m.score[1]}</span></div><div class="mh-status live">● ${liveLabel(m)}</div>`;
+      mid = `<div class="mh-score${recentGoal(m) ? ' goal' : ''}"><span>${m.score[0]}</span><i>:</i><span>${m.score[1]}</span></div><div class="mh-status live">● ${liveLabel(m)}</div>`;
     } else {
       const [d, t] = fmtKick(m.kick, true);
       mid = `<div class="mh-time">${t}</div><div class="mh-status">${d}</div>`;
@@ -720,7 +720,10 @@
       $('#bsBoost').textContent = boost + '%';
       $('#bbFill').style.width = Math.min(100, c / 20 * 100) + '%';
       $('#bbText').textContent = next ? `Add ${next - c} more for ${BOOST(next)}% boost` : 'Max boost unlocked 🚀';
-      $('#bsWin').textContent = naira(base + (base - stake) * boost / 100);
+      const winV = base + (base - stake) * boost / 100;
+      if (window.Motion && state._lastWin != null && Math.abs(state._lastWin - winV) > 0.004) Motion.countUp($('#bsWin'), state._lastWin, winV, naira, 380);
+      else $('#bsWin').textContent = naira(winV);
+      state._lastWin = winV;
       $('#bsPlace').textContent = 'Place Bet';
     }
   }
@@ -783,10 +786,14 @@
       }).join('');
   }
 
+  let lastBal = null;
   function renderAuth() {
+    const prevBal = lastBal;
+    lastBal = state.user ? state.user.balance : null;
     $('#authArea').innerHTML = state.user
       ? `<a class="balance" href="#/me"><small>Balance</small><b>${naira(state.user.balance)}</b></a><button class="btn btn-accent sm dep" data-open="depositModal" aria-label="Deposit"><span class="dep-full">Deposit</span><span class="dep-plus">+</span></button>`
       : `<button class="btn btn-ghost sm" data-open="loginModal">Login</button><button class="btn btn-accent sm" data-open="registerModal">Join Now</button>`;
+    if (state.user && prevBal != null && prevBal !== state.user.balance && window.Motion) Motion.countUp($('.balance b'), prevBal, state.user.balance, money);
   }
 
   /* ---------------- Jackpot ---------------- */
@@ -819,6 +826,12 @@
       <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>`).join('') : `<div class="empty">No matches for “${esc(q)}”</div>`;
   }
 
+
+  function notifyGoal(m) {
+    const mine = state.slip.some(x => x.mid === m.id) || state.bets.some(b => b.status === 'open' && b.legs.some(l => l.mid === m.id)) || (state.route === 'match' && +state.arg === m.id);
+    if (mine && window.Motion) Motion.goal(`<b>GOAL!</b> ${esc(m.home)} <span class="gt-sc">${m.score[0]} - ${m.score[1]}</span> ${esc(m.away)} <i>${m.minute}'</i>`);
+  }
+  const recentGoal = m => m.goalAt && Date.now() - m.goalAt < 4500;
 
   /* ---------------- Match lifecycle & settlement ---------------- */
   const RESULTS = [];
@@ -892,7 +905,7 @@
       b.paid = r2(b.boost && rs.every(r => r === 'won') ? base + (base - b.stake) * b.boost / 100 : base);
       b.status = rs.every(r => r === 'void') ? 'void' : 'won'; b.settledAt = Date.now(); changed = true;
       if (state.user) { state.user.balance += b.paid; addTx(b.status === 'won' ? 'Winnings' : 'Refund', b.paid); }
-      if (b.status === 'won') toast(`You won ${money(b.paid)} 🎉`);
+      if (b.status === 'won') { toast(`You won ${money(b.paid)} 🎉`); if (window.Motion) Motion.confetti(); }
     });
     if (changed) { saveBets(); saveUser(); renderAuth(); if (state.route === 'me') renderMe(); }
   }
@@ -1071,8 +1084,14 @@
   /* ---------------- Router ---------------- */
   const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct'];
   function go(r) { location.hash = '#/' + r; }
+  const navStack = [];
+  let firstRoute = true;
   function route() {
     const [r, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
+    const h = location.hash || '#/home';
+    let dir = 'fade';
+    if (navStack.length > 1 && navStack[navStack.length - 2] === h) { navStack.pop(); dir = 'back'; }
+    else if (navStack[navStack.length - 1] !== h) { navStack.push(h); dir = ['match', 'league', 'acct'].includes(r) ? 'fwd' : 'fade'; }
     let page = PAGES.includes(r) ? r : 'home';
     if (r === 'sport' && sportOf(arg)) { state.sport = arg; page = 'home'; }
     if (page === 'match' && state.arg !== arg) { state.mdTab = 'markets'; state.mdGroup = 'All'; }
@@ -1094,6 +1113,15 @@
     if (page === 'acct') renderAcct(arg);
     if (page === 'match') renderMatch(+arg);
     else window.scrollTo(0, 0);
+    const sec = $('#page-' + page);
+    if (sec && !firstRoute) {
+      sec.classList.remove('enter-fwd', 'enter-back', 'enter-fade'); void sec.offsetWidth;
+      sec.classList.add('enter-' + dir, 'stagger');
+      clearTimeout(sec._st); sec._st = setTimeout(() => sec.classList.remove('stagger'), 900);
+      const SKL = { match: 'match', league: 'list', live: 'list', results: 'list', virtuals: 'list', acct: 'cards' };
+      if (SKL[page] && dir !== 'back' && window.Motion) Motion.skeleton(sec, SKL[page]);
+    }
+    firstRoute = false;
   }
 
   const openSlip = () => { $('#betslip').classList.add('open'); $('#scrim').classList.add('on'); renderSlip(); };
@@ -1125,7 +1153,12 @@
     if (t.tagName === 'A' && href === '#') e.preventDefault();
     const d = t.dataset;
 
-    if (d.mid) return toggleSel(+d.mid, d.mk, d.ok);
+    if (d.mid) {
+      const rect = t.getBoundingClientRect(), was = isSel(+d.mid, d.mk, d.ok);
+      toggleSel(+d.mid, d.mk, d.ok);
+      if (!was && isSel(+d.mid, d.mk, d.ok) && window.Motion) Motion.fly(rect, (t.querySelector('b') || t).textContent.trim());
+      return;
+    }
     if ('openCc' in d) { e.preventDefault(); closeDrawer(); return openModal('countryModal'); }
     if (d.cc) {
       if (d.cc === CC) return closeModals();
@@ -1267,7 +1300,7 @@
           m.minute++;
           [0, 1].forEach(s => {
             const l = s ? m.la : m.lh, st = m.st;
-            if (R() < l / 90 * 1.4) { m.score[s]++; st.shots[s]++; st.sot[s]++; m.ev.push({ min: m.minute, side: s, type: 'goal' }); }
+            if (R() < l / 90 * 1.4) { m.score[s]++; st.shots[s]++; st.sot[s]++; m.ev.push({ min: m.minute, side: s, type: 'goal' }); m.goalAt = Date.now(); m.goalSide = s; notifyGoal(m); }
             if (R() < l * 0.07) { st.shots[s]++; if (R() < 0.35) st.sot[s]++; }
             if (R() < (s ? m.lc * 0.45 : m.lc * 0.55) / 90) st.corners[s]++;
             if (R() < 0.022) { st.yc[s]++; m.ev.push({ min: m.minute, side: s, type: 'yc' }); }
@@ -1306,5 +1339,13 @@
   renderRails(); renderAuth(); renderSlip(); updateLiveBadges();
   window.addEventListener('hashchange', route);
   route();
-  setInterval(() => { tickCountdown(); vTick(); }, 1000);
+  setInterval(() => {
+    tickCountdown(); vTick();
+    const sec = Math.floor(Date.now() / 1000);
+    document.querySelectorAll('[data-clk]').forEach(el => { const m = byId(el.dataset.clk); if (m && m.live) el.textContent = String(m.minute).padStart(2, '0') + ':' + String((sec + m.id * 7) % 60).padStart(2, '0'); });
+  }, 1000);
+  if (window.Motion) {
+    Motion.pullToRefresh($('#page-home'), () => { renderHome(); const h = $('#page-home'); h.classList.add('stagger'); setTimeout(() => h.classList.remove('stagger'), 900); toast('Odds updated'); });
+    Motion.splash();
+  }
 })();
