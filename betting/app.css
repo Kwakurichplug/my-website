@@ -509,3 +509,18 @@ body[data-page="jackpot"] .slip-pill{display:none}
   .promo-grid{grid-template-columns:repeat(3,1fr)}
   .search-ov{inset:54px auto auto 50%;transform:translateX(-50%);width:520px;max-height:70vh;border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.2)}
 }
+
+/* ---------- Country / currency picker ---------- */
+.cc-top{display:none;align-items:center;gap:4px;margin-left:auto;padding:5px 8px;border:1px solid rgba(255,255,255,.5);border-radius:3px;color:#fff;font-size:12px;font-weight:700}
+.cc-top+.search-btn{margin-left:4px}
+.cc-row{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;border-bottom:1px solid var(--line);background:#f6f7f9;text-align:left}
+.cc-row .cc-chg{margin-left:auto;color:var(--brand);font-weight:600;font-size:12px}
+.cc-foot{display:inline-block;margin:0 auto 10px;padding:5px 10px;border:1px solid var(--line-2);border-radius:3px;font-size:12px;color:var(--text)}
+.cc-opt{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border:1px solid var(--line-2);border-radius:4px;text-align:left}
+.cc-opt .f{font-size:26px}
+.cc-opt b{display:block;font-size:14px}
+.cc-opt small{color:var(--muted)}
+.cc-opt.on{border-color:var(--brand);background:#eef7f1;box-shadow:inset 3px 0 0 var(--brand)}
+.phone .dial{padding:9px 8px;background:#f3f4f6;border:1px solid var(--line-2);border-right:0;border-radius:3px 0 0 3px;white-space:nowrap;font-size:13px}
+.phone .dial::after{content:" ▾";font-size:9px;color:var(--muted)}
+@media (min-width:768px){ .cc-top{display:inline-flex} }

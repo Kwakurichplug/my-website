@@ -21,6 +21,7 @@
     <a class="logo" href="#/home">
       <span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt="">
     </a>
+    <button class="cc-top" data-open-cc aria-label="Change country"><span class="cc-flag"></span><span class="cc-code"></span></button>
     <button class="icon-btn search-btn" id="searchBtn" aria-label="Search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
     </button>
@@ -51,9 +52,9 @@
 
       <div class="carousel" id="carousel">
         <div class="slides" id="slides">
-          <a class="slide" href="#" data-open="registerModal" style="background-image:url(img/banner-1.jpg)" aria-label="200% welcome bonus up to ₦100,000"></a>
-          <a class="slide" href="#/home" style="background-image:url(img/banner-2.jpg)" aria-label="Acca win boost up to 1000%"></a>
-          <a class="slide" href="#/jackpot" style="background-image:url(img/banner-3.jpg)" aria-label="₦50,000,000 jackpot"></a>
+          <a class="slide" href="#" data-open="registerModal" data-img="b1" aria-label="200% welcome bonus"></a>
+          <a class="slide" href="#/home" data-img="b2" aria-label="Acca win boost up to 1000%"></a>
+          <a class="slide" href="#/jackpot" data-img="b3" aria-label="Weekly jackpot"></a>
         </div>
         <div class="dots" id="dots"></div>
       </div>
@@ -135,15 +136,15 @@
     <section class="page" id="page-jackpot">
       <div class="jackpot-hero">
         <small>THIS WEEK'S JACKPOT</small>
-        <h1>₦50,000,000</h1>
-        <p>Pick 1, X or 2 for all 12 games. ₦100 per ticket.</p>
+        <h1 data-t="jackpot"></h1>
+        <p>Pick 1, X or 2 for all 12 games. <span data-t="ticket"></span> per ticket.</p>
         <div class="countdown" id="countdown"></div>
       </div>
       <div class="jp-tools"><button class="btn btn-ghost sm" id="jpAuto">🎲 Auto-pick</button><button class="btn btn-ghost sm" id="jpClear">Clear</button></div>
       <div id="jackpotList" class="jp-list"></div>
       <div class="jp-foot">
         <span id="jpPicked">0/12 picked</span>
-        <button class="btn btn-accent" id="jpSubmit" disabled>Submit ₦100</button>
+        <button class="btn btn-accent" id="jpSubmit" disabled>Submit <span data-t="ticket"></span></button>
       </div>
     </section>
 
@@ -151,11 +152,11 @@
     <section class="page" id="page-promos">
       <div class="page-title"><h1>Promotions</h1></div>
       <div class="promo-grid">
-        <article class="promo"><span class="ph" style="background-image:url(img/banner-1.jpg)"></span><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to ₦100,000.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
-        <article class="promo"><span class="ph" style="background-image:url(img/banner-2.jpg)"></span><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
-        <article class="promo"><span class="ph" style="background-image:url(img/banner-3.jpg)"></span><span class="tag">WEEKLY</span><h3>₦50M Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
+        <article class="promo"><span class="ph" data-img="b1"></span><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to <span data-t="bonusMax"></span>.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
+        <article class="promo"><span class="ph" data-img="b2"></span><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
+        <article class="promo"><span class="ph" data-img="b3"></span><span class="tag">WEEKLY</span><h3><span data-t="jackpotShort"></span> Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
         <article class="promo"><span class="tag">ALL USERS</span><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
-        <article class="promo"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get ₦1,000 for every friend who joins and bets.</p></article>
+        <article class="promo"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get <span data-t="referral"></span> for every friend who joins and bets.</p></article>
         <article class="promo"><span class="tag">LIVE</span><h3>Live Odds Boost</h3><p>Daily boosted odds on top live matches.</p></article>
       </div>
     </section>
@@ -170,7 +171,7 @@
         </div>
       </div>
       <div class="wallet">
-        <div><small>Balance</small><strong id="meBal">₦0.00</strong></div>
+        <div><small>Balance</small><strong id="meBal">0.00</strong></div>
         <button class="btn btn-dark sm" data-open="depositModal">Deposit</button>
         <button class="btn btn-glass sm" data-open="depositModal" data-mode="withdraw">Withdraw</button>
       </div>
@@ -188,6 +189,7 @@
     <footer class="site-foot">
       <div class="foot-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
       <div class="foot-links"><a href="#">About</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Responsible Gambling</a><a href="#">Help</a></div>
+      <button class="cc-foot" data-open-cc><span class="cc-flag"></span> <span class="cc-name"></span> · Change country</button>
       <div class="pay-row"><span>VISA</span><span>Mastercard</span><span>Verve</span><span>Bank Transfer</span><span>USSD</span><span>Mobile Money</span></div>
       <p><b class="age">18+</b> Gambling can be addictive. Please play responsibly. Licensed and regulated by the relevant gaming authority.</p>
       <p class="muted">© <span id="yr"></span> LetBetAfrika. All rights reserved.</p>
@@ -212,13 +214,13 @@
       <label class="accept"><input type="checkbox" id="bsAccept" checked> Accept odds changes</label>
       <div class="row"><span>Total Odds</span><b id="bsOdds">0.00</b></div>
       <div class="stake-row">
-        <label for="bsStake">Stake (₦)</label>
-        <input id="bsStake" type="number" min="100" value="100" inputmode="numeric">
+        <label for="bsStake">Stake (<span data-t="cur"></span>)</label>
+        <input id="bsStake" type="number" inputmode="decimal">
       </div>
-      <div class="chips"><button data-add="100">+100</button><button data-add="500">+500</button><button data-add="1000">+1k</button><button data-add="5000">+5k</button></div>
+      <div class="chips" id="stakeChips"></div>
       <div class="boost-bar" id="boostBar"><div class="bb-track"><i id="bbFill"></i></div><span id="bbText"></span></div>
       <div class="row"><span>Win Boost</span><b id="bsBoost" class="gold">0%</b></div>
-      <div class="row big"><span>Potential Win</span><b id="bsWin">₦0.00</b></div>
+      <div class="row big"><span>Potential Win</span><b id="bsWin">0.00</b></div>
       <div class="bs-actions">
         <button class="btn btn-ghost" id="bsClear">Remove All</button>
         <button class="btn btn-accent" id="bsPlace">Place Bet</button>
@@ -243,6 +245,7 @@
 <!-- Side drawer -->
 <div class="drawer" id="drawer">
   <div class="drawer-head"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+  <button class="cc-row" data-open-cc><span class="cc-flag"></span><span class="cc-name"></span><span class="cc-chg">Change</span></button>
   <a href="#/home">Home</a>
   <a href="#/live">Live Betting</a>
   <a href="#/sports">A–Z Sports</a>
@@ -269,7 +272,7 @@
     <button type="button" class="modal-x" data-close>×</button>
     <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Welcome back</h2>
-    <label>Mobile Number<div class="phone"><span>🇳🇬 +234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>🇳🇬 +234</button><input required name="phone" inputmode="tel"></div></label>
     <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
     <button class="btn btn-accent block">Login</button>
     <p class="muted center">No account? <a href="#" data-switch="registerModal">Join Now</a></p>
@@ -281,7 +284,7 @@
     <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
     <h2>Create account</h2>
     <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
-    <label>Mobile Number<div class="phone"><span>🇳🇬 +234</span><input required name="phone" inputmode="tel" placeholder="801 234 5678"></div></label>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>🇳🇬 +234</button><input required name="phone" inputmode="tel"></div></label>
     <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
     <label class="check"><input type="checkbox" required> I am 18+ and accept the Terms &amp; Conditions</label>
     <button class="btn btn-accent block">Register</button>
@@ -292,8 +295,8 @@
   <form class="modal-card" id="depositForm">
     <button type="button" class="modal-x" data-close>×</button>
     <h2 id="depTitle">Deposit</h2>
-    <div class="chips wide"><button type="button" data-amt="1000">₦1,000</button><button type="button" data-amt="5000">₦5,000</button><button type="button" data-amt="10000">₦10,000</button><button type="button" data-amt="50000">₦50,000</button></div>
-    <label>Amount (₦)<input id="depAmt" type="number" min="100" required value="1000"></label>
+    <div class="chips wide" id="depChips"></div>
+    <label>Amount (<span data-t="cur"></span>)<input id="depAmt" type="number" required inputmode="decimal"></label>
     <label>Method<select><option>Card</option><option>Bank Transfer</option><option>USSD</option><option>Mobile Money</option></select></label>
     <button class="btn btn-accent block" id="depBtn">Deposit</button>
   </form>
@@ -305,6 +308,15 @@
     <label>Booking Code<input id="codeInput" required placeholder="e.g. LB7K2Q" style="text-transform:uppercase"></label>
     <button class="btn btn-accent block">Load</button>
   </form>
+</div>
+
+<div class="modal" id="countryModal">
+  <div class="modal-card">
+    <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
+    <h2>Choose your country</h2>
+    <button class="cc-opt" data-cc="NG"><span class="f">🇳🇬</span><span><b>Nigeria</b><small>Naira (₦) · +234</small></span></button>
+    <button class="cc-opt" data-cc="GH"><span class="f">🇬🇭</span><span><b>Ghana</b><small>Cedis (GH₵) · +233</small></span></button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>

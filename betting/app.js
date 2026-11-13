@@ -11,12 +11,46 @@
   'use strict';
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-  const naira = n => '₦' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const store = {
-    get(k, d) { try { const v = localStorage.getItem('lba_' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem('lba_' + k, JSON.stringify(v)); } catch {} },
-    del(k) { try { localStorage.removeItem('lba_' + k); } catch {} },
+  /* ---------------- Country / currency ---------------- */
+  const COUNTRIES = {
+    NG: { code: 'NG', flag: '🇳🇬', name: 'Nigeria', cur: '₦', curName: 'Naira', locale: 'en-NG', dial: '+234', ph: '801 234 5678', digits: 10,
+      minStake: 100, defStake: 100, chips: [100, 500, 1000, 5000], dep: [1000, 5000, 10000, 50000], depDef: 1000, demo: 25000,
+      jackpot: 50000000, jackpotShort: '₦50M', ticket: 100, bonusMax: 100000, referral: 1000, b1: 'img/banner-1.jpg', b3: 'img/banner-3.jpg' },
+    GH: { code: 'GH', flag: '🇬🇭', name: 'Ghana', cur: 'GH₵', curName: 'Cedis', locale: 'en-GH', dial: '+233', ph: '24 123 4567', digits: 9,
+      minStake: 1, defStake: 5, chips: [1, 5, 10, 50], dep: [10, 50, 100, 500], depDef: 50, demo: 250,
+      jackpot: 500000, jackpotShort: 'GH₵500K', ticket: 1, bonusMax: 1000, referral: 10, b1: 'img/banner-1-gh.jpg', b3: 'img/banner-3-gh.jpg' },
   };
+  let CC = 'NG';
+  try { CC = localStorage.getItem('lba_country') || 'NG'; } catch {}
+  if (!COUNTRIES[CC]) CC = 'NG';
+  const C = COUNTRIES[CC];
+  const money = n => C.cur + Number(n || 0).toLocaleString(C.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const whole = n => C.cur + Number(n || 0).toLocaleString(C.locale);
+  const naira = money;
+  // each country keeps its own wallet, bets and slip
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('lba_' + CC + '_' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('lba_' + CC + '_' + k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem('lba_' + CC + '_' + k); } catch {} },
+  };
+  function applyCountry() {
+    const short = n => n >= 1000 ? (n / 1000) + 'k' : String(n);
+    const T = { cur: C.cur, jackpot: whole(C.jackpot), jackpotShort: C.jackpotShort, ticket: whole(C.ticket), bonusMax: whole(C.bonusMax), referral: whole(C.referral) };
+    document.querySelectorAll('[data-t]').forEach(el => { el.textContent = T[el.dataset.t]; });
+    const IMG = { b1: C.b1, b2: 'img/banner-2.jpg', b3: C.b3 };
+    document.querySelectorAll('[data-img]').forEach(el => { el.style.backgroundImage = `url(${IMG[el.dataset.img]})`; });
+    document.querySelectorAll('.cc-flag').forEach(el => { el.textContent = C.flag; });
+    document.querySelectorAll('.cc-name').forEach(el => { el.textContent = `${C.name} (${C.cur})`; });
+    document.querySelectorAll('.cc-code').forEach(el => { el.textContent = C.code; });
+    document.querySelectorAll('.dial').forEach(el => { el.textContent = `${C.flag} ${C.dial}`; });
+    document.querySelectorAll('input[name=phone]').forEach(el => { el.placeholder = C.ph; });
+    document.querySelectorAll('.cc-opt').forEach(el => el.classList.toggle('on', el.dataset.cc === CC));
+    document.getElementById('stakeChips').innerHTML = C.chips.map(v => `<button data-add="${v}">+${short(v)}</button>`).join('');
+    document.getElementById('depChips').innerHTML = C.dep.map(v => `<button type="button" data-amt="${v}">${whole(v)}</button>`).join('');
+    const st = document.getElementById('bsStake'); st.min = C.minStake; if (!st.value) st.value = C.defStake;
+    const da = document.getElementById('depAmt'); da.min = C.minStake; da.value = C.depDef;
+    document.documentElement.lang = 'en-' + CC;
+  }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   /* ---------------- Maths ---------------- */
@@ -565,7 +599,7 @@
     if (ix > -1 && state.slip[ix].mk === mk && state.slip[ix].ok === ok) state.slip.splice(ix, 1);
     else {
       if (ix === -1 && state.slip.length >= 30) return toast('Maximum 30 selections', 'err');
-      const sel = { mid, mk, ok, odd: o.o, label: o.l, mname: mkObj.name, match: `${m.home} vs ${m.away}`, live: m.live, stake: state.slip[ix]?.stake || 100 };
+      const sel = { mid, mk, ok, odd: o.o, label: o.l, mname: mkObj.name, match: `${m.home} vs ${m.away}`, live: m.live, stake: state.slip[ix]?.stake || C.defStake };
       if (ix > -1) { state.slip[ix] = sel; toast('Selection replaced – one pick per match'); } else state.slip.push(sel);
     }
     saveSlip(); renderAfterSlipChange();
@@ -610,7 +644,7 @@
       <div class="pick"><span>${s.live ? '<em class="lv">LIVE</em>' : ''}${esc(s.label)}</span><b class="${s.chg || ''}">${s.susp ? LOCK : s.odd.toFixed(2)}</b></div>
       <div class="mk">${esc(s.mname)}</div>
       <a class="mt-link" href="#/match/${s.mid}">${esc(s.match)}</a>
-      ${single && !s.susp ? `<div class="single-stake"><input type="number" min="100" value="${s.stake}" data-stake="${k}" inputmode="numeric"><span class="sw">Win ${naira(s.stake * s.odd)}</span></div>` : ''}
+      ${single && !s.susp ? `<div class="single-stake"><input type="number" min="${C.minStake}" value="${s.stake}" data-stake="${k}" inputmode="numeric"><span class="sw">Win ${naira(s.stake * s.odd)}</span></div>` : ''}
       ${s.susp ? '<div class="susp-msg">Market suspended – remove to continue</div>' : ''}
     </div>`).join('');
 
@@ -642,7 +676,7 @@
     if (state.slip.length === 1 && state.slipType === 'multi') { state.slipType = 'single'; state.slip[0].stake = +$('#bsStake').value; }
     const single = state.slipType === 'single';
     const stake = single ? state.slip.reduce((a, s) => a + (+s.stake || 0), 0) : +$('#bsStake').value;
-    if (single ? state.slip.some(s => (+s.stake || 0) < 100) : stake < 100) return toast('Minimum stake is ₦100', 'err');
+    if (single ? state.slip.some(s => (+s.stake || 0) < C.minStake) : stake < C.minStake) return toast('Minimum stake is ' + whole(C.minStake), 'err');
     if (stake > state.user.balance) { openModal('depositModal'); return toast('Insufficient balance – please deposit', 'err'); }
     state.user.balance -= stake;
     const legs = state.slip.map(({ mid, mk, ok, odd, label, mname, match }) => ({ mid, mk, ok, odd, label, mname, match }));
@@ -674,7 +708,7 @@
   /* ---------------- Account ---------------- */
   function renderMe() {
     const u = state.user;
-    $('#meName').textContent = u ? '+234 ' + u.phone : 'Guest';
+    $('#meName').textContent = u ? C.dial + ' ' + u.phone : 'Guest';
     $('#meSub').textContent = u ? 'Verified account · ID ' + (u.uid || '—') : 'Login to view your bets and balance';
     $('#meBal').textContent = naira(u ? u.balance : 0);
     $('#logoutBtn').hidden = !u;
@@ -782,6 +816,12 @@
     const d = t.dataset;
 
     if (d.mid) return toggleSel(+d.mid, d.mk, d.ok);
+    if ('openCc' in d) { e.preventDefault(); closeDrawer(); return openModal('countryModal'); }
+    if (d.cc) {
+      if (d.cc === CC) return closeModals();
+      try { localStorage.setItem('lba_country', d.cc); } catch {}
+      location.hash = '#/home'; return location.reload();
+    }
     if (d.open) {
       e.preventDefault();
       if (d.open === 'depositModal') {
@@ -844,8 +884,8 @@
       case 'jpClear': state.jp = {}; renderJackpot(); break;
       case 'jpSubmit':
         if (!state.user) { openModal('loginModal'); break; }
-        if (state.user.balance < 100) { openModal('depositModal'); toast('Insufficient balance', 'err'); break; }
-        state.user.balance -= 100; saveUser(); state.jp = {}; renderJackpot(); renderAuth();
+        if (state.user.balance < C.ticket) { openModal('depositModal'); toast('Insufficient balance', 'err'); break; }
+        state.user.balance -= C.ticket; saveUser(); state.jp = {}; renderJackpot(); renderAuth();
         toast('Jackpot ticket submitted. Good luck!'); break;
     }
   });
@@ -868,21 +908,21 @@
   $$('form[data-auth]').forEach(f => f.addEventListener('submit', e => {
     e.preventDefault();
     const phone = f.phone.value.replace(/\D/g, '').replace(/^0/, '');
-    if (phone.length < 10) return toast('Enter a valid mobile number', 'err');
+    if (phone.length < C.digits) return toast('Enter a valid mobile number', 'err');
     const reg = f.dataset.auth === 'register';
     const prev = store.get('user', null);
-    state.user = !reg && prev && prev.phone === phone ? prev : { phone, balance: reg ? 0 : 25000, uid: Math.floor(1e7 + Math.random() * 9e7) };
+    state.user = !reg && prev && prev.phone === phone ? prev : { phone, balance: reg ? 0 : C.demo, uid: Math.floor(1e7 + Math.random() * 9e7) };
     saveUser(); closeModals(); renderAuth(); renderCurrent(true);
-    toast(reg ? 'Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back! Demo balance ₦25,000');
+    toast(reg ? 'Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back! Demo balance ' + whole(C.demo));
   }));
   $('#depositForm').addEventListener('submit', e => {
     e.preventDefault();
     const amt = +$('#depAmt').value, w = e.target.dataset.mode === 'withdraw';
-    if (amt < 100) return toast('Minimum amount is ₦100', 'err');
+    if (amt < C.minStake) return toast('Minimum amount is ' + whole(C.minStake), 'err');
     if (w && amt > state.user.balance) return toast('Insufficient balance', 'err');
     state.user.balance += w ? -amt : amt; saveUser();
     closeModals(); renderAuth(); renderCurrent(true);
-    toast(w ? `Withdrawal of ${naira(amt)} requested` : `✅ ${naira(amt)} deposited`);
+    toast(w ? `Withdrawal of ${naira(amt)} requested` : `${naira(amt)} deposited`);
   });
   $('#codeForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -891,7 +931,7 @@
     state.slip = [];
     sels.forEach(({ mid, mk, ok }) => {
       const m = byId(mid), o = m?.map[mk]?.[ok];
-      if (o && o.o) state.slip.push({ mid, mk, ok, odd: o.o, label: o.l, mname: m.mk.find(x => x.key === mk).name, match: `${m.home} vs ${m.away}`, live: m.live, stake: 100 });
+      if (o && o.o) state.slip.push({ mid, mk, ok, odd: o.o, label: o.l, mname: m.mk.find(x => x.key === mk).name, match: `${m.home} vs ${m.away}`, live: m.live, stake: C.defStake });
     });
     saveSlip(); closeModals(); renderAfterSlipChange(); openSlip();
     toast(`Loaded ${state.slip.length} selection(s)`);
@@ -942,6 +982,7 @@
   setInterval(simTick, 4000);
 
   /* ---------------- Init ---------------- */
+  applyCountry();
   $('#yr').textContent = new Date().getFullYear();
   syncSlipOdds();
   renderRails(); renderAuth(); renderSlip();
