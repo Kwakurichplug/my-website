@@ -63,3 +63,22 @@ test('corners, cards and next goal need their data', () => {
 });
 test('two-way winner voids on a tie', () => { assert.equal(g('win', '1', ev(100, 100)), 'void'); assert.equal(g('win', '2', ev(98, 101)), 'won'); });
 test('unknown market is void, never paid', () => { assert.equal(g('nope', '1', ev(1, 0)), 'void'); });
+
+test('whole-number Over/Under lines are priced without the push – no free value for the player', async () => {
+  const { createRequire } = await import('node:module');
+  const M = createRequire(import.meta.url)('../../betting/markets.js');
+  for (const [lh, la] of [[1.4, 1.1], [2.2, 0.6], [0.8, 0.9]]) {
+    const m = { home: 'H', away: 'A', lh, la }, T = M.tables(m);
+    const fair = M.football(m, p => 1 / p);   // zero margin: odds = 1 / probability used for pricing
+    const ou = Object.fromEntries(fair.find(x => x.key === 'ou').outs.filter(x => x.k).map(x => [x.k, x.o]));
+    for (const L of [1, 2, 3]) {
+      let win = 0, push = 0, lose = 0;
+      T.ft.forEach((row, h) => row.forEach((p, a) => { if (h + a > L) win += p; else if (h + a === L) push += p; else lose += p; }));
+      // at fair odds the player's expected return, refunds included, is 1 on both sides: never above it (that would be
+      // free value), and within 0.1% (the model's goal tables stop at a high score, which only ever favours the house)
+      for (const [side, r] of [['Over', win * ou['o' + L] + push], ['Under', lose * ou['u' + L] + push]]) {
+        assert.ok(r <= 1 + 1e-9 && r > 0.999, `${side} ${L} at ${lh}/${la}: return ${r}`);
+      }
+    }
+  }
+});

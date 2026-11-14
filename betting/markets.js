@@ -18,7 +18,8 @@
 (function (root) {
   'use strict';
   const N = 6;                       // goals per team per half considered (0..6)
-  const pois = (l, n) => { const a = []; let p = Math.exp(-Math.max(l, 1e-9)); for (let k = 0; k <= n; k++) { a.push(p); p *= l / (k + 1); } return a; };
+  // Poisson probabilities 0..n; the tail beyond n is added to n so every table sums to exactly 1
+  const pois = (l, n) => { const a = []; let p = Math.exp(-Math.max(l, 1e-9)), s = 0; for (let k = 0; k <= n; k++) { a.push(p); s += p; p *= l / (k + 1); } a[n] += Math.max(0, 1 - s); return a; };
   const res = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
   const RI = { '1': 0, X: 1, '2': 2 };
   const fmtLine = l => (Number.isInteger(l) ? String(l) : l.toFixed(1));
@@ -70,7 +71,14 @@
   const MG = ['1-2', '1-3', '1-4', '1-5', '1-6', '2-3', '2-4', '2-5', '2-6', '3-4', '3-5', '3-6', '4-5', '4-6', '5-6'];
   const MGT = ['1-2', '1-3', '2-3', '4+', 'none'];
 
-  const ouPair = (f, L) => { const over = f(L); return [[`o${L}`, `Over ${fmtLine(L)}`, over], [`u${L}`, `Under ${fmtLine(L)}`, Number.isInteger(L) ? 1 - over - f.eq(L) : 1 - over]]; };
+  // Over/Under pair. On a whole-number line landing exactly is a push (stake refunded), so both sides are priced on
+  // their chance given no push – P(win) / (1 − P(push)) – otherwise the refund would be free value for the player.
+  const ouPair = (f, L) => {
+    const over = f(L);
+    if (!Number.isInteger(L)) return [[`o${L}`, `Over ${fmtLine(L)}`, over], [`u${L}`, `Under ${fmtLine(L)}`, 1 - over]];
+    const push = f.eq(L), rest = Math.max(1e-9, 1 - push);
+    return [[`o${L}`, `Over ${fmtLine(L)}`, over / rest], [`u${L}`, `Under ${fmtLine(L)}`, (1 - over - push) / rest]];
+  };
   function overFn(tab, pick) { const f = L => S(tab, (h, a) => pick(h, a) > L); f.eq = L => S(tab, (h, a) => pick(h, a) === L); return f; }
   const T_ = (h, a) => h + a, H_ = h => h, A_ = (h, a) => a;
   const yn = (k, p) => [[k + ':y', 'Yes', p], [k + ':n', 'No', 1 - p]];

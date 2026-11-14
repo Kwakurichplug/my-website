@@ -624,6 +624,7 @@
       if (ix === -1 && state.slip.length >= 30) return toast('Maximum 30 selections', 'err');
       const sel = { mid, mk, ok, odd: o.o, label: o.l, mname: mkObj.name, match: `${m.home} vs ${m.away}`, live: m.live, stake: state.slip[ix]?.stake || C.defStake };
       if (ix > -1) { state.slip[ix] = sel; toast('Selection replaced – one pick per match'); } else state.slip.push(sel);
+      state.slipNew = mid;   // that row slides in on the next render
     }
     saveSlip(); renderAfterSlipChange();
   }
@@ -645,6 +646,7 @@
   }
 
   function renderSlip() {
+    if ($('#betslip').classList.contains('dragging')) return;   // the sheet is under the finger – it re-renders on release
     const n = state.slip.length;
     $('#bsCount').textContent = n;
     $('#pillCount').textContent = n;
@@ -661,7 +663,7 @@
       $('#bsFoot').hidden = true; $('#bsBar').hidden = true; return;
     }
     $('#bsFoot').hidden = false; $('#bsBar').hidden = false;
-    $('#bsBody').innerHTML = state.slip.map((s, k) => `<div class="bs-item${s.susp ? ' susp' : ''}">
+    $('#bsBody').innerHTML = state.slip.map((s, k) => `<div class="bs-item${s.susp ? ' susp' : ''}${s.mid === state.slipNew ? ' bs-in' : ''}" data-slip-mid="${s.mid}">
       <button class="bs-rm" data-rm="${k}" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <div class="bs-main">
         <div class="bs-l1"><span class="bs-sp">${sportOf(byId(s.mid)?.sport || 'football').em}</span><span class="bs-pick">${esc(s.label)}</span><b class="bs-odd ${s.chg || ''}">${s.susp ? LOCK : s.odd.toFixed(2)}</b></div>
@@ -670,6 +672,7 @@
         ${s.susp ? '<div class="susp-msg">Market suspended – remove to continue</div>' : ''}
       </div>
     </div>`).join('');
+    state.slipNew = null;
 
     $('#boostBar').hidden = single; $('.row.boost').hidden = single;
     const stake = +$('#bsStake').value || 0;
@@ -1342,9 +1345,64 @@
     firstRoute = false;
   }
 
-  const openSlip = () => { $('#betslip').classList.add('open'); $('#scrim').classList.add('on'); renderSlip(); };
-  const closeSlip = () => { $('#betslip').classList.remove('open'); if (!$('#drawer').classList.contains('open')) $('#scrim').classList.remove('on'); renderSlip(); };
+  const openSlip = () => { $('#betslip').classList.add('open'); $('#scrim').classList.add('on'); document.documentElement.classList.add('slip-open'); renderSlip(); };
+  const closeSlip = () => { $('#betslip').classList.remove('open'); document.documentElement.classList.remove('slip-open'); if (!$('#drawer').classList.contains('open')) $('#scrim').classList.remove('on'); renderSlip(); };
   const closeDrawer = () => { $('#drawer').classList.remove('open'); if (!$('#betslip').classList.contains('open')) $('#scrim').classList.remove('on'); };
+
+  /* ---------------- Betslip sheet follows the finger (phones) ----------------
+     Swipe up on the betslip pill to pull the sheet open; drag the header down – or pull down on the list when it is
+     scrolled to the top – to close it. The sheet tracks the finger 1:1 (rubber band past the top), the backdrop dims
+     with it, and on release it springs open or closed by distance and flick speed.                               */
+  (() => {
+    const slip = $('#betslip'), scrim = $('#scrim'), body = $('#bsBody');
+    const phone = () => matchMedia('(max-width: 1023px)').matches;
+    const height = () => slip.getBoundingClientRect().height || innerHeight * 0.6;
+    let d = null;
+    const at = e => (e.touches && e.touches[0] ? e.touches[0] : e).clientY;
+    const place = y => { slip.style.transform = `translateY(${y}px)`; scrim.style.opacity = String(Math.max(0, Math.min(1, 1 - y / height()))); };
+    // move / end listen on the touched element itself: touch events keep going to it even if the slip re-renders
+    const opt = { passive: false };
+    const listen = (el, on) => { const f = on ? 'addEventListener' : 'removeEventListener'; el[f]('touchmove', move, opt); el[f]('touchend', end); el[f]('touchcancel', end); };
+    function start(e, from) {
+      if (!phone() || (e.touches && e.touches.length > 1)) return;
+      if (from !== 'pill' && !slip.classList.contains('open')) return;
+      if (d) listen(d.el, false);
+      const y = at(e), t = performance.now();
+      d = { from, el: e.target, y0: y, y, t, v: 0, base: 0, moved: false };
+      listen(d.el, true);
+    }
+    const drop = () => { if (d) listen(d.el, false); d = null; };
+    function move(e) {
+      if (!d) return;
+      const y = at(e), dy = y - d.y0, now = performance.now();
+      if (!d.moved) {
+        if (Math.abs(dy) < 6) return;
+        if (d.from === 'body' && (body.scrollTop > 0 || dy < 0)) return drop();   // the list scrolls instead
+        if (d.from === 'pill' && dy > 0) return drop();
+        d.moved = true;
+        if (d.from === 'pill') { slip.classList.add('open'); scrim.classList.add('on'); document.documentElement.classList.add('slip-open'); renderSlip(); }
+        slip.classList.add('dragging'); scrim.classList.add('dragging');
+        if (d.from === 'pill') d.base = height();
+      }
+      if (e.cancelable) e.preventDefault();
+      d.v = 0.8 * ((y - d.y) / Math.max(1, now - d.t)) + 0.2 * d.v; d.y = y; d.t = now;
+      const off = d.base + dy;
+      place(off < 0 ? off / 4 : off);   // rubber band above fully open
+    }
+    function end() {
+      if (!d) return;
+      const g = d; drop();
+      if (!g.moved) return;
+      const off = g.base + (g.y - g.y0), h = height();
+      const close = g.v > 0.45 || (g.v > -0.45 && off > h * (g.from === 'pill' ? 0.72 : 0.3));
+      slip.classList.remove('dragging'); scrim.classList.remove('dragging');
+      slip.style.transform = ''; scrim.style.opacity = '';
+      if (close) closeSlip(); else openSlip();
+    }
+    ['.bs-head', '.bs-tools', '.bs-tabs'].forEach(s => { const el = slip.querySelector(s); if (el) el.addEventListener('touchstart', e => start(e, 'sheet'), { passive: true }); });
+    body.addEventListener('touchstart', e => start(e, 'body'), { passive: true });
+    $('#slipPill').addEventListener('touchstart', e => start(e, 'pill'), { passive: true });
+  })();
   const openSearch = () => { $('#searchOv').classList.add('open'); renderSearch($('#searchInput').value); setTimeout(() => $('#searchInput').focus(), 50); };
   const closeSearch = () => $('#searchOv').classList.remove('open');
   const PAGE_MODALS = { loginModal: 'login', registerModal: 'register', depositModal: 'deposit' };
@@ -1422,7 +1480,12 @@
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
     if (d.bstype) { if (d.bstype === 'system') return toast('System bets are coming soon'); state.slipType = d.bstype; return renderSlip(); }
-    if (d.rm) { state.slip.splice(+d.rm, 1); saveSlip(); return renderAfterSlipChange(); }
+    if (d.rm) {   // the row folds away, then the selection is removed
+      const row = t.closest('.bs-item');
+      if (!row || row.classList.contains('bs-out') || matchMedia('(prefers-reduced-motion: reduce)').matches) { state.slip.splice(+d.rm, 1); saveSlip(); return renderAfterSlipChange(); }
+      row.style.height = row.offsetHeight + 'px'; row.getBoundingClientRect(); row.classList.add('bs-out');
+      return setTimeout(() => { const k = state.slip.findIndex(s => String(s.mid) === row.dataset.slipMid); if (k > -1) state.slip.splice(k, 1); saveSlip(); renderAfterSlipChange(); }, 230);
+    }
     if (d.add) { $('#bsStake').value = (+$('#bsStake').value || 0) + +d.add; return renderSlip(); }
     if (d.amt) { $('#depAmt').value = d.amt; return; }
     if (d.bets) { state.betsTab = d.bets; return renderMe(); }

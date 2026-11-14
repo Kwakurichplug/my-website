@@ -230,7 +230,7 @@ iPhone 13 size and placing it side-by-side (the environment allows
 | `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
 | `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
 
-Script order: `api.js → account.js → pages.js → motion.js → icons.js → game-logic.js → games.js → scenes.js → arcade.js → app.js`.
+Script order: `api.js → account.js → pages.js → motion.js → icons.js → markets.js → game-logic.js → games.js → scenes.js → arcade.js → app.js`.
 `app.js` exposes `window.LBA_APP` (state, data, render helpers, `live` flag) for the two modules;
 the router hands a route to `Account.render` / `Pages.render` when they claim it.
 The old login/register/deposit modals are gone – `openModal('loginModal' | 'registerModal' | 'depositModal')` now navigates to the pages.
@@ -266,6 +266,12 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Lobby thumbnails** (`img/games/thumb-<id>.webp`, 300×300) are captured from the real scenes by
   `tools/assets/thumbs.js` with a Kanit title band – re-run it after changing a scene.
 - **No technical internals on player screens**: no seeds, hashes, formulas, server or provider names – plain language only.
+- **Betslip sheet** (`v26`, `app.js`): on phones the sheet tracks the finger – touchstart on `.bs-head`/`.bs-tools`/`.bs-tabs`
+  (drag down), `#bsBody` (pull down only when scrolled to the top) or `#slipPill` (swipe up); move/end listen on the
+  touched element so a live-odds re-render cannot break the gesture, and `renderSlip()` waits while `.dragging`.
+  Release: open/close by distance (30% down, 28% up from the pill) and velocity (±0.45 px/ms), with the spring
+  transition. `.bs-grab` handle, `html.slip-open` locks the page, rows animate with `.bs-in` / `.bs-out`.
+- **Match page & market set** (`v25`, `markets.js` + `app.js`): see `MARKETS-FEATURE.md` at the repo root.
 - **Deposit & withdraw** (`v24`, `account.js`, classes `.wx-*`): `.wx-hero` balance card (gradient, Withdraw/Deposit +
   Transactions links), `.wx-bonus` first-deposit banner, `.wx-card` sections, `.wx-methods` tile grid (`data-method`, a
   check badge on the selected one; switching keeps the typed amount and uses `location.replace`), `.wx-sub` method

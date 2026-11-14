@@ -26,7 +26,8 @@ Never copy another operator's brand assets – we match their quality and layout
 | Path | What it is |
 |---|---|
 | `betting/` | Static front end (HTML/CSS/JS, no build step). Served by the API server. |
-| `betting/index.html` | All page markup. Script order: `api → account → pages → motion → icons → game-logic → games → scenes → arcade → app`. |
+| `betting/index.html` | All page markup. Script order: `api → account → pages → motion → icons → markets → game-logic → games → scenes → arcade → app`. |
+| `betting/markets.js` | **Football market engine, one source of truth** for browser and server (`createRequire`): `football()` prices 85 markets / ~430 outcomes from a two-half Poisson model (Main, Goals, Corners, Half, Combo, Bookings), `grade()` settles every key (legacy keys too), `needs()`, `view()`, `guide()`, `order()`. Whole-number O/U lines are priced on the no-push chance; tables sum to exactly 1. Details: `MARKETS-FEATURE.md`. |
 | `betting/app.js` | Core: data model, router, betslip, home, match page, account sub-pages, live-API bridge, Virtual League client. Exposes `window.LBA_APP`. |
 | `betting/account.js` | Sign up / login / reset with mobile number or email (code by SMS or email); **deposit and withdraw** (one layout: balance card → method tiles → method details → amount → button → recent activity). |
 | `betting/pages.js` | Live, Sports filter, lists, league, **Jackpot** (server rounds, real results), Promotions, Results, Code Hub, bet detail, Instant Football, **YOU WON trophy** (`Pages.trophy()`), offline banner. |
@@ -109,6 +110,16 @@ Earn reward per country (₦1,000 / GH₵10).
   those (production without an SMS provider = email only). Emails are unique site-wide; adding or changing an email
   (Me → Email & Password) needs a code sent to the new address. Email-only players get their account ID as payment
   reference and type their mobile-money number when they need it.
+- **Full market set + match page** (merged from `claude/sports-betting-ui-design-rdaeo4`, see `MARKETS-FEATURE.md`): 85
+  football markets per match, SportyBet-style match page (light pre-match "Details" page, group tabs ★ All Main Goals
+  Corners Half Combo Bookings, market info sheets, favourite markets, O/U and handicap tables), list tabs 1X2 | O/U |
+  DC | Home O/U | Away O/U with a line picker. The Odds API events offer every market settleable from the full-time
+  score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
+  were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
+  covered by `test/grade.test.js`.
+- **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
+  pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
+  and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).
 - **Deposit & withdraw pages** rebuilt to a professional standard: balance card, method tiles (NG: Card, Bank Transfer,
   USSD, OPay, PalmPay · GH: Mobile Money, Card), big amount entry with quick amounts, a button that names what is
   missing ("Select your bank", "Verify your ID to withdraw") or the exact amount, live welcome-bonus preview, and
