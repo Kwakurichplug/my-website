@@ -1,5 +1,8 @@
 # LetBetAfrika – Project Handover (read this first)
 
+> **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
+> then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
+
 ## 1. The vision
 
 LetBetAfrika is a **top-tier mobile-first sportsbook for Nigeria (₦) and Ghana (GH₵)**, modelled screen by screen on
@@ -32,6 +35,8 @@ Rule of thumb for every decision: *does it look and behave like a top African sp
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
 | `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football). |
 | `server/test/` | `grade.test.js` (unit), `payout.test.js` (money flow integration). |
+| `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
+| `tools/qa/` | Playwright QA scripts, SportyBet side-by-side tool, mock Odds API + real EPL fixtures. |
 
 ## 3. Run it
 

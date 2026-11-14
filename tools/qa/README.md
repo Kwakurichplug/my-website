@@ -1,0 +1,23 @@
+# QA tools (Playwright scripts used to build and verify LetBetAfrika)
+
+All scripts are plain Node + Playwright (`npm i -D playwright` locally; cloud sessions have it pre-installed).
+Most take a **working folder** as the first argument (screenshots/fixtures go there – use `tools/qa`), and some a
+base URL. Paths inside assume the repo at `/home/user/my-website` – change `file:///home/user/my-website/...` if yours differs.
+
+| Script | What it checks | Run |
+|---|---|---|
+| `smoke.js` | Every route in demo (`file://`) and live (`http://127.0.0.1:8080`) – JS errors, horizontal scroll, empty pages | `node smoke.js` |
+| `e2e2.js` | Demo account flows: register + SMS code, deposit (card/USSD/OPay), withdraw + ID check, transfer, login/reset, Ghana | `node e2e2.js tools/qa` |
+| `e2e_live.js` | Same flows against the real API + database, checks server balances | `node e2e_live.js tools/qa` (server on :8080) |
+| `e2e_pages.js` | Live, sports filter, lists, outrights, bet detail + rebet, jackpot purchase, promos, results, Code Hub | `node e2e_pages.js tools/qa <baseUrl>` |
+| `e2e_instant.js` | Instant Football incl. server replay protection | `node e2e_instant.js tools/qa <baseUrl>` |
+| `compare2.js` + `pairs.json` | **Side-by-side screenshots vs SportyBet** at iPhone 13 size (left = reference, right = ours) | `ONLY=home,live node compare2.js tools/qa/cmp tools/qa/pairs.json` |
+| `cmp_match.js` | Match page + betslip vs reference | `node cmp_match.js tools/qa` |
+| `align.js` | Odds column labels vs buttons (must print `aligned`) on phone + desktop | `node align.js` |
+| `axe_run.js` | WCAG 2 AA audit (needs `npm i axe-core@4.10.2` in `<folder>/axe`) | `node axe_run.js tools/qa` |
+| `darkshots.js`, `theme_t.js` | Dark mode screenshots / toggle persistence | |
+| `desk.js` | Desktop 1440px reference vs ours | |
+| `offline_t.js` | Offline banner | |
+| `mock_oddsapi.js` + `fixtures/` | **Mock of The Odds API** from a real EPL sample (no credits). One match in play, one finished. | `node mock_oddsapi.js tools/qa 9099` then start the server with `ODDS_PROVIDER=oddsapi ODDS_API_KEY=mock ODDS_API_BASE=http://127.0.0.1:9099/v4` |
+
+The reference site needs network access to `www.sportybet.com`, `s.sporty.net`, `cdn.sporty.net`.
