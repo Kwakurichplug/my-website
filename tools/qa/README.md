@@ -11,6 +11,8 @@ base URL. Paths inside assume the repo at `/home/user/my-website` – change `fi
 | `e2e_live.js` | Same flows against the real API + database, checks server balances | `node e2e_live.js tools/qa` (server on :8080) |
 | `e2e_pages.js` | Live, sports filter, lists, outrights, bet detail + rebet, jackpot purchase, promos, results, Code Hub | `node e2e_pages.js tools/qa <baseUrl>` |
 | `e2e_instant.js` | Instant Football incl. server replay protection | `node e2e_instant.js tools/qa <baseUrl>` |
+| `e2e_games.js` | **Every game against the real API**: lobby, 7 instant games (server balance checked after each play), Hi-Lo replay, Rocket Crash auto + manual cash-out, a real Virtual League bet, a jackpot ticket | `node e2e_games.js tools/qa <baseUrl>` (server with `PAYMENTS_MODE=demo`) |
+| `e2e_games_demo.js` | Every instant game in demo mode (`file://`), no invented jackpot winners | `node e2e_games_demo.js tools/qa` |
 | `compare2.js` + `pairs.json` | **Side-by-side screenshots vs SportyBet** at iPhone 13 size (left = reference, right = ours) | `ONLY=home,live node compare2.js tools/qa/cmp tools/qa/pairs.json` |
 | `cmp_match.js` | Match page + betslip vs reference | `node cmp_match.js tools/qa` |
 | `align.js` | Odds column labels vs buttons (must print `aligned`) on phone + desktop | `node align.js` |

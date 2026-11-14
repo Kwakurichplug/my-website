@@ -19,10 +19,11 @@ async function priceSelections(client, sels, acceptChanges) {
   const legs = [];
   for (const s of sels) {
     const { rows } = await client.query(
-      `SELECT e.id, e.home, e.away, e.status, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id=e.id AND m.key=$2 WHERE e.id=$1`, [s.eventId, s.market]);
+      `SELECT e.id, e.home, e.away, e.status, e.kickoff, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id=e.id AND m.key=$2 WHERE e.id=$1`, [s.eventId, s.market]);
     const row = rows[0];
     const o = row?.outcomes?.[s.outcome];
-    if (!row || !o || row.suspended || o.o == null || row.status === 'finished' || row.status === 'cancelled') {
+    // no past-posting: a pre-match price is gone once the game has kicked off (live prices need status 'live')
+    if (!row || !o || row.suspended || o.o == null || row.status === 'finished' || row.status === 'cancelled' || (row.status === 'scheduled' && new Date(row.kickoff) <= new Date())) {
       throw Object.assign(new Error('selection_unavailable'), { status: 409, detail: { eventId: s.eventId, market: s.market } });
     }
     if (Math.abs(o.o - s.odd) > 0.004 && !acceptChanges) {

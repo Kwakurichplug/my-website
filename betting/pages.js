@@ -227,50 +227,67 @@
   /* =========================================================
      JACKPOT  (#/jackpot[/results|how|tickets])
      ========================================================= */
-  const JP = { picks: {}, tab: 'play' };
-  const jpRound = () => { const d = new Date(); const s = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}${String(Math.ceil(((d - s) / DAY + s.getDay() + 1) / 7)).padStart(2, '0')}`; };
-  const jpGames = () => A().MATCHES.filter(m => m.sport === 'football' && !m.live && !m.finished && !m.virtual && m.map['1x2']?.['1']?.o).sort((a, b) => a.kick - b.kick).slice(0, 12);
-  const jpEnd = () => { const games = jpGames(); return games[0] ? games[0].kick : Date.now() + DAY; };
+  // live: the server fixes each round's 12 games (GET /api/jackpot/round) and pays winners automatically
+  const JP = { picks: {}, tab: 'play', round: undefined, results: undefined };
+  const weekCode = () => { const d = new Date(); const s = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}${String(Math.ceil(((d - s) / DAY + s.getDay() + 1) / 7)).padStart(2, '0')}`; };
+  const jpRound = () => (A().live ? (JP.round ? JP.round.code : '…') : weekCode());
+  const jpPrize = k => { const a = A(), p = JP.prizes && JP.prizes[a.CC]; return p ? p[k] : a.C[k === 't11' ? 'jp11' : k === 't10' ? 'jp10' : 'jackpot']; };
+  const jpMatch = e => { const o = (e.markets || []).find(m => m.key === '1x2'); return { id: e.id, home: e.home, away: e.away, kick: new Date(e.kickoff).getTime(), map: { '1x2': o ? o.outcomes : {} } }; };
+  async function loadRound(force) {
+    if (!A().live || (JP.round !== undefined && !force) || JP.loadingRound) return;
+    JP.loadingRound = true;
+    try { const r = await API.jackpot.round(); JP.round = r.round ? { code: r.round.code, closesAt: new Date(r.round.closesAt).getTime(), games: r.round.events.map(jpMatch) } : null; JP.prizes = r.prizes; }
+    catch { JP.round = JP.round || null; }
+    JP.loadingRound = false;
+    if (A().state.route === 'jackpot') renderJackpot(JP.tab === 'play' ? null : JP.tab);
+  }
+  const jpGames = () => A().live ? (JP.round ? JP.round.games : []) : A().MATCHES.filter(m => m.sport === 'football' && !m.live && !m.finished && !m.virtual && m.map['1x2']?.['1']?.o).sort((a, b) => a.kick - b.kick).slice(0, 12);
+  const jpEnd = () => { if (A().live && JP.round) return JP.round.closesAt; const games = jpGames(); return games[0] ? games[0].kick : Date.now() + DAY; };
   const lines = () => jpGames().reduce((n, m) => n * Math.max(1, (JP.picks[m.id] || []).length), 1);
   function renderJackpot(arg) {
     const a = A(), el = root('jackpot'), C = a.C;
+    if (a.live && JP.round === undefined) loadRound();
     JP.tab = ['results', 'how', 'tickets'].includes(arg) ? arg : 'play';
     const games = jpGames(), picked = games.filter(m => (JP.picks[m.id] || []).length).length, ln = lines();
     let body = '';
     if (JP.tab === 'play') {
       body = `<div class="jp-round">Round No. ${jpRound()}</div>
         <div class="jp-th"><span>Date/Match</span><span>1(Home)</span><span>X(Draw)</span><span>2(Away)</span></div>
-        ${games.length ? games.map((m, i) => `<div class="jp-r"><b class="n">${i + 1}</b><div class="jp-m"><small>${new Date(m.kick).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}</small><span>${esc(m.home)}</span><span>${esc(m.away)}</span></div>
+        ${a.live && JP.round === undefined ? '<div class="pg-empty dark"><i class="spin big"></i><span>Loading this round…</span></div>' : games.length ? games.map((m, i) => `<div class="jp-r"><b class="n">${i + 1}</b><div class="jp-m"><small>${new Date(m.kick).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}</small><span>${esc(m.home)}</span><span>${esc(m.away)}</span></div>
           ${['1', 'X', '2'].map(o => { const on = (JP.picks[m.id] || []).includes(o); return `<button class="jp-o ${on ? 'on' : ''}" data-pg="jpick" data-m="${m.id}" data-o="${o}" aria-pressed="${on}" aria-label="${o} ${esc(m.home)} v ${esc(m.away)}">${(m.map['1x2']?.[o]?.o || 0).toFixed(2)}</button>`; }).join('')}</div>`).join('') : '<div class="pg-empty dark"><b>The next round opens soon</b></div>'}
         <div class="jp-bar"><div><span><b>${picked}</b>/12 selected${ln > 1 ? ` · ${ln} lines` : ''}</span><small>${ln > 1 ? `${ln} × ${a.whole(C.ticket)}` : 'Pick 1, X or 2 – pick more than one to cover outcomes'}</small></div>
           <button class="jp-tool" data-pg="jplucky">Lucky Pick</button><button class="jp-tool" data-pg="jpclear">Clear</button>
           <button class="au-btn" data-pg="jpbuy" ${picked === 12 && games.length === 12 ? '' : 'disabled'}>Buy ${a.whole(ln * C.ticket)}</button></div>`;
     } else if (JP.tab === 'results') {
-      const past = [1, 2, 3].map(k => {
-        const r = Math.abs(Math.sin(+jpRound() * 7 + k)) * 1e4 | 0;
-        return { round: String(+jpRound() - k), w12: r % 3, w11: 4 + r % 9, w10: 30 + r % 80, pot: C.jackpot * (0.8 + (r % 40) / 100) };
-      });
-      body = past.map(p => `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${p.round}</b><span>${a.whole(Math.round(p.pot))}</span></div>
-        <div class="jp-tiers">${[['12 correct', p.w12, p.pot], ['11 correct', p.w11, p.pot * 0.08], ['10 correct', p.w10, p.pot * 0.02]].map(([t, w, v]) => `<div><span>${t}</span><b>${w} winner${w === 1 ? '' : 's'}</b><small>${w ? a.whole(Math.round(v / w)) + ' each' : 'Rolled over'}</small></div>`).join('')}</div></div>`).join('');
+      const cc = a.CC, list = JP.results;
+      if (a.live && list === undefined && !JP.loadingRes) { JP.loadingRes = true; API.jackpot.results().then(r => { JP.results = r; }).catch(() => { JP.results = []; }).finally(() => { JP.loadingRes = false; if (a.state.route === 'jackpot' && JP.tab === 'results') renderJackpot('results'); }); }
+      body = !a.live ? '<div class="pg-empty dark"><b>No settled rounds yet</b><span>Results of each round appear here once its last game has finished.</span></div>'
+        : list === undefined ? '<div class="pg-empty dark"><i class="spin big"></i><span>Loading results…</span></div>'
+        : list.length ? list.map(rd => { const sm = (rd.summary || {})[cc] || {}, tier = (l, t) => `<div><span>${l}</span><b>${t && t.lines ? `${t.lines} winning line${t.lines === 1 ? '' : 's'}` : 'No winners'}</b><small>${t && t.lines ? a.whole(t.prize) + ' per line' : '–'}</small></div>`;
+            return `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${esc(rd.code)}</b><span>${new Date(rd.settledAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+              <div class="jp-tiers">${tier('12 correct', sm.t12)}${tier('11 correct', sm.t11)}${tier('10 correct', sm.t10)}</div>
+              <details class="jp-games"><summary>Results of the 12 games</summary>${rd.games.map((g, i) => `<p><b>${i + 1}</b><span>${esc(g.match)}</span><em>${g.score ? g.score.join(' - ') : 'Void'}</em><i>${g.o || ''}${g.drawn ? ' (drawn)' : ''}</i></p>`).join('')}</details></div>`; }).join('')
+        : '<div class="pg-empty dark"><b>No settled rounds yet</b><span>Results of each round appear here once its last game has finished.</span></div>';
     } else if (JP.tab === 'how') {
       body = `<div class="jp-how">${[
         ['Predict 12 games', 'Pick Home (1), Draw (X) or Away (2) for every game in the round.'],
         ['Cover more outcomes', `Pick two or three outcomes for a game to cover it. Each extra combination is one more line at ${a.whole(C.ticket)}.`],
-        ['Win big', `Get all 12 right to share the ${a.whole(C.jackpot)} jackpot. 11 and 10 correct win prizes too.`],
-        ['Results', 'Results are confirmed after the last game ends. Winnings are paid straight into your balance.'],
-        ['Postponed games', 'If a game is postponed or abandoned, its outcome is drawn at random under the jackpot rules.'],
+        ['Win big', `Get all 12 right to win the ${a.whole(jpPrize('jackpot'))} jackpot – shared equally if more than one line gets 12. 11 correct pays ${a.whole(jpPrize('t11'))} and 10 correct pays ${a.whole(jpPrize('t10'))} per line.`],
+        ['Results', 'The round closes when its first game kicks off. When the last game ends, every ticket is graded and winnings are paid straight into your balance.'],
+        ['Postponed games', 'If a game is cancelled, or not finished within 48 hours of kick-off, its result is drawn at random, weighted by the 1X2 odds.'],
       ].map(([t, d], i) => `<div class="how-step"><b>${i + 1}</b><div><strong>${t}</strong><p>${d}</p></div></div>`).join('')}</div>`;
     } else {
       const tk = JP.tickets || [];
       body = !a.state.user ? `<div class="pg-empty dark"><b>Log in to see your tickets</b><button class="au-btn" data-open="loginModal">Log in</button></div>`
         : JP.tickets == null ? '<div class="pg-empty dark"><i class="spin big"></i><span>Loading your tickets…</span></div>'
-        : tk.length ? tk.map(t => `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${esc(t.round)}</b><span>${a.whole(t.cost)}</span></div><p class="jp-tk">${t.lines} line${t.lines === 1 ? '' : 's'} · ${new Date(t.at).toLocaleString()} · <b>${esc(t.ref)}</b> · <em>Pending</em></p></div>`).join('')
+        : tk.length ? tk.map(t => { const st = t.status === 'won' ? `<em class="won">Won ${a.money(t.prize)}</em>` : t.status === 'lost' ? '<em class="lost">No win</em>' : '<em>Pending</em>', h = t.hits ? ` · best ${[12, 11, 10].find(k => t.hits[k]) ? [12, 11, 10].find(k => t.hits[k]) + ' correct' : 'under 10'}` : '';
+            return `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${esc(t.round)}</b><span>${a.whole(t.cost)}</span></div><p class="jp-tk">${t.lines} line${t.lines === 1 ? '' : 's'} · ${new Date(t.at).toLocaleString()} · <b>${esc(t.ref)}</b>${h} · ${st}</p></div>`; }).join('')
         : '<div class="pg-empty dark"><b>No tickets yet</b><span>Your jackpot tickets appear here.</span></div>';
       if (!JP.loading && a.state.user && JP.tickets == null) { JP.loading = true; loadTickets().then(() => { JP.loading = false; if (a.state.route === 'jackpot' && JP.tab === 'tickets') renderJackpot('tickets'); }); }
     }
     el.innerHTML = `${head('Jackpot', `<a class="icon-btn" href="#/jackpot/tickets" aria-label="My tickets">${I.slip}</a>${homeBtn}`, { dark: true })}
       <div class="jp-hero" style="background-image:linear-gradient(180deg,rgba(10,20,14,.55),rgba(27,30,37,1)),url(${C.b3})">
-        <div class="jp-prize"><p>Predict 12 GAMES to Win</p><h2>${a.C.cur === '₦' ? 'NGN' : 'GHS'} ${Number(C.jackpot).toLocaleString('en')}</h2><small>Prizes for 11 and 10 correct predictions too!</small></div>
+        <div class="jp-prize"><p>Predict 12 GAMES to Win</p><h2>${a.C.cur === '₦' ? 'NGN' : 'GHS'} ${Number(jpPrize('jackpot')).toLocaleString('en')}</h2><small>Prizes for 11 and 10 correct predictions too!</small></div>
         <div class="jp-cd" id="jpCd"></div>
       </div>
       <div class="pg-tabs dark">${[['play', 'Jackpot 12'], ['results', 'Previous Results'], ['how', 'How to play'], ['tickets', 'My Tickets']].map(([k, l]) => `<a href="#/jackpot${k === 'play' ? '' : '/' + k}" class="${JP.tab === k ? 'on' : ''}">${l}</a>`).join('')}</div>
@@ -294,7 +311,7 @@
     const picks = games.map(m => ({ eventId: m.id, outcomes: JP.picks[m.id] }));
     try {
       let ref;
-      if (a.live) { const r = await API.jackpot.buy(jpRound(), picks); u.balance = r.balance; ref = r.ref; }
+      if (a.live) { const r = await API.jackpot.buy(jpRound(), picks); u.balance = r.balance; ref = r.ref; JP.results = undefined; }
       else {
         ref = 'JP' + Date.now().toString(36).toUpperCase();
         u.balance = a.r2(u.balance - cost); a.addTx('Jackpot ticket', -cost, { ref, method: `${ln} line${ln === 1 ? '' : 's'}`, status: 'success' });
@@ -302,7 +319,7 @@
       }
       a.saveUser(); a.renderAuth(); JP.picks = {}; JP.tickets = null;
       a.toast(`Ticket ${ref} bought – good luck!`); a.go('jackpot/tickets');
-    } catch (e) { a.toast(a.apiErr(e, 'Ticket could not be bought'), 'err'); }
+    } catch (e) { a.toast(a.apiErr(e, 'Ticket could not be bought'), 'err'); if (['round_closed', 'round_changed'].includes(e.message)) { JP.picks = {}; loadRound(true); } }
   }
 
   /* =========================================================
@@ -317,7 +334,7 @@
       terms: ['Applies to pre-match and live multiples.', 'The boost is paid as cash on winning bets.', 'Cashed-out bets do not get the boost.'] },
     { id: 'jackpot', cat: 'sports', title: `${C.jackpotShort} Weekly Jackpot`, img: C.b3, from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Predict 12 matches correctly and take the jackpot.', cta: ['Play Jackpot', '#/jackpot'],
       steps: ['Open Jackpot.', 'Pick 1, X or 2 for all 12 games.', `Buy your ticket – ${w(C.ticket)} per line.`],
-      terms: ['Prize shared equally between winning tickets.', '11 and 10 correct win tier prizes.', 'Unwon jackpots roll over to the next round.'] },
+      terms: ['The jackpot is shared equally between all lines with 12 correct.', '11 and 10 correct win a fixed prize per line.', 'Winnings are paid automatically when the last game of the round ends.'] },
     { id: 'crash', cat: 'games', title: 'Rocket Crash: Daily Cashback', grad: 'linear-gradient(135deg,#3b0a5c,#d0306d)', from: `11/1/${y}`, to: `12/31/${y}`, lead: '10% of your daily net Rocket Crash losses back as a free bet.', cta: ['Play Rocket Crash', '#/play'],
       steps: ['Play Rocket Crash.', 'At midnight we add up your net losses for the day.', '10% comes back as a free bet the next morning.'],
       terms: [`Maximum cashback ${w(C.bonusMax / 10)} per day.`, 'Free bet valid for 7 days.'] },
@@ -691,7 +708,7 @@
   function render(page, arg, keep, prev) {
     if (keep && !LIVE_REFRESH.has(page)) return;
     if (!keep && page === 'list' && prev !== 'list') EL.tab = 'matches';
-    if (!keep && page === 'jackpot') JP.tickets = null;
+    if (!keep && page === 'jackpot') { JP.tickets = null; if (A().live && JP.round && JP.round.closesAt <= Date.now()) JP.round = undefined; }
     if (!keep && page === 'league' && prev !== 'league') { EL.tab = 'matches'; EL.shut.clear(); }
     RENDER[page](arg, keep);
   }

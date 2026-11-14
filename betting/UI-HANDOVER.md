@@ -226,11 +226,11 @@ iPhone 13 size and placing it side-by-side (the environment allows
 | File | Purpose |
 |---|---|
 | `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<tab>`) and **withdraw** (`#/withdraw/<tab>`). Calls the API in live mode, simulates in demo mode. `PROVIDER:` comments mark where a payment provider plugs in. |
-| `pages.js` | `window.Pages`: screens rebuilt on the reference layout – **Live** (`#/live[/sport]`), **Sports filter** (`#/sports`), **event list** (`#/list/<sport>/<when>[/<lg,lg>\|out]`), **league** (`#/league/<idx>`), **Jackpot** (`#/jackpot[/results\|how\|tickets]`), **Promotions** (`#/promos[/tab]`, `#/promo/<id>`), **Results** (`#/results`), **Code Hub** (`#/codes`), **bet detail** (`#/bet/<id>`), **Instant Football** (`#/instant`). |
+| `pages.js` | `window.Pages`: screens rebuilt on the reference layout – **Live** (`#/live[/sport]`), **Sports filter** (`#/sports`), **event list** (`#/list/<sport>/<when>[/<lg,lg>\|out]`), **league** (`#/league/<idx>`), **Jackpot** (`#/jackpot[/results\|how\|tickets]`, live: server round + real results + ticket outcomes), **Promotions** (`#/promos[/tab]`, `#/promo/<id>`), **Results** (`#/results`), **Code Hub** (`#/codes`), **bet detail** (`#/bet/<id>`), **Instant Football** (`#/instant`). |
 | `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
 | `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
 
-Script order: `api.js → account.js → pages.js → motion.js → icons.js → games.js → app.js`.
+Script order: `api.js → account.js → pages.js → motion.js → icons.js → game-logic.js → games.js → arcade.js → app.js`.
 `app.js` exposes `window.LBA_APP` (state, data, render helpers, `live` flag) for the two modules;
 the router hands a route to `Account.render` / `Pages.render` when they claim it.
 The old login/register/deposit modals are gone – `openModal('loginModal' | 'registerModal' | 'depositModal')` now navigates to the pages.
@@ -238,12 +238,20 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 ### Design notes
 
 - Inner pages use a 48px **brand-green header** (`.pg-head` / `.wl-head`) with back + actions, and hide the site top bar on phones, as the reference does. The reference's red is *their* brand – keep ours green.
-- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns, `v17` real flags/crest sizes, `v18` trophy.
+- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns, `v17` real flags/crest sizes, `v18` trophy overlay, `v19` 3D trophy image + dimmed overlay, `v20` instant games (`.ar-*`), Rocket Crash fairness panel, jackpot results.
 - Desktop (≥1024px) shows **Over/Under 2.5 beside 1X2** in every list (`exCols` / `exHead` in `app.js`).
 - Dark mode: toggle on the Me page, saved in `localStorage.lba_theme`, applied in `<head>` before first paint.
 - Offline banner appears when the connection drops.
-- **Trophy** (`v18`): `Pages.trophy({ amount, source, ref, href })` shows the YOU WON screen. Uses `img/trophy.webp`
-  (realistic, generated in Canva) with the inline SVG trophy as fallback. Call it for every kind of win.
+- **Trophy** (`v18`/`v19`): `Pages.trophy({ amount, source, ref, href })` shows the YOU WON screen over the dimmed app,
+  like the reference. The image is **our own 3D render** (`img/trophy-lb.webp` 900×1080, `trophy-lb-600.webp`; source and
+  re-render steps in `tools/trophy/`): gold cup with the LB monogram + ball engraved in a laurel, green lacquer plinth with
+  the LetBet|Afrika wordmark, light bursting out of the cup. Transparent WebP, pre-cached when the app is idle; the
+  inline SVG trophy is only a fallback. Called for sports/virtual wins, Instant Football, and game wins of 2x or more.
+- **Game screens** (`v20`, `arcade.js`): full-screen on phones (own header with back + balance, site top bar and
+  betslip button hidden). Every game: board + animation, choice buttons, stake −/+ and chips, one big play button,
+  result line, *My plays* history, *How to play* with the pay table and the exact return to player. The balance on
+  screen changes only after the animation so the result is never spoiled. Wrapper class is `ar ar--<game>` (double
+  dash) – `ar-<name>` classes are the boards. The game pieces (dice, cards, reels) are excluded from `gen-dark.py`.
 
 ### Server endpoints added
 
@@ -251,6 +259,9 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 |---|---|
 | `POST /api/wallet/transfer` | Transfer to Friend: moves money between two players in the same country through the ledger (`transfer_out` / `transfer_in`). |
 | `POST /api/jackpot/tickets`, `GET /api/jackpot/tickets` | Buys a 12-game jackpot ticket (multi-pick lines × line price, ledger type `jackpot`) and lists the player's tickets. |
+| `POST /api/games/:game/play`, `POST /api/games/hilo/deal`, `GET /api/games/history` | Instant games (dice, spin, penalty, rush, keno, scratch, hilo): stake taken, CSPRNG draw, payout, `game_bets` record – one transaction. Hi-Lo deals are HMAC-signed, player-bound and single use. |
+| `GET /api/games/crash/state`, `POST /api/games/crash/bet` / `cashout` / `cancel`, `GET /api/games/crash/verify/:id` | Rocket Crash shared rounds, provably fair (hash before, seed after). |
+| `GET /api/jackpot/round`, `GET /api/jackpot/results` | The server's 12-game round and real settled results (tiers per country). |
 | `GET /api/virtuals/instant/round`, `POST /api/virtuals/instant/play` | Instant Football. The server prices the round, takes the stake, plays the round with a CSPRNG **after** the stake is taken, settles and pays. A round can be played once. |
 
 Also fixed: live markets read from Postgres `jsonb` came back with re-sorted keys (Home/Away/Draw, Over/Under rows paired wrongly). `mapMarkets` now restores betting order.

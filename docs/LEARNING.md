@@ -11,7 +11,8 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 2. Run it: Postgres + `npm install && npm start`, open http://127.0.0.1:8080. Also open `betting/index.html` as a file (demo mode).
 3. Open the reference on your phone: https://www.sportybet.com/ng/m/ – compare with ours screen by screen.
 4. Click through every page; place a bet; deposit; play Instant Football; switch to Ghana; toggle dark mode.
-5. Run `node --test server/test/grade.test.js` and `node tools/qa/smoke.js`.
+5. Run `cd server && node --test test/grade.test.js test/games.test.js` and `node tools/qa/smoke.js`.
+6. Play every game in `#/games` (demo and live), and open *Provably fair* on Rocket Crash and press *Verify*.
 
 ### Code tour (follow a bet end to end)
 - Odds button → `oddBtn()` in `betting/app.js` → betslip `renderSlip()` → `livePlaceBet()` → `API.bets.place()` (`betting/api.js`)
@@ -19,6 +20,13 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 - → feed finishes the match (`server/src/feeds/oddsapi.js` `syncScores`) → `settleEvent()` in `server/src/lib/settle.js`
 - → `move()` in `server/src/lib/wallet.js` credits the win (ledger row + cached balance).
 - → on the next poll `liveBets()` in `betting/app.js` sees the ticket go open → won and shows the YOU WON screen, `Pages.trophy()` in `betting/pages.js` (once per ticket, remembered in `localStorage.lba_trophies`).
+
+### Code tour (follow a game play)
+- *Roll* in `betting/arcade.js` `play()` → `API.games.play('dice', {stake, choice})` → `server/src/routes/games.js`
+  `/:game/play` → one transaction: `debit()` stake → `GameLogic.play(game, rng)` with the CSPRNG → `move()` payout →
+  `game_bets` row → response → the dice animation runs → balance updated → `Pages.trophy()` for wins of 2x or more.
+- Rocket Crash: `server/src/games/crash.js` `tick()` (leader only) creates rounds and pays auto cash-outs; players call
+  `crash/bet`, `crash/cashout`; `betting/games.js` polls `crash/state` and animates from the server clock.
 
 ---
 
@@ -30,8 +38,10 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 | Poisson football model; fitting goal rates to 1X2 + O/U | Maher (1982) "Modelling association football scores"; Dixon & Coles (1997) – search the paper titles; "penaltyblog" docs (pena.lt/y/blog) | `fit()`, `footballMarkets()` in `server/src/feeds/demo.js` |
 | Markets and settlement rules (1X2, DC, DNB, GG, O/U, CS, handicaps, void rules) | Any bookmaker's "Sports rules" page; SportyBet Help Centre | `gradeLeg()` in `server/src/lib/settle.js`, tests in `server/test/grade.test.js` |
 | Multiples, win boost, cashout pricing | SportyBet promotions pages ("Win Boost", "Cashout") | `bets.js`, `cashoutValue()` in `settle.js` |
-| RTP / house edge for casino games | Wizard of Odds game math pages | `betting/game-logic.js` (all tables ~95–96%) |
-| Provably fair crash games | Search "bustabit provably fair hash chain"; "crash game provably fair seed" | design in `HANDOVER.md` §6.1 |
+| RTP / house edge for casino games | Wizard of Odds game math pages | `betting/game-logic.js` (`rtp()` computes every table exactly: 94.4–97%), tests in `server/test/games.test.js` |
+| Provably fair crash games (commit–reveal, HMAC) | Search "bustabit provably fair"; Node crypto docs (createHash, createHmac); MDN "SubtleCrypto" for the in-browser check | `server/src/games/crash.js`, *Provably fair* panel in `betting/games.js`, `HANDOVER.md` §6 |
+| Hypergeometric odds (Keno), polynomial line counting (jackpot) | Wizard of Odds "Keno"; any combinatorics primer | `rtp('keno')` in `betting/game-logic.js`, `tiers()` in `server/src/games/jackpot.js` |
+| Leader election with Postgres advisory locks | PostgreSQL docs "Advisory Locks" (explicit locking chapter) | `server/src/lib/leader.js`, `server/src/games/index.js` |
 
 **Golden rules:** money only moves through `wallet.js` inside a DB transaction; prices are always re-checked on the
 server; never trust the client for odds, results or game outcomes; every game result is decided after the stake is taken.
@@ -61,7 +71,7 @@ server; never trust the client for odds, results or game outcomes; every game re
 | zod validation | https://zod.dev/ | every route |
 | JWT auth, bcrypt | https://jwt.io/introduction, bcryptjs README | `server/src/lib/auth.js` |
 | Rate limiting, helmet | express-rate-limit, helmetjs.github.io | `server/src/index.js` |
-| HMAC / CSPRNG (`crypto.randomInt`, `createHmac`) | https://nodejs.org/api/crypto.html | games (`routes/virtuals.js`, next: `routes/games.js`) |
+| HMAC / CSPRNG (`crypto.randomInt`, `createHmac`) | https://nodejs.org/api/crypto.html | `server/src/games/rng.js`, `routes/games.js` (Hi-Lo signed deals), `games/crash.js` |
 
 Gotcha: jsonb re-sorts object keys – outcome order is restored on the client by `okRank()` in `app.js`.
 
@@ -71,8 +81,10 @@ Gotcha: jsonb re-sorts object keys – outcome order is restored on the client b
 
 | Topic | Learn | Where |
 |---|---|---|
-| Vanilla JS modules on `window`, hash router | MDN (developer.mozilla.org) – "Window: hashchange event" | `route()` in `app.js`; `Account` / `Pages` modules |
-| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v18 (v18 = trophy); dark via `tools/gen-dark.py` |
+| Vanilla JS modules on `window`, hash router | MDN (developer.mozilla.org) – "Window: hashchange event" | `route()` in `app.js`; `Account` / `Pages` / `Arcade` / `Games` modules |
+| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v20 (v19 trophy, v20 games); dark via `tools/gen-dark.py` |
+| 3D product rendering (three.js PBR, lathe geometry, environment lighting) | threejs.org/manual ("Physically based rendering", "LatheGeometry") | `tools/trophy/` – how the trophy image is made |
+| Canvas / SVG animation for games | MDN "Canvas tutorial", "SVG transforms" | Rocket Crash in `games.js`, boards in `arcade.js` |
 | Mobile UX of sportsbooks | Study SportyBet, Bet9ja, BetKing mobile sites side by side | `tools/qa/compare2.js` |
 | Accessibility (WCAG 2.2 AA) | https://www.w3.org/WAI/WCAG22/quickref/, axe-core | `tools/qa/axe_run.js` |
 | PWA basics | web.dev/learn/pwa | `betting/manifest.webmanifest` |

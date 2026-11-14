@@ -47,7 +47,8 @@ r.get('/', async (req, res, next) => {
 
 r.get('/results', async (req, res, next) => {
   try {
-    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished' ${req.query.sport ? 'AND e.sport=$1' : ''} ORDER BY e.updated_at DESC LIMIT 300`, req.query.sport ? [req.query.sport] : []);
+    // virtual rounds finish every 2 minutes – only returned when asked for (sport=vfootball)
+    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished' ${req.query.sport ? 'AND e.sport=$1' : "AND e.sport <> 'vfootball'"} ORDER BY e.updated_at DESC LIMIT ${req.query.sport === 'vfootball' ? 30 : 300}`, req.query.sport ? [req.query.sport] : []);
     res.json({ events: rows.map(e => shape(e)) });
   } catch (e) { next(e); }
 });
@@ -68,5 +69,11 @@ r.get('/:id', async (req, res, next) => {
     res.json({ event: (await withMarkets(rows))[0] });
   } catch (e) { next(e); }
 });
+
+/** Events (by id) with the given market keys, in the public shape – used by the jackpot round. */
+export async function eventsWithMarkets(ids, keys) {
+  const { rows } = await q(`${EV_SELECT} WHERE e.id = ANY($1)`, [ids]);
+  return withMarkets(rows, keys);
+}
 
 export default r;

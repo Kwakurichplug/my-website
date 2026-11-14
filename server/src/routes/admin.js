@@ -8,12 +8,32 @@ import { getSetting, setSetting } from '../lib/settings.js';
 import { settleEvent } from '../lib/settle.js';
 import { sendEmail } from '../emails/index.js';
 import { feedStatus } from '../feeds/index.js';
+import { settleRound } from '../games/jackpot.js';
 
 const r = Router();
 r.use(requireAdmin);
 
 // odds feed health: provider, credits left, today's allowance
 r.get('/feed', async (_req, res, next) => { try { res.json(await feedStatus()); } catch (e) { next(e); } });
+
+// games: today's turnover and payouts per game (house view)
+r.get('/games', async (_req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT game, count(*)::int AS plays, coalesce(sum(stake),0) AS staked, coalesce(sum(payout),0) AS paid
+      FROM game_bets WHERE created_at > now() - interval '1 day' AND status <> 'void' GROUP BY game ORDER BY staked DESC`);
+    res.json({ games: rows.map(g => ({ ...g, staked: Number(g.staked), paid: Number(g.paid), margin: Number(g.staked) ? 1 - Number(g.paid) / Number(g.staked) : null })) });
+  } catch (e) { next(e); }
+});
+// jackpot: settle now (a given round once all its games are over; default = every closed round)
+r.post('/jackpot/settle', async (req, res, next) => {
+  try {
+    const code = req.body && req.body.round ? String(req.body.round) : null;
+    const { rows } = await q(`SELECT * FROM jackpot_rounds WHERE status='open' ${code ? 'AND code=$1' : 'AND closes_at <= now()'}`, code ? [code] : []);
+    const settled = [];
+    for (const rd of rows) if (await settleRound(rd)) settled.push(rd.code);
+    res.json({ settled });
+  } catch (e) { next(e); }
+});
 
 r.get('/overview', async (_req, res, next) => {
   try {

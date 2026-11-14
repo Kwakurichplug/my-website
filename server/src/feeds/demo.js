@@ -93,7 +93,7 @@ async function ensureLeagues() {
 /** Create fixtures for the next 3 days if the table is thin. */
 export async function sync() {
   const leagues = await ensureLeagues();
-  const { rows } = await q(`SELECT count(*)::int AS n FROM events WHERE status IN ('scheduled','live')`);
+  const { rows } = await q(`SELECT count(*)::int AS n FROM events WHERE ext_id LIKE 'demo:%' AND status IN ('scheduled','live')`);
   if (rows[0].n >= 60) return;
   for (const lg of leagues) {
     const t = [...lg.teams].sort(() => R() - 0.5);
@@ -111,7 +111,8 @@ export async function sync() {
 
 /** Advance live matches; return ids of events that just finished. */
 export async function tick() {
-  const { rows } = await q(`SELECT id, sport, home, away, status, minute, score_home, score_away, stats, kickoff FROM events WHERE status='live' OR (status='scheduled' AND kickoff <= now())`);
+  // only the demo feed's own matches (Virtual League rounds are played by server/src/games/virtual.js)
+  const { rows } = await q(`SELECT id, sport, home, away, status, minute, score_home, score_away, stats, kickoff FROM events WHERE ext_id LIKE 'demo:%' AND (status='live' OR (status='scheduled' AND kickoff <= now()))`);
   const finished = [];
   for (const e of rows) {
     let m = model.get(e.id);

@@ -62,12 +62,26 @@
       transfer: (phone, amount, note) => post('/wallet/transfer', { phone, amount, note }),
     },
     jackpot: {
+      round: () => get('/jackpot/round'),
+      results: () => get('/jackpot/results').then(r => r.rounds),
       buy: (round, picks) => post('/jackpot/tickets', { round, picks }),
       tickets: () => get('/jackpot/tickets').then(r => r.tickets),
     },
     virtuals: {
       round: () => get('/virtuals/instant/round'),
       play: d => post('/virtuals/instant/play', d),
+    },
+    games: {
+      play: (game, d) => post('/games/' + game + '/play', d),
+      deal: () => post('/games/hilo/deal', {}),
+      history: game => get('/games/history' + (game ? '?game=' + encodeURIComponent(game) : '')).then(r => r.plays),
+      crash: {
+        state: () => get('/games/crash/state', { timeout: 5000 }),
+        bet: (stake, auto) => post('/games/crash/bet', { stake, auto: auto || null }),
+        cashout: () => post('/games/crash/cashout', {}),
+        cancel: () => post('/games/crash/cancel', {}),
+        verify: id => get('/games/crash/verify/' + id),
+      },
     },
     events: {
       leagues: () => get('/events/leagues').then(r => r.leagues),

@@ -37,12 +37,13 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [ ] Live: real live scores with match minute, live odds open when data is fresh (needs paid odds plan).
 - [ ] Betslip: singles, multiples, system bets, booking codes, odds-change handling, accept-odds toggle.
 - [ ] Cashout (full; partial as stretch), bet history with filters, bet detail, share ticket image.
-- [ ] **All games playable for real money** (server-authoritative, see `HANDOVER.md` §6): Rocket Crash
-      (provably fair, verification page), Instant Football, Virtual League, Lucky Dice, Spin & Win, Penalty Kick,
-      Number Rush, Keno, Scratch Cards, Hi-Lo. Game history per player. RTP shown in each game's info.
-- [ ] **Trophy & celebration on every win** (bets, games, jackpot): trophy modal, amount, confetti, sound toggle,
-      "My Wins" list on Me.
-- [ ] Jackpot: real rounds, results, prize tiers paid automatically.
+- [x] **All games playable for real money** (server-authoritative, see `HANDOVER.md` §6): Rocket Crash
+      (provably fair, in-page verification), Instant Football, Virtual League, Lucky Dice, Spin & Win, Penalty Kick,
+      Number Rush, Keno, Scratch Cards, Hi-Lo. Game history per player (*My plays*). RTP shown in each game's info.
+      *(Done – keep it true: every new game needs a server route, a `games.test.js` RTP case and an e2e step.)*
+- [ ] **Trophy & celebration on every win** (bets, games, jackpot): trophy screen with our own 3D trophy, amount,
+      confetti – **done**; still to do: sound toggle, "My Wins" list on Me, share image.
+- [x] Jackpot: real server rounds, real results, prize tiers graded and paid automatically.
 - [ ] Promotions: real terms, opt-in, bonus wallet with wagering tracking.
 - [ ] Notifications: in-app inbox + SMS/email for deposits, withdrawals, wins.
 
@@ -60,7 +61,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [ ] Rate limits on auth, bets, games, wallet; brute-force lockout; CAPTCHA on repeated failures.
 - [ ] JWT secret rotation plan; HTTPS only; secure headers (helmet) with a real Content-Security-Policy.
 - [ ] Admin panel behind role + 2FA; audit log of every admin action and manual balance change.
-- [ ] Game outcomes only from CSPRNG / committed seeds; no client-trusted values anywhere.
+- [x] Game outcomes only from CSPRNG / committed seeds; no client-trusted values anywhere (stake taken before the draw;
+      Hi-Lo deals signed and single use; crash bets close at take-off in SQL; cash-out priced on the server clock).
 
 ## 6. Performance & scale (10,000 simultaneous users)
 
@@ -90,8 +92,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 
 ## 9. QA sign-off before each release
 
-- [ ] `node --test server/test/*.test.js` green.
-- [ ] `tools/qa/smoke.js`, all `e2e_*.js`, `align.js`, `axe_run.js` green in demo and live mode.
+- [ ] `node --test server/test/*.test.js` green (unit: grading + game maths; integration: payouts + every game's money flow).
+- [ ] `tools/qa/smoke.js`, all `e2e_*.js` (incl. `e2e_games.js`, `e2e_games_demo.js`), `align.js`, `axe_run.js` green in demo and live mode.
 - [ ] Manual pass on a real Android phone (low-end) and an iPhone, on 3G throttling.
 - [ ] Side-by-side review vs SportyBet for every changed screen.
 - [ ] Release notes in the PR; rollback plan (Railway "Redeploy previous").

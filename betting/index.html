@@ -233,6 +233,7 @@
           <button class="cr-btn" id="crBtn">Bet</button>
         </div>
         <div class="cr-live"><div class="cr-live-h"><span>All bets</span><b id="crCount"></b></div><div id="crBets"></div></div>
+        <details class="cr-fair" id="crFairBox"><summary>Provably fair <small>– check any round</small></summary><div id="crFair"></div></details>
       </div>
     </section>
 
@@ -269,6 +270,8 @@
 
     <!-- ============ INSTANT FOOTBALL ============ -->
     <section class="page pg-page pg-dark" id="page-instant"><div class="pg-root"></div></section>
+    <!-- ============ INSTANT GAMES (Lucky Dice, Spin & Win, Penalty Kick, Number Rush, Keno, Scratch Cards, Hi-Lo) ============ -->
+    <section class="page pg-page pg-dark" id="page-game"><div class="pg-root"></div></section>
 
     <!-- ============ LEGAL ============ -->
     <section class="page" id="page-legal">
@@ -398,7 +401,9 @@
 <script src="pages.js"></script>
 <script src="motion.js"></script>
 <script src="icons.js"></script>
+<script src="game-logic.js"></script>
 <script src="games.js"></script>
+<script src="arcade.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

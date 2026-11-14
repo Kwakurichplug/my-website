@@ -1,5 +1,5 @@
 const { chromium, devices } = require('playwright');
-const routes = ['home','live','live/basketball','sports','list/football/today','list/football/all/0,1','list/football/all/out','league/0','jackpot','jackpot/results','jackpot/how','jackpot/tickets','promos','promos/games','promo/welcome','results','codes','bet/x','me','acct/bets','acct/tx','match/','virtuals','games','deposit','withdraw','register','login','legal/terms'];
+const routes = ['home','live','live/basketball','sports','list/football/today','list/football/all/0,1','list/football/all/out','league/0','jackpot','jackpot/results','jackpot/how','jackpot/tickets','promos','promos/games','promo/welcome','results','codes','bet/x','me','acct/bets','acct/tx','match/','virtuals','games','play','instant','game/dice','game/spin','game/penalty','game/rush','game/keno','game/scratch','game/hilo','deposit','withdraw','register','login','legal/terms'];
 (async()=>{const b=await chromium.launch();
 for (const base of ['http://127.0.0.1:8080/','file:///home/user/my-website/betting/index.html']) {
  const ctx=await b.newContext({...devices['iPhone 13']}); await ctx.addInitScript(()=>{try{sessionStorage.setItem('lba_splash','1')}catch{}});

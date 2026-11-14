@@ -15,10 +15,10 @@
   const COUNTRIES = {
     NG: { code: 'NG', flag: 'ng', name: 'Nigeria', cur: '₦', curName: 'Naira', locale: 'en-NG', dial: '+234', ph: '801 234 5678', digits: 10,
       minStake: 100, defStake: 100, chips: [100, 500, 1000, 5000], dep: [1000, 5000, 10000, 50000], depDef: 1000, demo: 25000,
-      jackpot: 50000000, jackpotShort: '₦50M', ticket: 100, bonusMax: 100000, referral: 1000, b1: 'img/banner-1.jpg', b3: 'img/banner-3.jpg' },
+      jackpot: 50000000, jp11: 100000, jp10: 10000, jackpotShort: '₦50M', ticket: 100, bonusMax: 100000, referral: 1000, b1: 'img/banner-1.jpg', b3: 'img/banner-3.jpg' },
     GH: { code: 'GH', flag: 'gh', name: 'Ghana', cur: 'GH₵', curName: 'Cedis', locale: 'en-GH', dial: '+233', ph: '24 123 4567', digits: 9,
       minStake: 1, defStake: 5, chips: [1, 5, 10, 50], dep: [10, 50, 100, 500], depDef: 50, demo: 250,
-      jackpot: 500000, jackpotShort: 'GH₵500K', ticket: 1, bonusMax: 1000, referral: 10, b1: 'img/banner-1-gh.jpg', b3: 'img/banner-3-gh.jpg' },
+      jackpot: 500000, jp11: 1000, jp10: 100, jackpotShort: 'GH₵500K', ticket: 1, bonusMax: 1000, referral: 10, b1: 'img/banner-1-gh.jpg', b3: 'img/banner-3-gh.jpg' },
   };
   let CC = 'NG';
   try { CC = localStorage.getItem('lba_country') || 'NG'; } catch {}
@@ -985,10 +985,31 @@
     settleBets(); vNewRound(); syncSlipOdds(); renderSlip();
     if (state.route === 'virtuals') renderVirtuals();
   }
+  // live: the server runs the rounds (server/src/games/virtual.js); we follow its schedule and results
+  let vLastSync = 0;
+  async function vSync() {
+    if (!LIVE || Date.now() - vLastSync < 2000) return;
+    vLastSync = Date.now();
+    try {
+      const [up, res] = await Promise.all([API.events.list({ sport: 'vfootball', limit: 50, markets: '1x2,dc,ou,gg' }), API.events.results('vfootball')]);
+      up.forEach(mapEvent); res.forEach(mapEvent);
+      const cur = up.filter(e => e.status === 'scheduled' && new Date(e.kickoff).getTime() > Date.now()).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+      if (cur.length) { const k = cur[0].kickoff, rnd = cur.filter(e => e.kickoff === k); VR.ids = rnd.map(e => e.id); VR.endsAt = new Date(k).getTime(); VR.round = rnd[0].stats?.round ?? VR.round; }
+      if (res.length) { const r0 = res[0].stats?.round; VR.last = res.filter(e => e.stats?.round === r0).map(e => byId(e.id)).filter(Boolean); VR.lastRound = r0; }
+      const keep = new Set([...VR.ids, ...VR.last.map(m => m.id)]);
+      for (let i = MATCHES.length - 1; i >= 0; i--) if (MATCHES[i].virtual && !keep.has(MATCHES[i].id) && !state.slip.some(x => x.mid === MATCHES[i].id)) MATCHES.splice(i, 1);
+      for (let i = RESULTS.length - 1; i >= 0; i--) if (RESULTS[i].virtual && !keep.has(RESULTS[i].id)) RESULTS.splice(i, 1);
+      if (state.user) { await liveUser(); await liveBets(); renderAuth(); }
+      syncSlipOdds(); renderSlip();
+      if (state.route === 'virtuals') renderVirtuals();
+    } catch { /* next tick tries again */ }
+  }
   function vTick() {
-    if (Date.now() >= VR.endsAt) return vEndRound();
+    if (LIVE) { if (!VR.endsAt || Date.now() >= VR.endsAt + 1200) vSync(); }
+    else if (Date.now() >= VR.endsAt) return vEndRound();
     if (state.route !== 'virtuals') return;
     const left = Math.max(0, VR.endsAt - Date.now()), sec = Math.ceil(left / 1000);
+    if (!VR.endsAt) { $('#vClock').textContent = '--:--'; return; }
     $('#vClock').textContent = `${String(sec / 60 | 0).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
     $('#vBar').style.width = (100 - left / VR_LEN * 100) + '%';
   }
@@ -1140,7 +1161,7 @@
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
   const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again' }[e.message] || fallback || 'Something went wrong');
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
@@ -1175,7 +1196,8 @@
     let m = byId(e.id);
     if (!m) { m = { id: e.id, ev: [], flash: {}, st: { poss: [50, 50], shots: [0, 0], sot: [0, 0], corners: [0, 0], yc: [0, 0], att: [0, 0] }, lh: 1.3, la: 1.1, lc: 10, mu: 0, tf: 1, mk: [], map: {} }; MATCHES.push(m); }
     const prevScore = m.score ? [...m.score] : null;
-    m.sport = e.sport; m.lg = leagueIdx(e.league, e.sport); m.home = e.home; m.away = e.away;
+    m.sport = e.sport; m.lg = e.sport === 'vfootball' && VLG_LIVE != null ? VLG_LIVE : leagueIdx(e.league, e.sport); m.home = e.home; m.away = e.away;
+    if (e.sport === 'vfootball') { m.virtual = true; m.round = e.stats && e.stats.round; }
     m.kick = new Date(e.kickoff).getTime(); m.live = e.status === 'live'; m.finished = e.status === 'finished' || e.status === 'cancelled';
     m.minute = e.minute || 0; m.score = e.score || [0, 0]; m.two = e.sport !== 'football'; m.hot = !!e.hot;
     m.prog = m.two && m.live ? Math.min(0.98, m.minute / 48) : 0;
@@ -1211,7 +1233,7 @@
     try { state.user = mapUser(await API.auth.me()); if (state.user.country && state.user.country !== CC) { try { localStorage.setItem('lba_country', state.user.country); } catch {} location.reload(); } }
     catch (e) { if (e.status === 401) state.user = null; }
   }
-  let refreshing = false;
+  let refreshing = false, lastBetsSync = Date.now();
   async function liveRefresh() {
     if (!LIVE || refreshing) return; refreshing = true;
     try {
@@ -1220,7 +1242,7 @@
       evs.forEach(mapEvent);
       MATCHES.forEach(m => { if (!m.virtual && !seen.has(m.id) && !m.finished && m.kick < Date.now() + 36e5) { m.live = false; m.finished = true; m.ft = m.score; } });
       if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) mapEvent(e); }
-      if (state.user && ['me', 'acct'].includes(state.route)) { await liveUser(); await liveBets(); }
+      if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > 30000)) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
       syncSlipOdds(); updateLiveBadges();
       const y = window.scrollY;
       if (state.route === 'home') renderHome();
@@ -1244,7 +1266,6 @@
   }
   async function livePlaceBet() {
     const single = state.slipType === 'single';
-    if (state.slip.some(s => byId(s.mid)?.virtual)) return toast('Virtuals are not open for real bets yet', 'err');
     const selections = state.slip.map(s => ({ eventId: s.mid, market: s.mk, outcome: s.ok, odd: s.odd }));
     const body = { type: single ? 'single' : 'multiple', selections, acceptChanges: $('#bsAccept')?.checked !== false };
     if (single) body.stakes = state.slip.map(s => +s.stake || 0); else body.stake = +$('#bsStake').value;
@@ -1300,7 +1321,7 @@
   }
 
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet', 'instant'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet', 'instant', 'game'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;
@@ -1316,7 +1337,7 @@
     const prevRoute = state.route;
     state.route = page; state.arg = arg;
     $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
-    const navKey = page === 'match' || page === 'league' || page === 'legal' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' ? 'games' : ['deposit', 'withdraw'].includes(page) ? 'me' : page;
+    const navKey = page === 'match' || page === 'league' || page === 'legal' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' || page === 'game' || page === 'instant' ? 'games' : ['deposit', 'withdraw'].includes(page) ? 'me' : page;
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
     closeDrawer(); closeSlip(); closeSearch(); closeModals();
     document.body.dataset.page = page;
@@ -1327,6 +1348,7 @@
     if (page === 'acct') renderAcct(arg);
     if (window.Account && Account.handles(page)) Account.render(page, arg, prevRoute);
     if (window.Pages && Pages.handles(page)) Pages.render(page, arg, false, prevRoute);
+    if (window.Arcade && Arcade.handles(page)) Arcade.render(page, arg);
     if (page === 'legal') renderLegal(arg);
     if (page === 'match') renderMatch(+arg);
     else window.scrollTo(0, 0);
@@ -1567,16 +1589,21 @@
   $('#payRow').innerHTML = (CC === 'GH' ? ['MTN MoMo', 'Telecel Cash', 'AT Money', 'VISA', 'Mastercard', 'Bank'] : ['OPay', 'PalmPay', 'Quickteller', 'Verve', 'VISA', 'Mastercard']).map(x => `<span>${x}</span>`).join('');
   $('#footLic').textContent = `Age 18 and above only. Betting can be addictive – please play responsibly. LetBetAfrika ${C.name} operates under licence from ${CC === 'GH' ? 'the Gaming Commission of Ghana' : 'the National Lottery Regulatory Commission of Nigeria'} (licence pending).`;
   if (window.Games) Games.initCrash({
-    C, money, whole, toast,
+    C, money, whole, toast, apiErr,
+    live: () => LIVE,
     user: () => state.user,
     login: () => openModal('loginModal'),
+    deposit: () => go('deposit'),
+    setBalance: b => { if (!state.user) return; state.user.balance = b; saveUser(); renderAuth(); },
+    refreshBalance: () => API.wallet.balance().then(r => { if (state.user) { state.user.balance = r.balance; saveUser(); renderAuth(); } }).catch(() => {}),
     debit: (v, why) => { state.user.balance -= v; addTx(why, -v); saveUser(); renderAuth(); },
     credit: (v, why) => { if (!state.user) return; state.user.balance += v; addTx(why, v); saveUser(); renderAuth(); },
   });
   (async () => {
     const live = await liveInit().catch(() => false);
     if (!live) seedResults();
-    syncSlipOdds(); vNewRound();
+    if (live) { VR.endsAt = 0; VR.ids = []; vSync(); } else vNewRound();
+    syncSlipOdds();
     renderRails(); renderAuth(); renderSlip(); updateLiveBadges();
     window.addEventListener('hashchange', route);
     route();

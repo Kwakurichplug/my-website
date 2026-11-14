@@ -187,10 +187,76 @@ CREATE TABLE IF NOT EXISTS game_bets (
   auto       numeric(10,2),                   -- crash auto cash-out
   mult       numeric(10,2),
   payout     numeric(14,2) NOT NULL DEFAULT 0,
-  status     text NOT NULL DEFAULT 'open' CHECK (status IN ('open','won','lost','cashed')),
+  status     text NOT NULL DEFAULT 'open' CHECK (status IN ('open','won','lost','cashed','void')),
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS game_bets_user_idx ON game_bets (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS game_bets_round_idx ON game_bets (game, round) WHERE status = 'open';
-CREATE UNIQUE INDEX IF NOT EXISTS game_bets_one_per_round ON game_bets (game, round, user_id) WHERE round IS NOT NULL;
+
+-- ===================== Games go live (all server-authoritative) =====================
+-- game_bets may be voided (Rocket Crash bet cancelled before take-off)
+-- (only touched when an older database still has the old list – no full-table re-check on every boot)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'game_bets_status_check' AND pg_get_constraintdef(oid) LIKE '%void%') THEN
+    ALTER TABLE game_bets DROP CONSTRAINT IF EXISTS game_bets_status_check;
+    ALTER TABLE game_bets ADD CONSTRAINT game_bets_status_check CHECK (status IN ('open','won','lost','cashed','void'));
+  END IF;
+END $$;
+-- one live bet per player per crash round (a cancelled bet does not block a new one)
+DROP INDEX IF EXISTS game_bets_one_per_round;
+CREATE UNIQUE INDEX IF NOT EXISTS game_bets_one_live_per_round ON game_bets (game, round, user_id) WHERE round IS NOT NULL AND status <> 'void';
+
+-- Rocket Crash: shared rounds. hash = sha256(seed) is public before betting opens; seed is revealed after the crash.
+CREATE TABLE IF NOT EXISTS crash_rounds (
+  id         bigserial PRIMARY KEY,
+  hash       text NOT NULL,
+  seed       text NOT NULL,
+  point      numeric(10,2) NOT NULL,
+  bet_from   timestamptz NOT NULL,
+  starts_at  timestamptz NOT NULL,
+  crash_at   timestamptz NOT NULL,
+  settled    boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS crash_rounds_settled_idx ON crash_rounds (id) WHERE settled;
+
+-- Weekly Jackpot: the server fixes the 12 games of a round; tickets are graded and paid automatically.
+CREATE TABLE IF NOT EXISTS jackpot_rounds (
+  id         serial PRIMARY KEY,
+  code       text UNIQUE NOT NULL,
+  event_ids  bigint[] NOT NULL,
+  closes_at  timestamptz NOT NULL,
+  status     text NOT NULL DEFAULT 'open' CHECK (status IN ('open','settled')),
+  outcomes   jsonb,              -- {eventId: {o:'1'|'X'|'2', drawn:bool}}
+  summary    jsonb,              -- {NG:{t12:{lines,prize},t11:{…},t10:{…}}, GH:{…}}
+  created_at timestamptz NOT NULL DEFAULT now(),
+  settled_at timestamptz
+);
+CREATE TABLE IF NOT EXISTS jackpot_tickets (
+  ref        text PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES users(id),
+  round_id   int REFERENCES jackpot_rounds(id),     -- null = ticket bought before server rounds existed
+  round_code text NOT NULL,
+  country    char(2) NOT NULL,
+  picks      jsonb NOT NULL,                        -- [{eventId, outcomes:[…]}] × 12
+  lines      int NOT NULL,
+  cost       numeric(14,2) NOT NULL,
+  status     text NOT NULL DEFAULT 'open' CHECK (status IN ('open','won','lost')),
+  hits       jsonb,                                 -- lines per number of correct picks {"12":0,"11":1,"10":3}
+  prize      numeric(14,2) NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  settled_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS jackpot_tickets_user_idx ON jackpot_tickets (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS jackpot_tickets_open_idx ON jackpot_tickets (round_id) WHERE status = 'open';
+-- tickets bought before jackpot_tickets existed live only in the ledger: copy them once
+INSERT INTO jackpot_tickets (ref, user_id, round_code, country, picks, lines, cost, created_at)
+  SELECT t.ref, t.user_id, coalesce(t.meta->>'round', '?'), u.country, t.meta->'picks', coalesce((t.meta->>'lines')::int, 1), -t.amount, t.created_at
+  FROM transactions t JOIN users u ON u.id = t.user_id
+  WHERE t.type = 'jackpot' AND t.ref IS NOT NULL AND t.meta ? 'picks' AND NOT EXISTS (SELECT 1 FROM jackpot_tickets)
+ON CONFLICT (ref) DO NOTHING;
+
+INSERT INTO settings (key, value) VALUES
+  ('games', '{"NG":{"min":100,"max":500000},"GH":{"min":1,"max":5000}}'),
+  ('jackpot', '{"NG":{"jackpot":50000000,"t11":100000,"t10":10000,"line":100},"GH":{"jackpot":500000,"t11":1000,"t10":100,"line":1}}')
+ON CONFLICT (key) DO NOTHING;

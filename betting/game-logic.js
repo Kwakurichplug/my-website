@@ -46,7 +46,7 @@
 
   /* ---------- Keno: pick 1–5 numbers from 1–40, 10 are drawn ---------- */
   const KENO_N = 40, KENO_DRAW = 10;
-  const KENO_PAY = { 1: [0, 3.8], 2: [0, 1.6, 5.7], 3: [0, 0.8, 2.4, 22.2], 4: [0, 0.5, 1.6, 6, 64.7], 5: [0, 0, 1.4, 4, 18, 187] };
+  const KENO_PAY = { 1: [0, 3.8], 2: [0, 1.6, 5.8], 3: [0, 0.8, 2.4, 22.2], 4: [0, 0.5, 1.6, 6, 64.7], 5: [0, 0, 1.4, 4, 18, 187] };
   function keno(rng, choice) {
     const picks = [...new Set((Array.isArray(choice) ? choice : []).map(Number))].filter(n => n >= 1 && n <= KENO_N);
     if (picks.length < 1 || picks.length > 5) throw new Error('bad_choice');
@@ -61,12 +61,12 @@
   const SCRATCH_SYM = { 1: '1x', 2: '2x', 5: '5x', 10: '10x', 50: '50x', 500: '500x' };
   function scratch(rng) {
     const prize = weighted(rng, SCRATCH).m, keys = Object.keys(SCRATCH_SYM).map(Number);
-    const cells = [];
-    if (prize) cells.push(prize, prize, prize);
-    // fill the rest so no other symbol appears three times
-    const count = {};
-    while (cells.length < 9) { const k = pick(rng, keys); if (k === prize) continue; if ((count[k] || 0) >= 2) continue; count[k] = (count[k] || 0) + 1; cells.push(k); }
-    for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const cells = prize ? [prize, prize, prize] : [];
+    // fill the rest so no other symbol appears three times: at most two of each, never the prize (no loops)
+    const filler = shuffle(keys.filter(k => k !== prize).flatMap(k => [k, k]));
+    cells.push(...filler.slice(0, 9 - cells.length));
+    shuffle(cells);
     return { mult: prize, result: { cells } };
   }
 
@@ -91,8 +91,25 @@
   const crashMult = ms => Math.max(1, Math.floor(Math.exp(CRASH.k * Math.max(0, ms)) * 100) / 100);
   const crashFlyMs = point => Math.ceil(Math.log(point) / CRASH.k);
 
+  /* ---------- exact return to player of every table (info panels + server/test/games.test.js) ---------- */
+  const choose = (n, r) => { let x = 1; for (let i = 0; i < r; i++) x = x * (n - i) / (i + 1); return x; };
+  function rtp(game, k) {
+    switch (game) {
+      case 'dice': { const c = { under: 0, seven: 0, over: 0 }; for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) c[a + b < 7 ? 'under' : a + b === 7 ? 'seven' : 'over']++;
+        const o = Object.fromEntries(Object.keys(c).map(x => [x, c[x] / 36 * DICE[x].mult])); return k ? o[k] : Math.min(...Object.values(o)); }
+      case 'spin': return WHEEL.reduce((a, b) => a + b, 0) / WHEEL.length;
+      case 'penalty': return (PENALTY.dirs.length - 1) / PENALTY.dirs.length * PENALTY.mult;
+      case 'rush': { const t = SYMBOLS.reduce((s, x) => s + x.w, 0); let e = 0; for (const a of SYMBOLS) for (const b of SYMBOLS) for (const c of SYMBOLS) e += a.w * b.w * c.w / t ** 3 * rushMult([a.s, b.s, c.s]); return e; }
+      case 'keno': { const o = {}; for (let p = 1; p <= 5; p++) { let e = 0; for (let h = 0; h <= p; h++) e += choose(p, h) * choose(KENO_N - p, KENO_DRAW - h) / choose(KENO_N, KENO_DRAW) * (KENO_PAY[p][h] || 0); o[p] = e; } return k ? o[k] : Math.min(...Object.values(o)); }
+      case 'scratch': { const t = SCRATCH.reduce((s, x) => s + x.w, 0); return SCRATCH.reduce((s, x) => s + x.m * x.w, 0) / t; }
+      case 'hilo': { let e = 0, n = 0; for (let r = 0; r < 13; r++) { const o = hiloOdds(r); if (o.higher) { e += o.higher * (12 - r) / 13; n++; } if (o.lower) { e += o.lower * r / 13; n++; } } return e / n; }
+      case 'crash': return 0.97;
+      default: return null;
+    }
+  }
+
   const PLAY = { dice, spin, penalty, rush, keno, scratch, hilo };
-  const L = { r2, DICE, WHEEL, PENALTY, SYMBOLS, RUSH_PAY, RUSH_TWO_CHERRY, rushMult, KENO_N, KENO_DRAW, KENO_PAY, SCRATCH, SCRATCH_SYM, RANKS, SUITS, hiloOdds, deal, CRASH, crashPoint, crashMult, crashFlyMs, PLAY,
+  const L = { r2, DICE, WHEEL, PENALTY, SYMBOLS, RUSH_PAY, RUSH_TWO_CHERRY, rushMult, KENO_N, KENO_DRAW, KENO_PAY, SCRATCH, SCRATCH_SYM, RANKS, SUITS, hiloOdds, deal, CRASH, crashPoint, crashMult, crashFlyMs, PLAY, rtp,
     play: (game, rng, choice, extra) => { if (!PLAY[game]) throw new Error('bad_game'); return PLAY[game](rng, choice, extra); } };
   if (typeof module !== 'undefined' && module.exports) module.exports = L; else root.GameLogic = L;
 })(typeof window !== 'undefined' ? window : globalThis);
