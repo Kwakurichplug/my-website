@@ -154,11 +154,11 @@ r.post('/book', async (req, res, next) => {
 });
 
 // Code Hub feed: real codes booked on the site in the last 3 days, multiples whose games are all still open
-const maskPhone = p => { const d = '0' + String(p || ''); return d.slice(0, 3) + '****' + d.slice(-2); };
+const maskWho = (p, e) => (p ? ('0' + p).slice(0, 3) + '****' + String(p).slice(-2) : e ? String(e).split('@')[0].slice(0, 2) + '****' : null);
 r.get('/codes', async (req, res, next) => {
   const sport = ['football', 'basketball', 'tennis'].includes(req.query.sport) ? req.query.sport : null;
   try {
-    const { rows } = await q(`SELECT b.code, b.selections, b.uses, b.created_at, u.phone FROM booking_codes b LEFT JOIN users u ON u.id = b.user_id
+    const { rows } = await q(`SELECT b.code, b.selections, b.uses, b.created_at, u.phone, u.email FROM booking_codes b LEFT JOIN users u ON u.id = b.user_id
       WHERE b.created_at > now() - interval '3 days' ORDER BY b.uses DESC, b.created_at DESC LIMIT 150`);
     const ids = [...new Set(rows.flatMap(x => x.selections.map(s => s.eventId)))];
     const evs = ids.length ? (await q(`SELECT e.id, e.sport, e.home, e.away, e.kickoff, e.status, m.key, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id = e.id WHERE e.id = ANY($1)`, [ids])).rows : [];
@@ -171,7 +171,7 @@ r.get('/codes', async (req, res, next) => {
         legs.push({ eventId: Number(e.id), sport: e.sport, market: s.market, outcome: s.outcome, label: o.l, marketName: e.name, home: e.home, away: e.away, kickoff: e.kickoff, odd: o.o });
       }
       if (legs.length < 2 || (sport && !legs.every(l => l.sport === sport))) continue;
-      codes.push({ code: x.code, by: x.phone ? maskPhone(x.phone) : null, uses: x.uses, at: x.created_at, sport: legs[0].sport, legs, odds: Math.round(legs.reduce((p, l) => p * l.odd, 1) * 100) / 100 });
+      codes.push({ code: x.code, by: maskWho(x.phone, x.email), uses: x.uses, at: x.created_at, sport: legs[0].sport, legs, odds: Math.round(legs.reduce((p, l) => p * l.odd, 1) * 100) / 100 });
       if (codes.length >= 30) break;
     }
     res.json({ codes });

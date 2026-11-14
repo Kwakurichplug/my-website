@@ -96,7 +96,7 @@ async function otpFromToast(p) {
   await shot(p, '09-withdraw-unverified');
   expect(await p.isVisible('.wl-verify'), 'unverified users see the verify prompt');
   await p.click('.wl-verify'); await p.waitForTimeout(400);
-  await p.fill('[data-acform=verify] [name=name]', 'Chinedu Okafor'); await p.fill('[data-acform=verify] [name=dob]', '1995-04-02'); await p.fill('[data-acform=verify] [name=idn]', '12345678901'); await p.fill('[data-acform=verify] [name=email]', 'chinedu.okafor@example.com');
+  await p.fill('[data-acform=verify] [name=name]', 'Chinedu Okafor'); await p.fill('[data-acform=verify] [name=dob]', '1995-04-02'); await p.fill('[data-acform=verify] [name=idn]', '12345678901');
   await p.click('[data-acform=verify] button'); await p.waitForTimeout(600);
   expect(p.url().includes('#/withdraw'), 'after verifying, user returns to withdraw');
   await p.click('#addBank'); await p.selectOption('#bankForm [name=bank]', 'GTBank'); await p.fill('#bankForm [name=acct]', '0123456789');

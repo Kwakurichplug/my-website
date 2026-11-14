@@ -50,8 +50,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [x] Jackpot: real server rounds, real results, prize tiers graded and paid automatically.
 - [x] Welcome bonus with wagering tracking (locked, progress shown, released or expired automatically) and Refer &
       Earn paid automatically – `lib/bonus.js`, `test/account-api.test.js`. Still to do: opt-in campaigns per promotion.
-- [ ] Notifications: in-app inbox + SMS/email for deposits, withdrawals, wins. *(21 email templates and SMTP sending
-      are ready – players add an email under Me → Email & Password; set `EMAIL_PROVIDER=smtp` + `SMTP_*` to switch on.)*
+- [ ] Notifications: in-app inbox + SMS/email for deposits, withdrawals, wins. *(Email: Spacemail SMTP connected – owner adds
+      `SMTP_PASS`; sign-up / reset by email, every account and money email wired. Still to do: SMS provider, in-app inbox.)*
 
 ## 4. Payments & accounts (go-live)
 

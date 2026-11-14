@@ -59,7 +59,7 @@ const rnd = () => '80' + String(Math.floor(1e7 + Math.random() * 9e7)).slice(0, 
   await p.goto(URL + '#/withdraw'); await p.waitForTimeout(600);
   expect(await p.isVisible('.wl-verify'), 'asks for ID before withdrawing');
   await p.click('.wl-verify'); await p.waitForTimeout(500);
-  await p.fill('[data-acform=verify] [name=name]', 'Ada Obi'); await p.fill('[data-acform=verify] [name=dob]', '1990-01-01'); await p.fill('[data-acform=verify] [name=idn]', '12345678901'); await p.fill('[data-acform=verify] [name=email]', 'ada.obi@example.com');
+  await p.fill('[data-acform=verify] [name=name]', 'Ada Obi'); await p.fill('[data-acform=verify] [name=dob]', '1990-01-01'); await p.fill('[data-acform=verify] [name=idn]', '12345678901');
   await p.click('[data-acform=verify] button'); await p.waitForTimeout(1500);
   expect(p.url().includes('#/withdraw'), 'returns to withdraw after submitting ID');
   expect((await p.textContent('#page-withdraw')).includes('ID check in progress'), 'shows ID check in progress');

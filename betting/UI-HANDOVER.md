@@ -266,6 +266,11 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Lobby thumbnails** (`img/games/thumb-<id>.webp`, 300×300) are captured from the real scenes by
   `tools/assets/thumbs.js` with a Kanit title band – re-run it after changing a scene.
 - **No technical internals on player screens**: no seeds, hashes, formulas, server or provider names – plain language only.
+- **Mobile number or email** (`v23`, `account.js`): register, login and forgot password have a *Mobile Number | Email*
+  switch (`.au-via`, `data-via`); the email field (`.au-mail`) has a mail icon where the dial code sits. Only channels
+  that can deliver a code are offered (`Account.prefetch()` asks `/api/auth/methods` when the app goes live). The code
+  screen says SMS or email accordingly; email-only players see their email in the Me header, their account ID as payment
+  reference and type their mobile-money number. Me → *Email & Password* shows the verified email (`.ac-cur`).
 
 ### Server endpoints added
 
@@ -277,7 +282,9 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 | `GET /api/games/crash/state`, `POST /api/games/crash/bet` / `cashout` / `cancel` | Rocket Crash shared rounds. The state shows round ids, phases and crash points only; the seed/hash audit is admin-only (`GET /api/admin/games/crash/verify/:id`). |
 | `GET /api/jackpot/round`, `GET /api/jackpot/results` | The server's 12-game round and real settled results (tiers per country). |
 | `GET /api/virtuals/instant/round`, `POST /api/virtuals/instant/play` | Instant Football. The server prices the round (a sealed, tamper-proof token), takes the stake, plays the round with a CSPRNG **after** the stake is taken, settles and pays. A round can be played once. |
-| `POST /api/auth/email` | Saves the player's email (Me → *Email & Password*, also asked on *Verify ID*) for receipts and verification results. |
+| `GET /api/auth/methods` | Which sign-up / reset channels can deliver a code now (`{phone, email}`); the register and forgot pages offer only those. |
+| `POST /api/auth/otp`, `/register`, `/login`, `/reset` with `email` instead of `phone` | Sign up, log in and reset the password with an email address (code by email). Login by email works from either country's site. |
+| `POST /api/auth/email`, `POST /api/auth/email/confirm` | Add / change the account email (Me → *Email & Password*): a code goes to the new address first. |
 | `GET /api/wallet/bonuses`, `GET /api/auth/referrals`, `GET /api/bets/codes` | Welcome bonus progress, Refer & Earn stats, real Code Hub feed. |
 
 Also fixed: live markets read from Postgres `jsonb` came back with re-sorted keys (Home/Away/Draw, Over/Under rows paired wrongly). `mapMarkets` now restores betting order.

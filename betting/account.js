@@ -1,9 +1,9 @@
 /* =========================================================
    LetBetAfrika – account pages
    ---------------------------------------------------------
-   #/register[/next]   sign up: phone + password → SMS code → done
-   #/login[/next]      login, remember me
-   #/forgot            reset password: phone → SMS code → new password
+   #/register[/next]   sign up: mobile number or email + password → 6-digit code (SMS / email) → done
+   #/login[/next]      login with mobile number or email, remember me
+   #/forgot            reset password: number or email → code → new password
    #/deposit[/tab]     country-specific deposit methods
    #/withdraw[/tab]    bank / mobile money / transfer to friend
 
@@ -63,6 +63,11 @@
   const normPhone = s => digits(s).replace(/^(234|233)/, '').replace(/^0/, '');
   const fmtPhone = p => app().C.dial + ' ' + p;
   const mask = p => p.length > 6 ? p.slice(0, 3) + '****' + p.slice(-3) : p;
+  const normEmail = s => String(s || '').trim().toLowerCase();
+  const isEmail = s => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(normEmail(s));
+  const maskEmail = e => { const [n, d] = String(e).split('@'); return (n.length > 2 ? n.slice(0, 2) : n.slice(0, 1)) + '***@' + d; };
+  // a player is identified by their mobile number, or by their email if they signed up with email
+  const idOf = u => (u && (u.phone || u.email)) || '';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const err = (e, fb) => app().apiErr ? app().apiErr(e, fb) : (fb || 'Something went wrong');
   const ICON = {
@@ -84,6 +89,7 @@
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     gift: '<svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg>',
     clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
+    mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>',
   };
 
   // Demo-only checksum so demo accounts need their password. The server uses bcrypt.
@@ -95,7 +101,7 @@
     get: phone => accounts.all()[phone],
     put: (phone, rec) => { const a = accounts.all(); a[phone] = { ...(a[phone] || {}), ...rec }; app().store.set('accounts', a); },
   };
-  function persist(u) { if (u && u.phone && !live()) accounts.put(u.phone, { profile: u }); }
+  function persist(u) { if (idOf(u) && !live()) accounts.put(idOf(u), { profile: u }); }
   function saveUser() { app().saveUser(); persist(user()); }
 
   /* ---------------- Device preferences per player (both modes) ----------------
@@ -103,8 +109,8 @@
      server's user refresh never wipes them.  PROVIDER: card tokens move to the
      payment provider's vault once it is connected.                           */
   const prefs = {
-    get: () => ({ banks: [], cards: [], wdBank: 0, cardDeposited: false, ...app().store.get('prefs_' + (user()?.phone || ''), {}) }),
-    set: patch => { const v = { ...prefs.get(), ...patch }; app().store.set('prefs_' + user().phone, v); return v; },
+    get: () => ({ banks: [], cards: [], wdBank: 0, cardDeposited: false, ...app().store.get('prefs_' + idOf(user()), {}) }),
+    set: patch => { const v = { ...prefs.get(), ...patch }; app().store.set('prefs_' + idOf(user()), v); return v; },
   };
   // move anything saved on an older demo profile into prefs
   function migratePrefs() {
@@ -141,6 +147,7 @@
   }
   const countryRow = () => `<div class="au-cc"><span class="cc-flag">${window.LBA ? LBA.flag(app().C.flag) : ''}</span><b>${app().C.name}</b><button type="button" class="au-link" data-open-cc>Change ${ICON.chev}</button></div>`;
   const phoneField = (name = 'phone', val = '', ro = false) => `<div class="au-field au-phone"><span class="au-dial">${app().C.dial}</span><input name="${name}" inputmode="tel" autocomplete="tel-national" placeholder="Mobile Number" aria-label="Mobile number" value="${app().esc(val)}" ${ro ? 'readonly' : ''} maxlength="13"></div>`;
+  const emailField = (name = 'email', val = '') => `<div class="au-field au-mail"><span class="au-dial">${ICON.mail}</span><input name="${name}" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="Email Address" aria-label="Email address" value="${app().esc(val)}" maxlength="120"></div>`;
   const pwField = (name, ph, ac = 'current-password') => `<div class="au-field au-pw"><input name="${name}" type="password" placeholder="${ph}" aria-label="${ph}" autocomplete="${ac}"><button type="button" class="au-eye" data-eye aria-label="Show password">${ICON.eye}</button></div>`;
   const demoNote = txt => live() ? '' : `<p class="wl-demo"><b>DEMO</b> ${txt}</p>`;
   const testNote = txt => `<p class="wl-demo"><b>TEST</b> ${txt}</p>`;
@@ -149,6 +156,8 @@
     set: p => { try { p ? localStorage.setItem('lba_' + app().CC + '_remember', p) : localStorage.removeItem('lba_' + app().CC + '_remember'); } catch {} } };
   async function signedIn(u, msg) {
     const a = app();
+    // an email login can belong to the other country's site: switch to the player's country (the token is kept)
+    if (live() && u.country && u.country !== a.CC) { try { localStorage.setItem('lba_country', u.country); } catch {} location.reload(); return new Promise(() => {}); }
     a.state.user = u; a.saveUser(); wl.hasDeposit = null;
     if (live()) await a.liveBets();
     a.renderAuth(); a.renderMe();
@@ -156,9 +165,26 @@
   }
 
   /* =========================================================
-     SIGN UP
+     SIGN UP  (mobile number or email, verified by a 6-digit code)
      ========================================================= */
-  const reg = { step: 1, phone: '', pw: '', refCode: '', code: '', timer: null, next: '' };
+  const reg = { step: 1, via: '', phone: '', email: '', pw: '', pwKeep: '', refCode: '', agree: false, code: '', timer: null, next: '' };
+  // Channels that can deliver a code right now. Live: asked once from the server (a channel without a working
+  // provider is not offered); demo: both. If the server offers neither, email is shown and the server explains.
+  const methods = { phone: true, email: true, loaded: false };
+  async function loadMethods() {
+    if (!live() || methods.loaded) return false;
+    try {
+      const m = await API.auth.methods();
+      const phone = !!m.phone, email = !!m.email || !m.phone;
+      const changed = phone !== methods.phone || email !== methods.email;
+      Object.assign(methods, { phone, email, loaded: true });
+      return changed;
+    } catch { return false; }
+  }
+  const codeVias = () => ['phone', 'email'].filter(v => methods[v]);
+  const pristine = form => !form || $$('input[name=phone], input[name=email], input[name=pw]', form).every(i => !i.value);
+  const viaTabs = (cur, vias) => vias.length < 2 ? '' : `<div class="au-via" role="tablist" aria-label="Use mobile number or email">${vias.map(v =>
+    `<button type="button" role="tab" data-via="${v}" aria-selected="${v === cur}" class="${v === cur ? 'on' : ''}">${v === 'email' ? ICON.mail + 'Email' : ICON.phone + 'Mobile Number'}</button>`).join('')}</div>`;
 
   function renderRegister(next) {
     reg.next = next ? decodeURIComponent(next) : '';
@@ -166,11 +192,15 @@
     if (user() && reg.step !== 3) return app().go(reg.next || 'home');
     const el = root('register');
     if (reg.step === 2) return renderOtp(el, reg, {
-      title: 'Verify your number',
+      title: reg.via === 'email' ? 'Verify your email' : 'Verify your number',
       onBack: () => { reg.step = 1; renderRegister(next); },
       onCode: code => createAccount(code),
     });
     if (reg.step === 3) return renderRegDone(el);
+    if (live() && !methods.loaded) loadMethods().then(ch => { if (ch && reg.step === 1 && app().state.route === 'register' && pristine($('#regForm'))) renderRegister(next); });
+    const vias = codeVias();
+    if (!vias.includes(reg.via)) reg.via = vias[0];
+    const byEmail = reg.via === 'email';
     el.innerHTML = `
       <div class="au-top">
         <button class="icon-btn" data-back aria-label="Back">${ICON.back}</button>
@@ -180,8 +210,9 @@
       <form class="au-form" id="regForm" novalidate>
         <div class="au-bonus">${ICON.gift}<span><b>200% Welcome Bonus</b> up to ${app().whole(app().C.bonusMax)} on your first deposit</span></div>
         ${countryRow()}
+        ${viaTabs(reg.via, vias)}
         <div class="au-group">
-          ${phoneField('phone', reg.phone)}
+          ${byEmail ? emailField('email', reg.email) : phoneField('phone', reg.phone)}
           ${pwField('pw', 'Set Password', 'new-password')}
         </div>
         <p class="au-err" id="regErr" role="alert" hidden></p>
@@ -189,45 +220,55 @@
         <details class="au-ref" ${reg.refCode ? 'open' : ''}><summary>Have a referral code? <span class="muted">(optional)</span></summary>
           <div class="au-field"><input name="refCode" placeholder="Referral code" aria-label="Referral code" value="${app().esc(reg.refCode)}" maxlength="12" autocapitalize="characters"></div>
         </details>
-        <label class="au-check"><input type="checkbox" name="agree"><span>I am 18 or older and I accept the <a href="#/legal/terms">Terms &amp; Conditions</a> and <a href="#/legal/privacy">Privacy Policy</a>.</span></label>
+        <label class="au-check"><input type="checkbox" name="agree" ${reg.agree ? 'checked' : ''}><span>I am 18 or older and I accept the <a href="#/legal/terms">Terms &amp; Conditions</a> and <a href="#/legal/privacy">Privacy Policy</a>.</span></label>
         <button class="au-btn" id="regBtn" disabled>Create Account</button>
         <p class="au-alt">Already have an account? <a href="#/login${next ? '/' + next : ''}">Log in</a></p>
         <p class="au-lic"><b>18+</b> Betting can be addictive. Please play responsibly.</p>
       </form>`;
     const f = $('#regForm'), btn = $('#regBtn');
+    if (reg.pwKeep) { f.pw.value = reg.pwKeep; reg.pwKeep = ''; }
     bindRules(f, f.pw);
-    const check = () => { btn.disabled = !(normPhone(f.phone.value).length >= app().C.digits && pwOk(f.pw.value) && f.agree.checked); };
+    const idOk = () => (byEmail ? isEmail(f.email.value) : normPhone(f.phone.value).length >= app().C.digits);
+    const check = () => { btn.disabled = !(idOk() && pwOk(f.pw.value) && f.agree.checked); };
     f.addEventListener('input', check); f.addEventListener('change', check); check();
+    $$('[data-via]', f).forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.via === reg.via) return;
+      Object.assign(reg, { via: b.dataset.via, pwKeep: f.pw.value, refCode: f.refCode.value.trim().toUpperCase(), agree: f.agree.checked });
+      if (f.email) reg.email = f.email.value.trim(); if (f.phone) reg.phone = normPhone(f.phone.value);
+      renderRegister(next);
+      const n = $(`#regForm [name=${reg.via}]`); if (n) n.focus();
+    }));
     f.addEventListener('submit', async e => {
       e.preventDefault();
-      const phone = normPhone(f.phone.value), er = $('#regErr');
-      er.hidden = true;
-      if (phone.length !== app().C.digits) return showErr(er, `Enter a valid ${app().C.name} mobile number (${app().C.digits} digits after ${app().C.dial}).`);
+      const er = $('#regErr'); er.hidden = true;
+      const id = byEmail ? normEmail(f.email.value) : normPhone(f.phone.value);
+      if (byEmail && !isEmail(id)) return showErr(er, 'Enter a valid email address.');
+      if (!byEmail && id.length !== app().C.digits) return showErr(er, `Enter a valid ${app().C.name} mobile number (${app().C.digits} digits after ${app().C.dial}).`);
       if (!pwOk(f.pw.value)) return showErr(er, 'Your password does not meet the rules below.');
-      if (!live() && accounts.get(phone)?.h) return showErr(er, taken());
-      Object.assign(reg, { phone, pw: f.pw.value, refCode: f.refCode.value.trim().toUpperCase() });
+      if (!live() && accounts.get(id)?.h) return showErr(er, taken(reg.via));
+      Object.assign(reg, byEmail ? { email: id } : { phone: id }, { pw: f.pw.value, refCode: f.refCode.value.trim().toUpperCase(), agree: true });
       const stop = spin(btn, 'Sending code…');
       try { await sendCode(reg, 'register'); reg.step = 2; renderRegister(next); }
-      catch (x) { showErr(er, x.message === 'phone_taken' ? taken() : err(x, 'Could not send the code')); }
+      catch (x) { showErr(er, ['phone_taken', 'email_taken'].includes(x.message) ? taken(reg.via) : err(x, 'Could not send the code')); }
       finally { stop(); }
     });
   }
-  const taken = () => `This number is already registered. <a href="#/login">Log in</a> or <a href="#/forgot">reset your password</a>.`;
+  const taken = via => `This ${via === 'email' ? 'email' : 'number'} is already registered. <a href="#/login">Log in</a> or <a href="#/forgot">reset your password</a>.`;
 
   async function createAccount(code) {
-    const a = app();
+    const a = app(), byEmail = reg.via === 'email', id = byEmail ? reg.email : reg.phone;
     let u;
     if (live()) {
       // server checks the code, hashes the password and opens the wallet
-      u = a.mapUser(await API.auth.register({ country: a.CC, phone: reg.phone, code, password: reg.pw, ...(reg.refCode ? { ref: reg.refCode } : {}) }));
+      u = a.mapUser(await API.auth.register({ country: a.CC, ...(byEmail ? { email: id } : { phone: id }), code, password: reg.pw, ...(reg.refCode ? { ref: reg.refCode } : {}) }));
       if (reg.refCode) u.referredBy = reg.refCode;
     } else {
       if (code !== reg.code) throw new Error('bad_code');
-      u = { phone: reg.phone, balance: 0, uid: Math.floor(1e7 + Math.random() * 9e7), created: Date.now(), referredBy: reg.refCode || null, verified: false };
-      accounts.put(reg.phone, { h: hashPw(reg.phone, reg.pw), profile: u });
+      u = { ...(byEmail ? { email: id } : { phone: id }), balance: 0, uid: Math.floor(1e7 + Math.random() * 9e7), created: Date.now(), referredBy: reg.refCode || null, verified: false };
+      accounts.put(id, { h: hashPw(id, reg.pw), profile: u });
     }
     await signedIn(u);
-    remember.set(reg.phone);
+    remember.set(id);
     reg.pw = ''; reg.step = 3; renderRegister(reg.next ? encodeURIComponent(reg.next) : '');
   }
 
@@ -238,32 +279,33 @@
       <div class="au-done">
         <div class="au-tick">${ICON.check}</div>
         <h2>Welcome to LetBetAfrika!</h2>
-        <p>Your account <b>${fmtPhone(reg.phone)}</b> is ready.</p>
+        <p>Your account <b>${reg.via === 'email' ? a.esc(reg.email) : fmtPhone(reg.phone)}</b> is ready.</p>
         <div class="au-bonus big">${ICON.gift}<span><b>Claim your 200% Welcome Bonus</b>Deposit now and we'll triple it, up to ${a.whole(a.C.bonusMax)}.</span></div>
         <a class="au-btn" href="#/deposit" data-reg-reset>Deposit Now</a>
         <a class="au-btn ghost" href="#/${a.esc(reg.next || 'home')}" data-reg-reset>Start Betting</a>
         <a class="au-link center" href="#/acct/verify" data-reg-reset>Verify your ID now for faster withdrawals ${ICON.chev}</a>
       </div>`;
-    $$('[data-reg-reset]', el).forEach(x => x.addEventListener('click', () => { reg.step = 1; reg.phone = ''; reg.refCode = ''; }));
+    $$('[data-reg-reset]', el).forEach(x => x.addEventListener('click', () => { Object.assign(reg, { step: 1, phone: '', email: '', refCode: '', agree: false }); }));
     if (window.Motion && Motion.confetti) Motion.confetti();
   }
 
-  /* ---------------- SMS code step (sign up + reset) ---------------- */
+  /* ---------------- Code step (sign up + reset), by SMS or email ---------------- */
   async function sendCode(flow, purpose) {
-    const a = app();
+    const a = app(), byEmail = flow.via === 'email';
+    const to = byEmail ? maskEmail(flow.email) : fmtPhone(mask(flow.phone));
     if (live()) {
-      const r = await API.auth.otp(a.CC, flow.phone, purpose);
+      const r = await API.auth.otp(a.CC, byEmail ? { email: flow.email } : flow.phone, purpose);
       flow.devCode = r.devCode || '';
-      a.toast(r.devCode ? `Test code: ${r.devCode}` : `We sent a 6-digit code to ${fmtPhone(mask(flow.phone))}`);
+      a.toast(r.devCode ? `Test code: ${r.devCode}` : `We sent a 6-digit code to ${to}`);
     } else {
       flow.code = String(Math.floor(100000 + Math.random() * 900000)); flow.devCode = flow.code;
-      a.toast(`Demo SMS to ${fmtPhone(mask(flow.phone))}: your LetBetAfrika code is ${flow.code}`);
+      a.toast(`Demo ${byEmail ? 'email' : 'SMS'} to ${to}: your LetBetAfrika code is ${flow.code}`);
     }
     flow.sentAt = Date.now();
   }
 
   function renderOtp(el, flow, { title, onBack, onCode }) {
-    const purpose = flow === fp ? 'reset' : 'register';
+    const purpose = flow === fp ? 'reset' : 'register', byEmail = flow.via === 'email', chan = byEmail ? 'email' : 'SMS';
     el.innerHTML = `
       <div class="au-top">
         <button class="icon-btn" data-otp-back aria-label="Back">${ICON.back}</button>
@@ -271,12 +313,13 @@
       </div>
       <form class="au-form" id="otpForm" novalidate>
         <h2 class="au-h">${title}</h2>
-        <p class="au-sub">Enter the 6-digit code we sent by SMS to <b>${fmtPhone(flow.phone)}</b>. <button type="button" class="au-link" data-otp-back>Change number</button></p>
+        <p class="au-sub">Enter the 6-digit code we sent by ${chan} to <b>${byEmail ? app().esc(flow.email) : fmtPhone(flow.phone)}</b>. <button type="button" class="au-link" data-otp-back>Change ${byEmail ? 'email' : 'number'}</button></p>
         <div class="au-otp" id="otpBoxes" role="group" aria-label="6-digit code">${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" autocomplete="${i ? 'off' : 'one-time-code'}" maxlength="6" aria-label="Digit ${i + 1}">`).join('')}</div>
         <p class="au-err" id="otpErr" role="alert" hidden></p>
         <button class="au-btn" id="otpBtn" disabled>Verify</button>
         <p class="au-resend" id="otpResend"></p>
-        ${flow.devCode ? (live() ? testNote('The SMS provider is in test mode, so the code is shown at the top of the screen.') : demoNote('The code is shown at the top of the screen instead of being sent by SMS.')) : ''}
+        ${byEmail && !flow.devCode ? '<p class="au-hint">Not in your inbox? Check the spam or promotions folder.</p>' : ''}
+        ${flow.devCode ? (live() ? testNote(`The ${byEmail ? 'email service' : 'SMS provider'} is in test mode, so the code is shown at the top of the screen.`) : demoNote(`The code is shown at the top of the screen instead of being sent by ${chan}.`)) : ''}
       </form>`;
     $$('[data-otp-back]', el).forEach(b => b.addEventListener('click', onBack));
     const boxes = $$('#otpBoxes input', el), btn = $('#otpBtn', el), er = $('#otpErr', el);
@@ -310,19 +353,22 @@
       try { await onCode(val()); clearInterval(flow.timer); }
       catch (x) {
         boxes.forEach(b => b.classList.add('bad')); setTimeout(() => boxes.forEach(b => b.classList.remove('bad')), 500);
-        showErr(er, x.message === 'bad_code' ? 'That code is wrong or has expired. Check the SMS and try again.' : err(x, 'Could not verify the code'));
+        showErr(er, x.message === 'bad_code' ? `That code is wrong or has expired. Check the ${chan} and try again.` : err(x, 'Could not verify the code'));
       } finally { busy = false; if (btn.isConnected) stop(); }
     });
   }
 
   /* =========================================================
-     LOGIN
+     LOGIN  (mobile number or email + password)
      ========================================================= */
+  const login = { via: '' };
   function renderLogin(next) {
     next = next || '';
     const nextRoute = decodeURIComponent(next);
     if (user()) return app().go(nextRoute || 'home');
-    const a = app(), el = root('login'), remembered = remember.get();
+    const a = app(), el = root('login'), remembered = remember.get(), remEmail = remembered.includes('@');
+    if (!login.via) login.via = remEmail ? 'email' : 'phone';
+    const byEmail = login.via === 'email';
     const why = { deposit: 'Log in to deposit', withdraw: 'Log in to withdraw', acct: 'Log in to view your account' }[nextRoute.split('/')[0]];
     el.innerHTML = `
       <div class="au-top">
@@ -333,8 +379,9 @@
       <form class="au-form" id="loginForm" novalidate>
         ${why ? `<p class="au-why">${ICON.lock}${why}</p>` : ''}
         ${countryRow()}
+        ${viaTabs(login.via, ['phone', 'email'])}
         <div class="au-group">
-          ${phoneField('phone', remembered)}
+          ${byEmail ? emailField('email', remEmail ? remembered : '') : phoneField('phone', remEmail ? '' : remembered)}
           ${pwField('pw', 'Password')}
         </div>
         <p class="au-err" id="loginErr" role="alert" hidden></p>
@@ -344,38 +391,40 @@
         </div>
         <button class="au-btn" id="loginBtn" disabled>Login</button>
         <div class="au-row links"><a href="#/forgot">Forgot Password?</a><a href="#/register${next ? '/' + next : ''}">Create New Account</a></div>
-        ${demoNote(`A number that has not registered logs in with a ${a.whole(a.C.demo)} demo balance. Registered numbers need their password.`)}
+        ${demoNote(`An unregistered ${byEmail ? 'email' : 'number'} logs in with a ${a.whole(a.C.demo)} demo balance. Registered accounts need their password.`)}
       </form>`;
     const f = $('#loginForm'), btn = $('#loginBtn'), er = $('#loginErr');
-    const check = () => { btn.disabled = !(normPhone(f.phone.value).length >= a.C.digits && f.pw.value.length > 0); };
+    const idv = () => (byEmail ? normEmail(f.email.value) : normPhone(f.phone.value));
+    const check = () => { btn.disabled = !((byEmail ? isEmail(idv()) : idv().length >= a.C.digits) && f.pw.value.length > 0); };
     f.addEventListener('input', () => { er.hidden = true; check(); }); check();
-    if (remembered) setTimeout(() => f.pw.focus(), 50);
+    $$('[data-via]', f).forEach(b => b.addEventListener('click', () => { if (b.dataset.via !== login.via) { login.via = b.dataset.via; renderLogin(next); const n = $(`#loginForm [name=${login.via}]`); if (n) n.focus(); } }));
+    if (remembered && remEmail === byEmail) setTimeout(() => f.pw.focus(), 50);
     f.addEventListener('submit', async e => {
       e.preventDefault();
-      const phone = normPhone(f.phone.value);
-      if (phone.length !== a.C.digits) return showErr(er, `Enter a valid ${a.C.name} mobile number.`);
+      const id = idv();
+      if (byEmail ? !isEmail(id) : id.length !== a.C.digits) return showErr(er, byEmail ? 'Enter a valid email address.' : `Enter a valid ${a.C.name} mobile number.`);
       const stop = spin(btn, 'Logging in…');
       try {
         let u, greet = 'Welcome back!';
-        if (live()) u = a.mapUser(await API.auth.login(a.CC, phone, f.pw.value));
+        if (live()) u = a.mapUser(await API.auth.login(a.CC, byEmail ? { email: id } : id, f.pw.value));
         else {
           await sleep(500);
-          const rec = accounts.get(phone);
-          if (rec && rec.h) { if (rec.h !== hashPw(phone, f.pw.value)) throw new Error('bad_login'); u = rec.profile; }
-          else { u = (rec && rec.profile) || { phone, balance: a.C.demo, uid: Math.floor(1e7 + Math.random() * 9e7), demo: true }; greet = `Welcome! Demo balance ${a.whole(u.balance)}`; }
+          const rec = accounts.get(id);
+          if (rec && rec.h) { if (rec.h !== hashPw(id, f.pw.value)) throw new Error('bad_login'); u = rec.profile; }
+          else { u = (rec && rec.profile) || { ...(byEmail ? { email: id } : { phone: id }), balance: a.C.demo, uid: Math.floor(1e7 + Math.random() * 9e7), demo: true }; greet = `Welcome! Demo balance ${a.whole(u.balance)}`; }
         }
-        remember.set(f.remember.checked ? phone : '');
+        remember.set(f.remember.checked ? id : '');
         await signedIn(u, greet);
         a.go(nextRoute || 'home');
-      } catch (x) { showErr(er, x.message === 'bad_login' ? 'Incorrect mobile number or password.' : err(x, 'Could not log in')); }
+      } catch (x) { showErr(er, x.message === 'bad_login' ? `Incorrect ${byEmail ? 'email' : 'mobile number'} or password.` : err(x, 'Could not log in')); }
       finally { if (btn.isConnected) stop(); }
     });
   }
 
   /* =========================================================
-     FORGOT PASSWORD
+     FORGOT PASSWORD  (code by SMS or email)
      ========================================================= */
-  const fp = { step: 1, phone: '', code: '', entered: '', timer: null };
+  const fp = { step: 1, via: '', phone: '', email: '', code: '', entered: '', timer: null };
   function renderForgot() {
     const a = app(), el = root('forgot');
     if (fp.step === 2) return renderOtp(el, fp, {
@@ -384,12 +433,13 @@
       // the server checks the code together with the new password; demo checks it now
       onCode: async code => { if (!live() && code !== fp.code) throw new Error('bad_code'); fp.entered = code; fp.step = 3; renderForgot(); },
     });
+    const id = () => (fp.via === 'email' ? fp.email : fp.phone);
     if (fp.step === 3) {
       el.innerHTML = `
         <div class="au-top"><button class="icon-btn" data-back aria-label="Back">${ICON.back}</button><a class="icon-btn" href="#/home" aria-label="Close">${ICON.close}</a></div>
         <form class="au-form" id="fpForm" novalidate>
           <h2 class="au-h">Set a new password</h2>
-          <p class="au-sub">For ${fmtPhone(fp.phone)}</p>
+          <p class="au-sub">For ${fp.via === 'email' ? a.esc(fp.email) : fmtPhone(fp.phone)}</p>
           <div class="au-group">${pwField('pw1', 'New Password', 'new-password')}${pwField('pw2', 'Confirm New Password', 'new-password')}</div>
           <p class="au-err" id="fpErr" role="alert" hidden></p>
           ${rulesHTML()}
@@ -403,9 +453,9 @@
         if (f.pw1.value !== f.pw2.value) return showErr($('#fpErr'), 'The two passwords do not match.');
         const stop = spin(btn, 'Saving…');
         try {
-          if (live()) await API.auth.reset({ country: a.CC, phone: fp.phone, code: fp.entered, password: f.pw1.value });
-          else { await sleep(500); accounts.put(fp.phone, { h: hashPw(fp.phone, f.pw1.value) }); }
-          remember.set(fp.phone);
+          if (live()) await API.auth.reset({ country: a.CC, ...(fp.via === 'email' ? { email: fp.email } : { phone: fp.phone }), code: fp.entered, password: f.pw1.value });
+          else { await sleep(500); accounts.put(id(), { h: hashPw(id(), f.pw1.value) }); }
+          remember.set(id()); login.via = fp.via;
           fp.step = 1; a.toast('Password reset. Please log in with your new password.'); a.go('login');
         } catch (x) {
           if (x.message === 'bad_code') { fp.step = 2; renderForgot(); return a.toast('That code is wrong or has expired. Request a new one.', 'err'); }
@@ -414,27 +464,34 @@
       });
       return;
     }
+    if (live() && !methods.loaded) loadMethods().then(ch => { if (ch && fp.step === 1 && app().state.route === 'forgot' && pristine($('#fpForm'))) renderForgot(); });
+    const vias = codeVias(), rem = remember.get(), remEmail = rem.includes('@');
+    if (!vias.includes(fp.via)) fp.via = vias.includes(remEmail ? 'email' : 'phone') ? (remEmail ? 'email' : 'phone') : vias[0];
+    const byEmail = fp.via === 'email';
     el.innerHTML = `
       <div class="au-top"><button class="icon-btn" data-back aria-label="Back">${ICON.back}</button><a class="icon-btn" href="#/home" aria-label="Close">${ICON.close}</a></div>
       <form class="au-form" id="fpForm" novalidate>
         <h2 class="au-h">Forgot password?</h2>
-        <p class="au-sub">Enter the mobile number you registered with. We'll send you a code to reset your password.</p>
+        <p class="au-sub">Enter the ${byEmail ? 'email address' : 'mobile number'} you registered with. We'll send you a code to reset your password.</p>
         ${countryRow()}
-        <div class="au-group">${phoneField('phone', fp.phone || remember.get())}</div>
+        ${viaTabs(fp.via, vias)}
+        <div class="au-group">${byEmail ? emailField('email', fp.email || (remEmail ? rem : '')) : phoneField('phone', fp.phone || (remEmail ? '' : rem))}</div>
         <p class="au-err" id="fpErr" role="alert" hidden></p>
         <button class="au-btn" id="fpBtn">Send Code</button>
         <p class="au-alt">Remembered it? <a href="#/login">Log in</a></p>
       </form>`;
     const f = $('#fpForm'), btn = $('#fpBtn');
-    const check = () => { btn.disabled = normPhone(f.phone.value).length < a.C.digits; };
+    const val = () => (byEmail ? normEmail(f.email.value) : normPhone(f.phone.value));
+    const check = () => { btn.disabled = byEmail ? !isEmail(val()) : val().length < a.C.digits; };
     f.addEventListener('input', check); check();
+    $$('[data-via]', f).forEach(b => b.addEventListener('click', () => { if (b.dataset.via !== fp.via) { fp.via = b.dataset.via; renderForgot(); } }));
     f.addEventListener('submit', async e => {
       e.preventDefault();
-      const phone = normPhone(f.phone.value), er = $('#fpErr');
-      const none = `No account is registered with ${fmtPhone(phone)}. <a href="#/register">Create one</a>.`;
-      if (!live() && !accounts.get(phone)?.h) return showErr(er, none);
+      const v = val(), er = $('#fpErr');
+      const none = `No account is registered with ${byEmail ? a.esc(v) : fmtPhone(v)}. <a href="#/register">Create one</a>.`;
+      if (!live() && !accounts.get(v)?.h) return showErr(er, none);
       const stop = spin(btn, 'Sending code…');
-      try { fp.phone = phone; await sendCode(fp, 'reset'); fp.step = 2; renderForgot(); }
+      try { fp[byEmail ? 'email' : 'phone'] = v; await sendCode(fp, 'reset'); fp.step = 2; renderForgot(); }
       catch (x) { showErr(er, x.message === 'no_account' ? none : err(x, 'Could not send the code')); }
       finally { if (btn.isConnected) stop(); }
     });
@@ -447,9 +504,9 @@
     try {
       if (live()) await API.auth.password(f.cur.value, f.pw1.value);
       else {
-        const rec = accounts.get(u.phone);
-        if (rec && rec.h && rec.h !== hashPw(u.phone, f.cur.value)) return a.toast('Current password is not correct', 'err');
-        accounts.put(u.phone, { h: hashPw(u.phone, f.pw1.value), profile: u });
+        const rec = accounts.get(idOf(u));
+        if (rec && rec.h && rec.h !== hashPw(idOf(u), f.cur.value)) return a.toast('Current password is not correct', 'err');
+        accounts.put(idOf(u), { h: hashPw(idOf(u), f.pw1.value), profile: u });
       }
       a.toast('Password updated'); f.reset();
     } catch (x) { a.toast(err(x, 'Could not update the password'), 'err'); }
@@ -700,7 +757,7 @@
       <div class="wl-va">
         <div><span>Bank</span><b>LetBet Wallet MFB <em class="wl-tag">TEST</em></b></div>
         <div><span>Account number</span><b class="big">${acct.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}</b>${copyBtn(acct)}</div>
-        <div><span>Account name</span><b>LetBetAfrika – ${a.esc(u.fullName || fmtPhone(u.phone))}</b></div>
+        <div><span>Account name</span><b>LetBetAfrika – ${a.esc(u.fullName || (u.phone ? fmtPhone(u.phone) : u.email))}</b></div>
       </div>
       <form id="trForm" class="wl-sim" novalidate>
         <p class="wl-lbl">Test the flow: pretend you sent a transfer</p>
@@ -776,7 +833,7 @@
           <li>Log in to your <b>${n}</b> app or website.</li>
           <li>Tap <b>Payments</b> or <b>Pay Bills</b>.</li>
           <li>Choose <b>Betting</b>, then <b>LetBetAfrika</b>.</li>
-          <li>Enter the amount and your LetBetAfrika number <b>0${u.phone}</b> ${copyBtn('0' + u.phone)}</li>
+          <li>Enter the amount and your LetBetAfrika ${u.phone ? 'number' : 'account ID'} <b>${payRef(u)}</b> ${copyBtn(payRef(u))}</li>
           <li>Confirm. Your balance is credited instantly and you'll get a notification.</li>
         </ol></details>`).join('')}</div>
       <p class="wl-demo"><b>SOON</b> LetBetAfrika is being listed in these apps – the steps show how it works once the payment partners are live.</p>
@@ -785,31 +842,44 @@
 
   /* ----- GH Mobile money ----- */
   const providerOf = phone => GH_MOMO.find(m => m.prefixes.includes(String(phone).slice(0, 2)));
+  // the payment reference: the registered number, or the account ID for players who signed up with email
+  const payRef = u => (u.phone ? '0' + u.phone : String(u.uid));
+  // mobile money number: the registered one (fixed), or – for email sign-ups – one the player enters (remembered)
+  const momoOf = u => u.phone || prefs.get().momo || '';
+  const momoField = (u, label) => `<label class="wl-lbl">${label}${phoneField('mm', momoOf(u), !!u.phone)}</label>
+      <p class="wl-small">${u.phone ? 'For your security, mobile money uses the number you registered with.' : 'Use a mobile money number registered in your name.'}</p>`;
+  function bindMomo(f, u, onChange) {
+    if (u.phone) return () => u.phone;
+    const num = () => normPhone(f.mm.value);
+    f.mm.addEventListener('input', () => { const p = providerOf(num()); if (p) { const r = f.querySelector(`input[name=prov][value=${p.id}]`); if (r) r.checked = true; } onChange(); });
+    return () => (num().length === app().C.digits ? num() : '');
+  }
   const momoPicker = sel => `<p class="wl-lbl">Select your mobile provider</p><div class="wl-mm" role="radiogroup">${GH_MOMO.map(m => `<label class="wl-mmo" style="--bc:${m.color};--bi:${m.ink}"><input type="radio" name="prov" value="${m.id}" ${sel && sel.id === m.id ? 'checked' : ''}><span class="wl-mm-logo">${m.short}</span><small>${m.name}</small></label>`).join('')}</div>`;
   function depMomo(pane, t) {
-    const a = app(), u = user(), prov = providerOf(u.phone);
+    const a = app(), u = user(), prov = providerOf(momoOf(u));
     pane.innerHTML = `<form class="wl-form" id="depForm" novalidate>
-      <label class="wl-lbl">Mobile money number${phoneField('mm', u.phone, true)}</label>
-      <p class="wl-small">Deposits and withdrawals use the number you registered with.</p>
+      ${momoField(u, 'Mobile money number')}
       ${momoPicker(prov)}
       ${balanceRow()}
       ${amountBlock('dep')}
       <button class="au-btn" id="depBtn" disabled>Top Up Now</button>
-      ${depRules(['Your balance can only be withdrawn to the mobile number you registered with.'])}
+      ${depRules([u.phone ? 'Your balance can only be withdrawn to the mobile number you registered with.' : 'Withdrawals go to a mobile money number in your name.'])}
     </form>`;
     const f = $('#depForm', pane), btn = $('#depBtn', pane);
     let amt;
-    const sync = () => { btn.disabled = !(f.querySelector('input[name=prov]:checked') && amt.valid()); };
+    const sync = () => { btn.disabled = !(f.querySelector('input[name=prov]:checked') && amt.valid() && mm()); };
+    const mm = bindMomo(f, u, () => sync());
     amt = bindAmount(f, 'dep', () => amt && sync());
     f.addEventListener('change', sync); sync();
     f.addEventListener('submit', e => {
       e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
+      const num = mm(); if (!u.phone) prefs.set({ momo: num });
       const m = GH_MOMO.find(x => x.id === f.querySelector('input[name=prov]:checked').value);
       // PROVIDER: collection request → the network sends a payment prompt to the phone
       wl.busy = true;
       let left = 60;
       const s = sheet(`<div class="wl-proc"><div class="wl-phone-anim" style="--bc:${m.color}">${ICON.phone}</div>
-        <h3>Check your phone</h3><p>We've sent a ${m.name} prompt to <b>${fmtPhone(u.phone)}</b>. Enter your MoMo PIN to approve <b>${a.whole(v)}</b>.</p>
+        <h3>Check your phone</h3><p>We've sent a ${m.name} prompt to <b>${fmtPhone(num)}</b>. Enter your MoMo PIN to approve <b>${a.whole(v)}</b>.</p>
         <p class="wl-count">Waiting for approval… <b id="mmLeft">${left}s</b></p>
         <p class="wl-small">No prompt? Dial <b>${m.dial}</b> and check <b>My Approvals</b>.</p>
         ${testNote('Mobile money is simulated until the payment provider is connected.')}
@@ -828,13 +898,13 @@
       <p class="wl-p">Pay from your mobile money menu – no app or data needed.</p>
       <div class="wl-acc">${GH_MOMO.map((m, i) => `<details class="wl-step" ${i === 0 ? 'open' : ''}><summary><span class="wl-logo" style="background:${m.color};color:${m.ink}">${m.short}</span>${m.name}${ICON.chev}</summary>
         <ol>
-          <li>Dial <b>${m.dial}</b> on ${fmtPhone(u.phone)}.</li>
+          <li>Dial <b>${m.dial}</b> on ${u.phone ? fmtPhone(u.phone) : 'your mobile money phone'}.</li>
           <li>Choose <b>${m.id === 'mtn' ? 'MoMoPay &amp; Pay Bill' : 'Pay Bill'}</b>, then <b>General Payment</b>.</li>
           <li>Enter merchant code <b>LETBET</b> ${copyBtn('LETBET')}</li>
-          <li>Enter the amount and use your number <b>0${u.phone}</b> as the reference.</li>
+          <li>Enter the amount and use your ${u.phone ? 'number' : 'account ID'} <b>${payRef(u)}</b> as the reference.</li>
           <li>Enter your MoMo PIN to confirm. Your balance is credited instantly.</li>
         </ol></details>`).join('')}</div>
-      ${depRules(['Your balance can only be withdrawn to the mobile number you registered with.'])}
+      ${depRules([u.phone ? 'Your balance can only be withdrawn to the mobile number you registered with.' : 'Withdrawals go to a mobile money number in your name.'])}
       <p class="wl-demo"><b>SOON</b> Merchant code LETBET is a placeholder until the mobile money partners are live.</p>
     </div>`;
   }
@@ -974,10 +1044,9 @@
 
   /* ----- GH Mobile money ----- */
   function wdMomo(pane) {
-    const u = user(), prov = providerOf(u.phone);
+    const u = user(), prov = providerOf(momoOf(u));
     pane.innerHTML = `<form class="wl-form" id="wdForm" novalidate>
-      <label class="wl-lbl">Withdraw to${phoneField('mm', u.phone, true)}</label>
-      <p class="wl-small">For your security, winnings are paid only to the number you registered with.</p>
+      ${momoField(u, 'Withdraw to')}
       ${momoPicker(prov)}
       ${balanceRow('Withdrawable balance')}
       ${amountBlock('wd')}
@@ -986,14 +1055,16 @@
     </form>`;
     const f = $('#wdForm', pane), btn = $('#wdBtn', pane);
     let amt;
-    const sync = () => { btn.disabled = !(canWithdraw() && f.querySelector('input[name=prov]:checked') && amt.valid()); };
+    const sync = () => { btn.disabled = !(canWithdraw() && f.querySelector('input[name=prov]:checked') && amt.valid() && mm()); };
+    const mm = bindMomo(f, u, () => sync());
     amt = bindAmount(f, 'wd', () => amt && sync());
     f.addEventListener('change', sync); sync();
     f.addEventListener('submit', e => {
       e.preventDefault();
+      const num = mm(); if (!u.phone) prefs.set({ momo: num });
       const m = GH_MOMO.find(x => x.id === f.querySelector('input[name=prov]:checked').value);
-      payout({ amount: amt.get(), method: m.name, apiMethod: 'mobile_money', details: { account: `${m.name} · 0${u.phone}`, net: m.short, phone: u.phone },
-        to: `${m.name}<br><small>${fmtPhone(u.phone)}</small>`, ms: 4000 });
+      payout({ amount: amt.get(), method: m.name, apiMethod: 'mobile_money', details: { account: `${m.name} · 0${num}`, net: m.short, phone: num },
+        to: `${m.name}<br><small>${fmtPhone(num)}</small>`, ms: 4000 });
     });
   }
 
@@ -1059,6 +1130,6 @@
   }
   function rerender() { const a = app(); if (a.state.route === last.page) RENDER[last.page](last.page === 'deposit' ? wl.dep : last.page === 'withdraw' ? wl.wd : last.arg); }
 
-  window.Account = { handles: page => page in RENDER, render, persist, changePassword };
+  window.Account = { handles: page => page in RENDER, render, persist, changePassword, prefetch: loadMethods };
   setTimeout(settleStale, 0);
 })();

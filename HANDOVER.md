@@ -79,6 +79,11 @@ plus for real data:
 Email (see §7 step 1 and `server/EMAILS.md`): `EMAIL_PROVIDER` = `console` (default: logs only) | `smtp` | `resend` | `sendgrid`,
 `EMAIL_FROM`, and for SMTP `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 TLS), `SMTP_USER`, `SMTP_PASS`, optional `SMTP_SECURE=true`;
 or `RESEND_API_KEY` / `SENDGRID_API_KEY`. Secrets go in Railway variables only.
+**Live site (set):** `EMAIL_PROVIDER=smtp`, `EMAIL_FROM=LetBetAfrika <info@letbetafrika.online>`, `SMTP_HOST=mail.spacemail.com`,
+`SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=info@letbetafrika.online`, `SUPPORT_EMAIL=info@letbetafrika.online` (Spacemail
+mailbox, Railway Pro allows outbound SMTP). **`SMTP_PASS` is added by the owner** in Railway → `api` → Variables.
+`NODE_ENV=production` hides sign-up codes; outside production, a channel without a provider runs in test mode and
+shows the code on screen.
 
 Game limits and prizes live in the `settings` table (editable with `PUT /api/admin/settings/:key`):
 `games` = min/max stake per country (NG ₦100–₦500,000, GH GH₵1–GH₵5,000), `max_payout`, `jackpot` = jackpot,
@@ -97,7 +102,12 @@ Earn reward per country (₦1,000 / GH₵10).
   Finished → settled automatically; postponed → cancelled/refunded. Admin: `GET /api/admin/feed`.
   **No past-posting:** a pre-match price is refused once the game has kicked off.
 - **Real crests** for clubs (TheSportsDB thumbnails, cached, pinned IDs for ambiguous names) and **real flags** everywhere.
-- **Money**: register/login with SMS OTP, deposit (demo provider), withdraw (admin approval), transfer to friend,
+- **Accounts**: sign up / log in / reset the password with a **mobile number or an email address** – a 6-digit code by
+  SMS or by email. The app asks `GET /api/auth/methods` which channels can deliver a code right now and offers only
+  those (production without an SMS provider = email only). Emails are unique site-wide; adding or changing an email
+  (Me → Email & Password) needs a code sent to the new address. Email-only players get their account ID as payment
+  reference and type their mobile-money number when they need it.
+- **Money**: register/login, deposit (demo provider), withdraw (admin approval), transfer to friend,
   bets single/multiple with win boost, cashout, booking codes. Payout tests pass (exact to the cent, void legs,
   refunds, cashout, no double pay, ledger = balance).
 - **All 11 games are live for real money** – see §6. Nothing simulated in live mode: Rocket Crash shows only real
@@ -176,14 +186,16 @@ Golden rules: the stake is taken **before** the result is drawn; results come fr
 
 The site is wired end to end. The owner's next steps are **SMTP → payments → admin portal**. Exact hook points:
 
-1. **SMTP email** (code is ready – only configuration is needed):
-   - Railway variables: `EMAIL_PROVIDER=smtp`, `EMAIL_FROM="LetBetAfrika <no-reply@your-domain>"`, `SMTP_HOST`, `SMTP_PORT`
-     (587, or 465 with TLS), `SMTP_USER`, `SMTP_PASS`. Sending lives in `server/src/emails/index.js` (`deliver()`,
-     nodemailer); every send is logged in `email_log` and a failed email never fails a bet or a payment.
-   - Test it: `POST /api/admin/email/test {"to": "you@example.com"}` (admin token) – answers `{ok, provider}` or the
-     SMTP error. Set SPF, DKIM and DMARC on the sending domain (see `server/EMAILS.md`).
-   - Players add their email under **Me → Email & Password** or on **Verify ID** (`POST /api/auth/email`, stored
-     lower-case in `users.email`); sign-up stays phone-only like SportyBet, and SMS covers sign-up codes.
+1. **SMTP email – connected to Spacemail (`info@letbetafrika.online`), only `SMTP_PASS` is missing:**
+   - Add `SMTP_PASS` (the mailbox password) in Railway → `api` → Variables and deploy. The boot log then prints
+     `[email] smtp mail.spacemail.com:465 as LetBetAfrika <info@letbetafrika.online> – ready` (or the exact problem:
+     `EAUTH` = wrong password, `NOT reachable` = network). It re-checks every 10 minutes until it works.
+   - Admin checks: `GET /api/admin/email/status?check=1` (provider, server, ready, last error), `GET /api/admin/email/log`
+     (sent / logged / failed with reason), `POST /api/admin/email/test {"to": "you@example.com"}`.
+   - Everything sends through it: sign-up / reset / email-change codes, welcome, deposits, withdrawals, bets, cashout,
+     KYC, password changes, limits, self-exclusion, jackpot tickets and the welcome bonus turning into cash.
+   - Deliverability: Spaceship DNS for `letbetafrika.online` must have SPF, DKIM and DMARC (Spacemail sets them when
+     the domain uses Spaceship DNS – check in the Spacemail dashboard).
 2. **Payments** (Paystack / Flutterwave cards + bank, MTN MoMo / Vodafone Cash for Ghana, OPay):
    - `POST /api/wallet/deposit` already creates a `payments` row; with `PAYMENTS_MODE` ≠ `demo` it stays `pending`.
      Return the provider's checkout URL / USSD / MoMo prompt from there; the deposit screens in `betting/account.js`
@@ -245,13 +257,15 @@ production after QA.
 
 - `cd server && node --test test/grade.test.js test/games.test.js` – market grading; game maths (exact RTP of every
   table, Monte Carlo check of the real `play()` code with the CSPRNG, crash fairness, jackpot line counting).
-- `API_URL=… DATABASE_URL=<test db> node --test --test-concurrency=1 test/payout.test.js test/games-api.test.js test/account-api.test.js`
+- `API_URL=… DATABASE_URL=<test db> node --test --test-concurrency=1 test/payout.test.js test/games-api.test.js test/account-api.test.js test/email-auth.test.js`
   – money flow through the API (needs a running server on a **test** database with `PAYMENTS_MODE=demo`; each run uses
   ~20 open football fixtures – the jackpot and past-posting tests skip with a message when the test database has run out).
-  Covers every game, the crash audit (admin only), welcome bonus, referral, Code Hub, boost, payouts and the ledger.
+  Covers every game, the crash audit (admin only), welcome bonus, referral, Code Hub, boost, payouts, the ledger, and
+  email sign-up / login / reset / verified email change.
 - Browser (Playwright, pre-installed in cloud sessions): `tools/qa/smoke.js` (every route, demo + live: no JS errors,
   no horizontal scroll, no empty page), `e2e_games.js` (every game against the real API, server balance checked
-  after each play), `e2e_games_demo.js`, `e2e_instant.js`, plus account/pages e2e, axe-core, alignment.
+  after each play), `e2e_games_demo.js`, `e2e_instant.js`, `e2e_email.js` (email sign-up, login, reset, email change –
+  live, demo, or production mode reading codes from a local SMTP sink), plus account/pages e2e, axe-core, alignment.
 - Two-replica check: start a second server on another port against the same database – only one reports
   `schedulers.leader: true`, and an Instant Football round opened on one can be played on the other (once).
 - Mock Odds API: serve a recorded `/v4/sports/<key>/odds` sample and `/scores`, point `ODDS_API_BASE` at it.

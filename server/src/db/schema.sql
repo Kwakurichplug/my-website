@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS otps (
   country    char(2) NOT NULL,
   phone      text NOT NULL,
   code_hash  text NOT NULL,
-  purpose    text NOT NULL CHECK (purpose IN ('register','login','reset')),
+  purpose    text NOT NULL CHECK (purpose IN ('register','login','reset','email')),
   expires_at timestamptz NOT NULL,
   used       boolean NOT NULL DEFAULT false,
   attempts   int NOT NULL DEFAULT 0,
@@ -289,3 +289,29 @@ CREATE TABLE IF NOT EXISTS bonuses (
 INSERT INTO settings (key, value) VALUES
   ('welcome_bonus', '{"NG":{"pct":200,"max":100000},"GH":{"pct":200,"max":1000},"times":5,"min_odds":1.5,"days":14}')
 ON CONFLICT (key) DO NOTHING;
+
+-- Email sign-up: an account has a mobile number, an email address, or both. Emails are unique site-wide
+-- (case-insensitive); codes can go to a phone or an email address.
+ALTER TABLE users ALTER COLUMN phone DROP NOT NULL;
+UPDATE users SET email = lower(trim(email)) WHERE email IS NOT NULL AND email <> lower(trim(email));
+DO $$ BEGIN
+  ALTER TABLE users ADD CONSTRAINT users_contact_chk CHECK (phone IS NOT NULL OR email IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users (lower(email));
+EXCEPTION WHEN unique_violation THEN RAISE NOTICE 'users_email_key not created: two accounts share an email – fix them, it is retried on the next boot';
+END $$;
+ALTER TABLE otps ALTER COLUMN phone DROP NOT NULL;
+ALTER TABLE otps ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE otps ADD COLUMN IF NOT EXISTS user_id uuid;            -- set for codes sent to a signed-in player (email change)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'otps_purpose_check' AND pg_get_constraintdef(oid) NOT LIKE '%email%') THEN
+    ALTER TABLE otps DROP CONSTRAINT otps_purpose_check;
+    ALTER TABLE otps ADD CONSTRAINT otps_purpose_check CHECK (purpose IN ('register','login','reset','email'));
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS otps_email_idx ON otps (email, created_at DESC) WHERE email IS NOT NULL;
+-- delivery log: sent (provider accepted it), logged (console provider), failed (with the reason)
+ALTER TABLE email_log ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'sent';
+ALTER TABLE email_log ADD COLUMN IF NOT EXISTS error text;

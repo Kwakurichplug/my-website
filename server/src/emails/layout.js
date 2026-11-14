@@ -9,7 +9,7 @@ export const BRAND = {
   text: '#1c1f23', muted: '#6b7280', line: '#e5e7eb', bg: '#f3f4f6', card: '#ffffff',
   red: '#e5163a', amber: '#b45309', amberBg: '#fef3c7', greenBg: '#e6f4ec', redBg: '#fde8ec',
   site: process.env.SITE_URL || 'https://letbetafrika.com',
-  support: process.env.SUPPORT_EMAIL || 'support@letbetafrika.com',
+  support: process.env.SUPPORT_EMAIL || 'info@letbetafrika.online',
   font: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
 };
 

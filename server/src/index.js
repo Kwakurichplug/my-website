@@ -17,6 +17,7 @@ import jackpot from './routes/jackpot.js';
 import virtuals from './routes/virtuals.js';
 import games from './routes/games.js';
 import { startGames, gamesStatus } from './games/index.js';
+import { startEmailChecks } from './emails/index.js';
 import { startFeeds } from './feeds/index.js';
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -55,4 +56,5 @@ migrate().then(() => {
   app.listen(port, () => log.info(`LetBetAfrika API on :${port}`));
   startFeeds();
   startGames();
+  startEmailChecks();
 }).catch(e => { log.error(e, 'migration failed'); process.exit(1); });

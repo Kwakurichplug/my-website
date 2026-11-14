@@ -14,7 +14,7 @@ export const templates = {
     html: wrap({ cc: user.country, title: 'Welcome', body:
       h1(`Welcome, ${first(user)}`) +
       p('Your LetBetAfrika account is ready. You can bet on live and upcoming matches, play virtuals and enter the weekly jackpot.') +
-      details([['Account ID', String(user.uid), { bold: true }], ['Phone', `+${user.country === 'GH' ? '233' : '234'} ${user.phone}`], ['Currency', user.country === 'GH' ? 'Ghana cedi (GH₵)' : 'Nigerian naira (₦)']]) +
+      details([['Account ID', String(user.uid), { bold: true }], user.phone ? ['Phone', `+${user.country === 'GH' ? '233' : '234'} ${user.phone}`] : ['Email', user.email], ['Currency', user.country === 'GH' ? 'Ghana cedi (GH₵)' : 'Nigerian naira (₦)']]) +
       note(`<b>200% welcome bonus.</b> Deposit now and we triple it, up to ${money(user.country === 'GH' ? 1000 : 100000, user.country)}.`, 'success') +
       button('Make your first deposit', `${site}/#/me`) +
       small('Please keep your password private. We will never ask for it by phone, SMS or email.') }),
@@ -25,10 +25,10 @@ export const templates = {
     subject: `${c} is your LetBetAfrika code`,
     preheader: 'This code expires in 10 minutes.',
     html: wrap({ cc: user.country, title: 'Your code', body:
-      h1(purpose === 'reset' ? 'Reset your password' : 'Confirm your number') +
+      h1(purpose === 'reset' ? 'Reset your password' : 'Confirm your email') +
       p('Enter this code in the app. It expires in 10 minutes.') +
       code(c) +
-      small('If you did not request this code, you can ignore this email. No one can use it without your phone.') }),
+      small('If you did not request this code, you can ignore this email. Never share it – LetBetAfrika staff will never ask for it.') }),
     text: text([`Your LetBetAfrika code is ${c}.`, 'It expires in 10 minutes.']),
   }),
 

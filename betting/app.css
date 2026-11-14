@@ -2515,3 +2515,20 @@ html[data-theme="dark"] .mv-labels b{color:#eef0f2}
 .cr-th{display:grid;grid-template-columns:1.4fr 1fr .8fr 1fr;padding:6px 12px;font-size:10px;letter-spacing:.9px;text-transform:uppercase;color:#6b717c;border-bottom:1px solid #20232a}
 .cr-th span:last-child{text-align:right}
 @media (min-width:1024px){.cr{max-width:520px;margin:0 auto}}
+
+/* ===== v23: sign up / log in / reset with mobile number or email ===== */
+.au-via{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:#eef0f2;border-radius:10px}
+.au-via button{display:flex;align-items:center;justify-content:center;gap:7px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+.au-via button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.au-via button.on{background:#fff;color:var(--brand);font-weight:700;box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.au-via button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.au-mail .au-dial{display:flex;align-items:center;color:var(--muted)}
+.au-mail .au-dial svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.au-mail input{flex:1;min-width:0;padding-left:9px}
+.au-hint{text-align:center;font-size:12.5px;color:var(--muted);margin-top:-6px}
+.ac-cur{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 4px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-weight:600;color:var(--text);word-break:break-all}
+.ac-cur .ok{flex:none;font-size:11px;font-weight:700;color:var(--brand);background:#e7f5ec;border-radius:10px;padding:3px 8px}
+html[data-theme="dark"] .au-via{background:#121418}
+html[data-theme="dark"] .au-via button.on{background:#262b33;color:#4fd08a;box-shadow:none}
+html[data-theme="dark"] .ac-cur{border-color:#2c3138;color:#eef0f2}
+html[data-theme="dark"] .ac-cur .ok{background:#16351f;color:#4fd08a}

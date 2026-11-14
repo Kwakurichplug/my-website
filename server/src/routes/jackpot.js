@@ -7,6 +7,17 @@ import { debit } from '../lib/wallet.js';
 import { getSetting } from '../lib/settings.js';
 import { currentRound } from '../games/jackpot.js';
 import { eventsWithMarkets } from './events.js';
+import { sendEmail } from '../emails/index.js';
+
+// ticket confirmation email with the 12 picks (after the purchase has committed)
+async function ticketEmail(user, ref, round, picks) {
+  const { rows } = await q('SELECT id, home, away FROM events WHERE id = ANY($1::bigint[])', [picks.map(x => x.eventId)]);
+  const name = Object.fromEntries(rows.map(e => [String(e.id), `${e.home} vs ${e.away}`]));
+  const prize = (await getSetting('jackpot'))?.[user.country]?.jackpot || 0;
+  const pick = { 1: 'Home', X: 'Draw', 2: 'Away' };
+  sendEmail('jackpotTicket', user, { ticketId: ref, prize, draw: round.closes_at,
+    picks: picks.map(x => ({ match: name[String(x.eventId)] || 'Match', pick: x.outcomes.map(o => pick[o]).join(' / ') })) });
+}
 
 // Weekly 12-game jackpot. The server fixes the round's 12 games (games/jackpot.js); a ticket picks one or
 // more outcomes per game; every combination is a line at the line price. Graded and paid automatically.
@@ -58,6 +69,7 @@ r.post('/tickets', requireUser, async (req, res, next) => {
       return b;
     });
     res.status(201).json({ ref, round: round.code, lines, cost, balance });
+    ticketEmail(req.user, ref, round, clean).catch(() => {});
   } catch (e) { next(e); }
 });
 

@@ -297,7 +297,7 @@
   async function loadTickets() {
     const a = A();
     if (a.live) { try { JP.tickets = await API.jackpot.tickets(); } catch { JP.tickets = JP.tickets || []; } }
-    else JP.tickets = store.get('jp_tickets', []).filter(t => t.phone === a.state.user?.phone);
+    else { const me = a.state.user && (a.state.user.phone || a.state.user.email); JP.tickets = store.get('jp_tickets', []).filter(t => (t.who || t.phone) === me); }
   }
   function tick() {
     const el = $('#jpCd'); if (!el || A().state.route !== 'jackpot') return;
@@ -315,7 +315,7 @@
       else {
         ref = 'JP' + Date.now().toString(36).toUpperCase();
         u.balance = a.r2(u.balance - cost); a.addTx('Jackpot ticket', -cost, { ref, method: `${ln} line${ln === 1 ? '' : 's'}`, status: 'success' });
-        store.set('jp_tickets', [{ ref, round: jpRound(), lines: ln, cost, picks, at: Date.now(), phone: u.phone }, ...store.get('jp_tickets', [])].slice(0, 50));
+        store.set('jp_tickets', [{ ref, round: jpRound(), lines: ln, cost, picks, at: Date.now(), who: u.phone || u.email }, ...store.get('jp_tickets', [])].slice(0, 50));
       }
       a.saveUser(); a.renderAuth(); JP.picks = {}; JP.tickets = null;
       a.toast(`Ticket ${ref} bought – good luck!`); a.go('jackpot/tickets');

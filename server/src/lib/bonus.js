@@ -28,15 +28,17 @@ export async function creditDeposit(c, user, amount, paymentId, meta = {}) {
 export async function addTurnover(c, bet, legs) {
   const cfg = await getSetting('welcome_bonus');
   const priced = legs.filter(l => l.result !== 'void');
-  if (!cfg || bet.type !== 'multiple' || priced.length < 2 || !priced.every(l => Number(l.odd) >= cfg.min_odds)) return;
+  if (!cfg || bet.type !== 'multiple' || priced.length < 2 || !priced.every(l => Number(l.odd) >= cfg.min_odds)) return [];
   const { rows } = await c.query(`UPDATE bonuses SET wagered = least(required, wagered + $2)
       WHERE user_id=$1 AND kind='welcome' AND status='active' AND expires_at > now() AND created_at <= $3
       RETURNING id, amount, required, wagered`, [bet.user_id, bet.stake, bet.placed_at]);
+  const released = [];   // returned so the caller can email the player once the transaction has committed
   for (const b of rows) {
     if (Number(b.wagered) < Number(b.required)) continue;
     const u = await c.query(`UPDATE bonuses SET status='released', released_at=now() WHERE id=$1 AND status='active'`, [b.id]);
-    if (u.rowCount) await move(c, bet.user_id, 'bonus', Number(b.amount), 'WB' + b.id, { kind: 'welcome' });
+    if (u.rowCount) released.push({ amount: Number(b.amount), balance: await move(c, bet.user_id, 'bonus', Number(b.amount), 'WB' + b.id, { kind: 'welcome' }) });
   }
+  return released;
 }
 
 export const expireBonuses = () => q(`UPDATE bonuses SET status='expired' WHERE status='active' AND expires_at <= now()`);

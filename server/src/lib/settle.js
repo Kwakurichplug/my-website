@@ -52,12 +52,13 @@ export async function settleEvent(eventId) {
   const betIds = [...new Set(legs.map(l => l.bet_id))];
   let settled = 0;
   for (const id of betIds) {
+    let released = [], owner = null;
     await tx(async c => {
       const { rows } = await c.query('SELECT * FROM bets WHERE id=$1 AND status=\'open\' FOR UPDATE', [id]);
       const b = rows[0]; if (!b) return;
       const ls = (await c.query('SELECT * FROM bet_legs WHERE bet_id=$1', [id])).rows;
       if (ls.some(l => l.result === 'lost')) {
-        await c.query(`UPDATE bets SET status='lost', paid=0, settled_at=now() WHERE id=$1`, [id]); await addTurnover(c, b, ls); settled++; notify(b, ls, 'lost', 0); return;
+        await c.query(`UPDATE bets SET status='lost', paid=0, settled_at=now() WHERE id=$1`, [id]); released = await addTurnover(c, b, ls); owner = b.user_id; settled++; notify(b, ls, 'lost', 0); return;
       }
       if (!ls.every(l => l.result)) return;
       const odds = ls.reduce((acc, l) => acc * (l.result === 'void' ? 1 : Number(l.odd)), 1);
@@ -67,12 +68,20 @@ export async function settleEvent(eventId) {
       const status = ls.every(l => l.result === 'void') ? 'void' : 'won';
       await c.query(`UPDATE bets SET status=$2, paid=$3, settled_at=now() WHERE id=$1`, [id, status, Math.round(paid * 100) / 100]);
       const balance = await move(c, b.user_id, status === 'won' ? 'win' : 'refund', paid, id);
-      if (status === 'won') await addTurnover(c, b, ls);
+      if (status === 'won') { released = await addTurnover(c, b, ls); owner = b.user_id; }
       settled++;
       notify(b, ls, status, paid, balance);
     });
+    if (released.length) bonusReleased(owner, released);
   }
   return settled;
+}
+
+// the welcome bonus turned into cash: tell the player (after the settlement has committed)
+async function bonusReleased(userId, list) {
+  const { rows } = await q('SELECT * FROM users WHERE id=$1', [userId]);
+  for (const x of list) sendEmail('bonusCredited', rows[0], { amount: x.amount, name: 'Welcome Bonus', balance: x.balance,
+    terms: 'You reached the wagering target, so your welcome bonus is now cash in your balance. Bet with it or withdraw it.' });
 }
 
 async function notify(b, ls, status, paid, balance) {

@@ -111,7 +111,8 @@ export async function cancel(user) {
 
 /* ---------------- public state (shared, cached) ---------------- */
 const cache = { t: 0, v: null };
-const mask = (cc, phone) => { const p = (cc === 'GH' ? '0' : '0') + String(phone || ''); return p.slice(0, 3) + '****' + p.slice(-2); };
+// players are shown masked: 080****45 for a phone, ad**** for an email-only account
+const mask = (phone, email) => (phone ? ('0' + phone).slice(0, 3) + '****' + String(phone).slice(-2) : email ? String(email).split('@')[0].slice(0, 2) + '****' : 'Player');
 export async function state() {
   if (cache.v && Date.now() - cache.t < 150) return { ...cache.v, now: Date.now() };
   const round = await latest(), now = Date.now();
@@ -120,14 +121,14 @@ export async function state() {
     const phase = now < +round.starts_at ? 'betting' : now < +round.crash_at ? 'flying' : 'crashed';
     const [hist, bets] = await Promise.all([
       q(`SELECT id, point FROM crash_rounds WHERE settled ORDER BY id DESC LIMIT 15`),
-      q(`SELECT g.id, g.stake, g.auto, g.mult, g.payout, g.status, u.country, u.phone FROM game_bets g JOIN users u ON u.id = g.user_id
+      q(`SELECT g.id, g.stake, g.auto, g.mult, g.payout, g.status, u.country, u.phone, u.email FROM game_bets g JOIN users u ON u.id = g.user_id
          WHERE g.game='crash' AND g.round=$1 AND g.status <> 'void' ORDER BY g.stake DESC LIMIT 60`, [round.id]),
     ]);
     v = {
       round: { id: Number(round.id), betFrom: +round.bet_from, startsAt: +round.starts_at, phase,
         ...(phase === 'crashed' ? { point: Number(round.point), crashAt: +round.crash_at } : {}) },
       history: hist.rows.map(h => ({ id: Number(h.id), point: Number(h.point) })),
-      bets: bets.rows.map(b => ({ id: b.id, name: mask(b.country, b.phone), cc: b.country, stake: Number(b.stake), auto: b.auto == null ? null : Number(b.auto),
+      bets: bets.rows.map(b => ({ id: b.id, name: mask(b.phone, b.email), cc: b.country, stake: Number(b.stake), auto: b.auto == null ? null : Number(b.auto),
         out: b.status === 'cashed' ? Number(b.mult) : null, payout: Number(b.payout), status: b.status })),
     };
   }

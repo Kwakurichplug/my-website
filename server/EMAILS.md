@@ -70,11 +70,18 @@ go to Slack/email for staff and are not part of this customer set.
 | betPlaced, cashout | `routes/bets.js` |
 | betWon, betSettled | `lib/settle.js` |
 | depositSuccess/Failed, withdrawalPaid/Rejected, kycVerified/Rejected | `routes/admin.js` (approve / reject / verify) |
-| otp, newDevice, jackpotTicket, bonusCredited, weeklySummary | ready; hooked up when those features land on the backend |
+| otp (sign-up, password reset and email-change codes) | `lib/otp.js` (`issueEmailOtp`) |
+| jackpotTicket | `routes/jackpot.js` (after the purchase commits) |
+| bonusCredited | `lib/settle.js` (when the welcome bonus is released as cash) |
+| passwordChanged (also after a reset) | `routes/auth.js` |
+| newDevice, weeklySummary | ready; hooked up when those features land on the backend |
 
 Sends are fire-and-forget: a failed email never fails the bet or payment. Every send
-is recorded in `email_log`. Users without an email address simply receive nothing;
-SMS covers the OTP flow.
+is recorded in `email_log` with `status` sent / logged (console) / failed and the `error`;
+codes are never stored (the subject is redacted). Players without an email address
+receive nothing; they can add one under Me → Email & Password (verified by a code).
+Sign-up and reset codes by email are the one exception to fire-and-forget: the request
+waits for the SMTP server and answers `email_failed` if it refuses.
 
 ---
 
@@ -93,6 +100,17 @@ RESEND_API_KEY= / SENDGRID_API_KEY=
 SITE_URL=https://letbetafrika.com
 SUPPORT_EMAIL=support@letbetafrika.com
 ```
+
+**Live site:** Spacemail mailbox `info@letbetafrika.online` – `EMAIL_PROVIDER=smtp`, `SMTP_HOST=mail.spacemail.com`,
+`SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=info@letbetafrika.online`, `EMAIL_FROM=LetBetAfrika <info@letbetafrika.online>`,
+`SUPPORT_EMAIL=info@letbetafrika.online` are set in Railway; the owner adds `SMTP_PASS`. Railway allows outbound SMTP
+on the Pro plan only (Free/Trial/Hobby block it – use Resend there).
+
+At boot the server checks the connection and logs one line, e.g.
+`[email] smtp mail.spacemail.com:465 as LetBetAfrika <info@letbetafrika.online> – ready`
+(or `SMTP_PASS is not set yet`, `EAUTH: … 535` = wrong password, `NOT reachable` = blocked port). It re-checks every
+10 minutes until it works. `GET /api/admin/email/status?check=1` shows the same, `GET /api/admin/email/log` the last
+100 sends.
 
 Set these as Railway variables (never in git), redeploy, then send a test from the admin API:
 `POST /api/admin/email/test {"to": "you@example.com"}` with an admin token → `{ok: true, provider: "smtp"}`, or

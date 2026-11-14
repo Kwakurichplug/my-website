@@ -43,15 +43,18 @@
     async ping() { try { await get('/events/leagues', { timeout: 4000 }); return true; } catch { return false; } },
 
     auth: {
-      otp: (country, phone, purpose = 'register') => post('/auth/otp', { country, phone, purpose }),
+      // `who` is a phone number (string) or { email }
+      otp: (country, who, purpose = 'register') => post('/auth/otp', { country, ...(typeof who === 'object' ? who : { phone: who }), purpose }),
       register: d => post('/auth/register', d).then(r => { setToken(r.token); return r.user; }),
-      login: (country, phone, password) => post('/auth/login', { country, phone, password }).then(r => { setToken(r.token); return r.user; }),
+      login: (country, who, password) => post('/auth/login', { country, ...(typeof who === 'object' ? who : { phone: who }), password }).then(r => { setToken(r.token); return r.user; }),
+      methods: () => get('/auth/methods', { timeout: 5000 }),
       reset: d => post('/auth/reset', d),
       me: () => get('/auth/me').then(r => r.user),
       logout: () => setToken(null),
       password: (current, password) => post('/auth/password', { current, password }),
       verify: d => post('/auth/verify', d),
-      email: email => post('/auth/email', { email }).then(r => r.user),
+      email: email => post('/auth/email', { email }),   // sends a code to the new address
+      emailConfirm: (email, code) => post('/auth/email/confirm', { email, code }).then(r => r.user),
       limits: d => post('/auth/limits', d),
       referrals: () => get('/auth/referrals'),
     },

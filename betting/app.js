@@ -793,7 +793,7 @@
   }
   function renderMe() {
     const u = state.user;
-    $('#meName').textContent = u ? C.dial + ' ' + u.phone : 'Login to View';
+    $('#meName').textContent = u ? (u.phone ? C.dial + ' ' + u.phone : u.email || 'ID ' + u.uid) : 'Login to View';
     $('#meUserLink').dataset.open = u ? '' : 'loginModal';
     $('#meSub').textContent = u ? `ID ${u.uid || '—'}` : '';
     $('#meBal').textContent = u ? money(u.balance) : `${C.cur} --`;
@@ -1112,19 +1112,25 @@
           <label>Date of birth<input name="dob" type="date" required></label>
           <label>ID type<select name="idt">${(CC === 'GH' ? ['Ghana Card', 'Passport', "Driver's Licence", "Voter's ID"] : ['NIN', 'BVN', 'International Passport', "Driver's Licence", "Voter's Card"]).map(x => `<option>${x}</option>`).join('')}</select></label>
           <label>ID number<input name="idn" required></label>
-          <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(u.email || '')}" placeholder="We send your result here"></label>
+          <p class="muted">${u.email ? `We'll email the result to <b>${esc(u.email)}</b>.` : `Add your email under <a href="#/acct/security">Email &amp; Password</a> to get the result by email.`}</p>
           <button class="btn btn-accent block">Submit for verification</button></form>`,
-      security: () => `<form class="card-pad form" data-acform="email">
+      // email: a code goes to the new address first (state.emailStep holds the address waiting for its code)
+      security: () => { const st = state.emailStep, viaEmail = u.email && !u.phone;
+        return `<form class="card-pad form" data-acform="email">
           <h4 class="sh">Email address</h4>
-          <p class="muted">For receipts, withdrawal updates and your verification result.</p>
-          <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(u.email || '')}" placeholder="you@example.com"></label>
-          <button class="btn btn-accent block">${u.email ? 'Update email' : 'Save email'}</button></form>
+          ${u.email ? `<p class="ac-cur">${esc(u.email)}<span class="ok">Verified</span></p>` : ''}
+          <p class="muted">${viaEmail ? 'You log in with this email. ' : ''}We send receipts, withdrawal updates and your verification result here.</p>
+          ${st ? `<label>Code sent to <b>${esc(st)}</b><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" required placeholder="6-digit code"></label>
+          <button class="btn btn-accent block">Confirm email</button>
+          <button type="button" class="btn btn-ghost block" data-email-cancel>Use a different email</button>`
+          : `<label>${u.email ? 'New email' : 'Email'}<input name="email" type="email" required maxlength="120" autocomplete="email" placeholder="you@example.com"></label>
+          <button class="btn btn-accent block">${u.email ? 'Change email' : 'Add email'}</button>`}</form>
         <form class="card-pad form" data-acform="security">
           <h4 class="sh">Change password</h4>
           <label>Current password<input type="password" name="cur" required></label>
           <label>New password<input type="password" name="pw1" minlength="6" required></label>
           <label>Confirm new password<input type="password" name="pw2" minlength="6" required></label>
-          <button class="btn btn-accent block">Update password</button></form>`,
+          <button class="btn btn-accent block">Update password</button></form>`; },
       limits: () => { const L = (u && u.limits) || {};
         return `<form class="card-pad form" data-acform="limits">
           <p class="muted">Set limits to stay in control. Lower limits apply straight away.</p>
@@ -1147,23 +1153,38 @@
     };
     $('#acBody').innerHTML = H[sec]();
   }
+  document.addEventListener('click', e => { if (e.target.closest('[data-email-cancel]')) { state.emailStep = null; renderAcct('security'); } });
   document.addEventListener('submit', async e => {
     const f = e.target.closest('[data-acform]'); if (!f) return;
     e.preventDefault();
     const k = f.dataset.acform, u = state.user;
     if (LIVE) {
       try {
-        if (k === 'email') { state.user = mapUser(await API.auth.email(f.email.value.trim())); toast('Email saved'); return renderAcct('security'); }
-        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value, email: f.email.value.trim() }); toast('Documents submitted – we will email you when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
+        if (k === 'email') {
+          if (!state.emailStep) {
+            const email = f.email.value.trim().toLowerCase(), r = await API.auth.email(email);
+            if (r.unchanged) return toast('That is already your email');
+            state.emailStep = email; renderAcct('security');
+            return toast(r.devCode ? `Test code: ${r.devCode}` : `We sent a 6-digit code to ${email}`);
+          }
+          state.user = mapUser(await API.auth.emailConfirm(state.emailStep, f.code.value.trim()));
+          state.emailStep = null; toast('Email verified and saved'); return renderAcct('security');
+        }
+        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value }); toast(u && u.email ? 'Documents submitted – we will email you when verified' : 'Documents submitted – we will let you know when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
         if (k === 'security') { if (window.Account) return Account.changePassword(f); if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); await API.auth.password(f.cur.value, f.pw1.value); toast('Password updated'); f.reset(); }
         if (k === 'limits') { await API.auth.limits({ period: f.period.value, amount: +f.amt.value || 0, reminder: f.rem.value }); toast('Limits saved'); }
         await liveUser(); renderMe();
       } catch (err) { toast(apiErr(err), 'err'); }
       return;
     }
-    if (k === 'email') { if (!u) return openModal('loginModal'); u.email = f.email.value.trim().toLowerCase(); saveUser(); toast('Email saved'); return renderAcct('security'); }
+    if (k === 'email') {   // demo: the code is shown in a toast, like the sign-up code
+      if (!u) return openModal('loginModal');
+      if (!state.emailStep) { state.emailStep = f.email.value.trim().toLowerCase(); state.emailCode = String(Math.floor(100000 + Math.random() * 900000)); renderAcct('security'); return toast(`Demo email to ${state.emailStep}: your LetBetAfrika code is ${state.emailCode}`); }
+      if (f.code.value.trim() !== state.emailCode) return toast('That code is wrong or has expired', 'err');
+      u.email = state.emailStep; state.emailStep = null; saveUser(); toast('Email verified and saved'); return renderAcct('security');
+    }
     if (k === 'verify') {
-      u.verified = true; u.fullName = f.name.value.trim(); u.email = f.email.value.trim().toLowerCase(); saveUser(); toast('Documents submitted – account verified');
+      u.verified = true; u.fullName = f.name.value.trim(); saveUser(); toast('Documents submitted – account verified');
       if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; return go(r); }
       renderAcct('verify');
     }
@@ -1179,7 +1200,7 @@
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
   const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again' }[e.message] || fallback || 'Something went wrong');
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
@@ -1273,6 +1294,7 @@
     if (!window.API || !API.enabled) return false;
     if (!(await API.ping())) return false;
     LIVE = true; document.documentElement.dataset.live = '1';
+    if (window.Account && Account.prefetch) Account.prefetch();   // which sign-up methods can deliver a code
     // keep only the virtual league (browser-run rounds); real leagues come from the server
     { const v = LEAGUES[VLG]; MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0; v.idx = 0; LEAGUES.push(v); VLG_LIVE = 0; }
     await liveUser();
@@ -1324,11 +1346,11 @@
       ['Why we use it', 'To run your account and pay you; to verify age and identity as the law requires; to detect fraud and problem gambling; to send receipts and important account notices; and, if you opt in, promotions. Our legal bases are contract, legal obligation and legitimate interest.'],
       ['Who we share it with', 'Payment providers, SMS and email providers, identity-verification partners, the sports data supplier (match and odds data only), our hosting providers, and regulators or law enforcement where required. We never sell your data.'],
       ['How long we keep it', 'Account and transaction records are kept for at least 5 years after your account closes, as gambling and anti-money-laundering rules require. Marketing preferences are kept until you change them.'],
-      ['Your rights', 'You can ask for a copy of your data, correct it, or ask us to delete what we are not required to keep. You can withdraw marketing consent at any time. Write to privacy@letbetafrika.com.'],
+      ['Your rights', 'You can ask for a copy of your data, correct it, or ask us to delete what we are not required to keep. You can withdraw marketing consent at any time. Write to info@letbetafrika.online.'],
       ['Security', 'Data is encrypted in transit and at rest. Access is limited to staff who need it. Passwords are stored hashed and are never visible to us.'],
       ['Cookies and storage', 'The app stores your country, login token and preferences on your device. We use analytics to understand how the app is used; no advertising trackers are placed without consent.'],
       ['Children', 'The Service is for adults only. We delete accounts found to belong to anyone under 18.'],
-      ['Contact', 'LetBetAfrika Limited · privacy@letbetafrika.com · support@letbetafrika.com'],
+      ['Contact', 'LetBetAfrika Limited · info@letbetafrika.online'],
     ] },
   };
   function renderLegal(kind) {
@@ -1519,7 +1541,7 @@
   };
   setTheme(document.documentElement.dataset.theme === 'dark');
   $('#themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme !== 'dark'));
-  $('#logoutBtn').addEventListener('click', () => { window.Account && Account.persist(state.user); if (LIVE) API.auth.logout(); state.user = null; state.bets = []; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
+  $('#logoutBtn').addEventListener('click', () => { window.Account && Account.persist(state.user); if (LIVE) API.auth.logout(); state.user = null; state.bets = []; state.emailStep = null; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
   $('#scrim').addEventListener('click', () => { closeSlip(); closeDrawer(); });
   $$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModals(); closeSlip(); closeDrawer(); closeSearch(); } });

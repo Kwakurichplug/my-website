@@ -6,7 +6,7 @@ import { requireAdmin } from '../lib/auth.js';
 import { move } from '../lib/wallet.js';
 import { getSetting, setSetting } from '../lib/settings.js';
 import { settleEvent } from '../lib/settle.js';
-import { sendEmail, deliver, emailProvider, render } from '../emails/index.js';
+import { sendEmail, deliver, emailProvider, render, emailStatus, checkEmail, logEmail } from '../emails/index.js';
 import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
 import * as crash from '../games/crash.js';
@@ -18,15 +18,20 @@ r.use(requireAdmin);
 // odds feed health: provider, credits left, today's allowance
 r.get('/feed', async (_req, res, next) => { try { res.json(await feedStatus()); } catch (e) { next(e); } });
 
+// email: provider, sender, SMTP server, whether it is ready and the last error; ?check=1 tests the connection now
+r.get('/email/status', async (req, res, next) => { try { res.json(req.query.check ? await checkEmail() : emailStatus()); } catch (e) { next(e); } });
+// email: recent sends (sent / logged / failed with the reason)
+r.get('/email/log', async (_req, res, next) => { try { res.json({ emails: (await q('SELECT l.id, l.template, l.subject, l.status, l.error, l.sent_at, u.uid, u.email FROM email_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 100')).rows }); } catch (e) { next(e); } });
 // email: send a test message through the configured provider (to check SMTP / API keys after setting them)
 r.post('/email/test', async (req, res) => {
   const to = String((req.body && req.body.to) || req.user.email || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return res.status(400).json({ error: 'invalid_email' });
   try {
     const m = render('welcome', { user: { country: req.user.country, uid: req.user.uid, phone: req.user.phone, fullName: req.user.full_name, email: to } });
-    await deliver({ to, subject: '[Test] ' + m.subject, html: m.html, text: m.text });
-    res.json({ ok: true, provider: emailProvider(), to });
-  } catch (e) { res.status(502).json({ ok: false, provider: emailProvider(), error: e.message }); }
+    const status = await deliver({ to, subject: '[Test] ' + m.subject, html: m.html, text: m.text });
+    logEmail(req.user.id, 'test', '[Test] ' + m.subject, status);
+    res.json({ ok: true, provider: emailProvider(), status, to });
+  } catch (e) { logEmail(req.user.id, 'test', 'Test email', 'failed', e.message); res.status(502).json({ ok: false, provider: emailProvider(), error: (e.code ? e.code + ': ' : '') + e.message }); }
 });
 
 // games: today's turnover and payouts per game (house view)
@@ -65,7 +70,7 @@ r.get('/overview', async (_req, res, next) => {
 r.get('/users', async (req, res, next) => {
   const s = String(req.query.q || '');
   try {
-    const { rows } = await q(`SELECT id, uid, country, phone, full_name, verified, role, status, balance, created_at FROM users ${s ? 'WHERE phone ILIKE $1 OR uid::text LIKE $1 OR full_name ILIKE $1' : ''} ORDER BY created_at DESC LIMIT 100`, s ? ['%' + s + '%'] : []);
+    const { rows } = await q(`SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, created_at FROM users ${s ? 'WHERE phone ILIKE $1 OR email ILIKE $1 OR uid::text LIKE $1 OR full_name ILIKE $1' : ''} ORDER BY created_at DESC LIMIT 100`, s ? ['%' + s + '%'] : []);
     res.json({ users: rows });
   } catch (e) { next(e); }
 });

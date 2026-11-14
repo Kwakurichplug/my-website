@@ -51,6 +51,7 @@ What's new
     and a Rocket Crash rocket that explodes. Stakes are set with casino chips.
   - Match pages show a Market view (fair chances from the live prices); Code Hub lists real
     booking codes; the 200% welcome bonus and Refer & Earn work automatically.
-  - Me > Email & Password: players add their email for receipts and updates.
+  - Sign up, log in and reset your password with a mobile number OR an email address
+    (6-digit code by SMS or email). Me > Email & Password adds or changes the email (verified by a code).
   - When served by the API server everything above uses real accounts and money moves
     through the ledger; opened as a file it runs as a demo.
