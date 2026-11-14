@@ -1,7 +1,8 @@
 // Demo feed: the same Poisson pricing the front end used, now server-side.
 // Keeps the site alive until the real odds API key is configured.
+import { createRequire } from 'node:module';
 import { q } from '../db/pool.js';
-import { upsertEvent } from './index.js';
+import { upsertEvent, upsertMarkets } from './index.js';
 
 export const syncEvery = 10 * 60 * 1000;
 export const tickEvery = 4000;
@@ -34,37 +35,12 @@ const ncdf = z => 0.5 * (1 + erf(z / Math.SQRT2));
 // in-memory model params per event (lambda etc.) – demo only
 const model = new Map();
 
-export function footballMarkets(m) {
-  const out = [];
-  const add = (key, name, group, cols, list) => out.push({ key, name, group, cols, outcomes: Object.fromEntries(list.filter(x => x[0]).map(([k, l, p]) => [k, { l, o: price(p) }])) });
-  const N = 8, rem = m.status === 'live' ? Math.max(0, 90 - m.minute) / 90 : 1;
-  const [sh, sa] = m.score, ph = pois(m.lh * rem, N), pa = pois(m.la * rem, N);
-  let H = 0, D = 0, A = 0, GG = 0, ODD = 0; const tot = {}, diff = {}, cs = {};
-  for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
-    const p = ph[i] * pa[j], fh = sh + i, fa = sa + j;
-    if (fh > fa) H += p; else if (fh === fa) D += p; else A += p;
-    tot[fh + fa] = (tot[fh + fa] || 0) + p; diff[fh - fa] = (diff[fh - fa] || 0) + p;
-    if (fh <= 4 && fa <= 4) cs[`${fh}-${fa}`] = (cs[`${fh}-${fa}`] || 0) + p;
-    if (fh && fa) GG += p; if ((fh + fa) % 2) ODD += p;
-  }
-  const over = l => Object.entries(tot).reduce((s, [k, p]) => s + (+k > l ? p : 0), 0);
-  const dge = d => Object.entries(diff).reduce((s, [k, p]) => s + (+k >= d ? p : 0), 0);
-  const teamOver = (arr, base, l) => arr.reduce((s, p, i) => s + (base + i > l ? p : 0), 0);
-  add('1x2', '1X2', 'Main', 3, [['1', 'Home', H], ['X', 'Draw', D], ['2', 'Away', A]]);
-  add('dc', 'Double Chance', 'Main', 3, [['1X', 'Home or Draw', H + D], ['12', 'Home or Away', H + A], ['X2', 'Draw or Away', D + A]]);
-  if (m.status === 'live' && rem > 0) { const L = (m.lh + m.la) * rem, pn = Math.exp(-L); add('next', `Next Goal (${sh + sa + 1})`, 'Main', 3, [['1', 'Home', (1 - pn) * m.lh / (m.lh + m.la)], ['none', 'None', pn], ['2', 'Away', (1 - pn) * m.la / (m.lh + m.la)]]); }
-  add('dnb', 'Draw No Bet', 'Main', 2, [['1', 'Home', H / (H + A)], ['2', 'Away', A / (H + A)]]);
-  add('gg', 'Both Teams To Score', 'Main', 2, [['gg', 'GG (Yes)', GG], ['ng', 'NG (No)', 1 - GG]]);
-  add('ou', 'Over/Under', 'Goals', 2, [0.5, 1.5, 2.5, 3.5, 4.5, 5.5].flatMap(l => [[`o${l}`, `Over ${l}`, over(l)], [`u${l}`, `Under ${l}`, 1 - over(l)]]));
-  add('hou', `${m.home} Total Goals`, 'Goals', 2, [0.5, 1.5, 2.5].flatMap(l => { const p = teamOver(ph, sh, l); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
-  add('aou', `${m.away} Total Goals`, 'Goals', 2, [0.5, 1.5, 2.5].flatMap(l => { const p = teamOver(pa, sa, l); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
-  add('oe', 'Odd/Even Goals', 'Goals', 2, [['odd', 'Odd', ODD], ['even', 'Even', 1 - ODD]]);
-  const list = Object.entries(cs).sort((a, b) => a[0].localeCompare(b[0])).map(([k, p]) => [k, k, p]);
-  list.push(['oth', 'Other', 1 - Object.values(cs).reduce((s, p) => s + p, 0)]);
-  add('cs', 'Correct Score', 'Score', 3, list);
-  add('eh-1', `Handicap ${m.home} (-1)`, 'Handicap', 3, [['1', 'Home (-1)', dge(2)], ['X', 'Draw (-1)', diff[1] || 0], ['2', 'Away (+1)', 1 - dge(1)]]);
-  add('eh+1', `Handicap ${m.home} (+1)`, 'Handicap', 3, [['1', 'Home (+1)', dge(0)], ['X', 'Draw (+1)', diff[-1] || 0], ['2', 'Away (-1)', 1 - dge(-1)]]);
-  return out;
+const M = createRequire(import.meta.url)('../../../betting/markets.js');
+export const marketNeeds = M.needs;
+/** Every football market for a match, in the API's stored shape. opt: { noCorners, noCards } */
+export function footballMarkets(m, opt) {
+  return M.football(m, price, opt).map(x => ({ key: x.key, name: x.name, group: x.group, cols: x.cols,
+    outcomes: Object.fromEntries(x.outs.filter(o => o.k).map((o, i) => [o.k, { l: o.l, o: o.o, i }])) }));
 }
 function twoWayMarkets(m) {
   const P = TWO[m.sport] || TWO.tennis, out = [];
@@ -92,6 +68,7 @@ async function ensureLeagues() {
 
 /** Create fixtures for the next 3 days if the table is thin. */
 export async function sync() {
+  await refreshMarkets();
   const leagues = await ensureLeagues();
   const { rows } = await q(`SELECT count(*)::int AS n FROM events WHERE ext_id LIKE 'demo:%' AND status IN ('scheduled','live')`);
   if (rows[0].n >= 60) return;
@@ -102,22 +79,42 @@ export async function sync() {
       const kick = live ? new Date(Date.now() - R() * 60 * 60000) : new Date(Date.now() + (1 + Math.floor(R() * 70)) * 3600000 + Math.floor(R() * 4) * 900000);
       const m = { extId: `demo:${lg.id}:${t[i]}:${t[i + 1]}:${kick.toISOString().slice(0, 10)}`, sport: lg.sport, leagueId: lg.id, home: t[i], away: t[i + 1], kickoff: kick, status: live ? 'live' : 'scheduled',
         minute: live ? 1 + Math.floor(R() * 80) : 0, score: [0, 0], hot: R() < 0.35, lh: 0.75 + R() * 1.35, la: 0.55 + R() * 1.15, mu: (R() - 0.5) * 20, prog: live ? R() * 0.8 : 0, stats: {} };
-      if (live && lg.sport === 'football') { const f = m.minute / 90; m.score = [samplePois(m.lh * f), samplePois(m.la * f)]; m.stats = { goals: [], corners: [samplePois(5 * f), samplePois(4 * f)] }; }
+      if (live && lg.sport === 'football') {
+        const f = m.minute / 90; m.score = [samplePois(m.lh * f), samplePois(m.la * f)];
+        const goals = []; [0, 1].forEach(s => { for (let g = 0; g < m.score[s]; g++) goals.push({ min: 1 + Math.floor(R() * m.minute), side: s }); }); goals.sort((x, y) => x.min - y.min);
+        m.stats = { goals, corners: [samplePois(5 * f), samplePois(4 * f)], cards: [samplePois(2 * f), samplePois(2.2 * f)] };
+        if (m.minute > 45) m.ht = [goals.filter(g => !g.side && g.min <= 45).length, goals.filter(g => g.side && g.min <= 45).length];
+      }
       const id = await upsertEvent(m, marketsFor(m));
+      await q('UPDATE events SET model=$2 WHERE id=$1', [id, { lh: m.lh, la: m.la, mu: m.mu, src: 'demo' }]);
       model.set(id, m);
     }
   }
 }
 
+/** Events created before the full market set existed get every market (runs on each sync, cheap once done). */
+async function refreshMarkets() {
+  const { rows } = await q(`SELECT e.id, e.sport, e.home, e.away, e.status, e.minute, e.score_home, e.score_away, e.ht_home, e.ht_away, e.stats, e.model FROM events e
+    WHERE e.ext_id LIKE 'demo:%' AND e.status IN ('scheduled','live') AND e.sport='football' AND NOT EXISTS (SELECT 1 FROM markets k WHERE k.event_id=e.id AND k.key='ah') LIMIT 100`);
+  for (const e of rows) {
+    const md = e.model || {};
+    const m = model.get(e.id) || { lh: md.lh || 1.3, la: md.la || 1.1, mu: md.mu || 0, prog: 0.3, sport: e.sport, home: e.home, away: e.away };
+    Object.assign(m, { status: e.status, minute: e.minute, score: [e.score_home, e.score_away], stats: e.stats || {}, ht: e.ht_home != null ? [e.ht_home, e.ht_away] : m.ht });
+    model.set(e.id, m);
+    await upsertMarkets(e.id, marketsFor(m));
+  }
+  return rows.length;
+}
+
 /** Advance live matches; return ids of events that just finished. */
 export async function tick() {
   // only the demo feed's own matches (Virtual League rounds are played by server/src/games/virtual.js)
-  const { rows } = await q(`SELECT id, sport, home, away, status, minute, score_home, score_away, stats, kickoff FROM events WHERE ext_id LIKE 'demo:%' AND (status='live' OR (status='scheduled' AND kickoff <= now()))`);
+  const { rows } = await q(`SELECT id, sport, home, away, status, minute, score_home, score_away, ht_home, ht_away, stats, kickoff, model FROM events WHERE ext_id LIKE 'demo:%' AND (status='live' OR (status='scheduled' AND kickoff <= now()))`);
   const finished = [];
   for (const e of rows) {
     let m = model.get(e.id);
-    if (!m) { m = { lh: 1.3, la: 1.1, mu: 0, prog: 0.3, sport: e.sport, home: e.home, away: e.away }; model.set(e.id, m); }
-    Object.assign(m, { status: 'live', minute: e.minute, score: [e.score_home, e.score_away], stats: e.stats || {} });
+    if (!m) { const md = e.model || {}; m = { lh: md.lh || 1.3, la: md.la || 1.1, mu: md.mu || 0, prog: 0.3, sport: e.sport, home: e.home, away: e.away }; model.set(e.id, m); }
+    Object.assign(m, { status: 'live', minute: e.minute, score: [e.score_home, e.score_away], stats: e.stats || {}, ht: e.ht_home != null ? [e.ht_home, e.ht_away] : m.ht });
     if (e.status === 'scheduled') m.minute = 1;
     if (m.sport === 'football') {
       if (R() < 0.6) {
@@ -126,6 +123,7 @@ export async function tick() {
           const l = s ? m.la : m.lh;
           if (R() < l / 90 * 1.4) { m.score[s]++; (m.stats.goals ||= []).push({ min: m.minute, side: s }); }
           if (R() < 0.05) { (m.stats.corners ||= [0, 0])[s]++; }
+          if (R() < 0.022) { (m.stats.cards ||= [0, 0])[s]++; }
         }
         if (m.minute === 45) m.ht = [...m.score];
       }
@@ -139,7 +137,7 @@ export async function tick() {
       [e.id, m.status, m.minute || 0, m.sport === 'football' ? (m.minute <= 45 ? 'H1' : 'H2') : null, m.score[0], m.score[1], m.ht?.[0] ?? null, m.ht?.[1] ?? null, m.stats || {}]);
     if (m.status === 'finished') { finished.push(e.id); model.delete(e.id); }
     else {
-      for (const mk of marketsFor(m)) await q(`UPDATE markets SET outcomes=$3, updated_at=now() WHERE event_id=$1 AND key=$2`, [e.id, mk.key, JSON.stringify(mk.outcomes)]);
+      await upsertMarkets(e.id, marketsFor(m));
     }
   }
   return finished;

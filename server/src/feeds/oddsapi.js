@@ -19,7 +19,7 @@
 //      ODDS_REGION (default uk), ODDS_LIVE_FRESH_SEC, ODDS_MARGIN (default from settings).
 import { q } from '../db/pool.js';
 import { upsertEvent } from './index.js';
-import { footballMarkets } from './demo.js';
+import { footballMarkets, marketNeeds } from './demo.js';
 import { getSetting, setSetting } from '../lib/settings.js';
 import { attachLogos } from '../lib/logos.js';
 
@@ -169,8 +169,7 @@ async function leagueId(key) {
 }
 
 // markets we can settle from the full-time score alone (no half-time, corners or goal times in this feed)
-const SETTLEABLE = new Set(['1x2', 'dc', 'dnb', 'gg', 'ou', 'hou', 'aou', 'oe', 'cs', 'eh-1', 'eh+1']);
-const card = m => footballMarkets(m).filter(x => SETTLEABLE.has(x.key));
+const card = m => footballMarkets(m, { noCorners: true, noCards: true }).filter(x => marketNeeds(x.key) === 'ft');
 
 /* ---------------- prices ---------------- */
 async function syncOdds(key) {

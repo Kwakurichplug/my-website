@@ -82,7 +82,7 @@
           <div class="mkt-tabs dark" id="lvMkt">${a.listMarkets(LV.sport).map(x => `<button data-market="${x.id}" data-msport="${LV.sport}" class="${x.id === cfg.id ? 'active' : ''}">${x.name}</button>`).join('')}</div>
           <div class="lv-tool"><button data-pg="lvall">${I.tri}${list.length && [...new Set(list.map(m => m.lg))].every(i => LV.shut.has(i)) ? 'Expand All' : 'Collapse All'}</button>
             <label>Sort by <select data-pg="lvsort" aria-label="Sort by"><option value="league" ${LV.sort === 'league' ? 'selected' : ''}>Leagues</option><option value="time" ${LV.sort === 'time' ? 'selected' : ''}>Match time</option></select></label></div>
-          <div class="day-sep dark" style="--n:${cfg.outs.length}"><span>${list.length} live</span>${cols(cfg)}</div>
+          <div class="day-sep dark" style="--n:${cfg.n || cfg.outs.length}"><span>${list.length} live</span>${cols(cfg)}</div>
         </div>
         ${body}
       </div>`;
@@ -182,7 +182,7 @@
         let day = '', rows = '';
         ms.forEach(m => {
           const d = m.live ? 'Live' : new Date(m.kick).toDateString();
-          if (d !== day) { day = d; rows += `<div class="day-sep" style="--n:${cfg.outs.length}"><span>${m.live ? 'Live now' : dateLabel(m.kick)}</span>${cols(cfg)}</div>`; }
+          if (d !== day) { day = d; rows += `<div class="day-sep" style="--n:${cfg.n || cfg.outs.length}"><span>${m.live ? 'Live now' : dateLabel(m.kick)}</span>${cols(cfg)}</div>`; }
           rows += a.matchRow(m, cfg, lgi === -1);
         });
         if (lgi === -1) return rows;

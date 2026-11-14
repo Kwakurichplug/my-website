@@ -224,6 +224,7 @@ html[data-theme="dark"] .sports-block .filter-bar button{color:#9aa0a8}
 html[data-theme="dark"] .sports-block .filter-bar button.active{color:#eef0f2}
 html[data-theme="dark"] .au-via{background:#262a31}
 html[data-theme="dark"] .au-via button.on{background:#1d2127}
+html[data-theme="dark"] .mk-info h2{color:#eef0f2}
 @media (min-width:1024px){
 html[data-theme="dark"] .left-rail{background:#1d2127}
 html[data-theme="dark"] .icon-row{background:#1d2127}

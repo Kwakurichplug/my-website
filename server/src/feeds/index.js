@@ -34,10 +34,15 @@ export async function upsertEvent(ev, markets) {
     RETURNING id`,
     [ev.id ?? null, ev.extId, ev.sport, ev.leagueId, ev.home, ev.away, ev.homeLogo || null, ev.awayLogo || null, ev.kickoff, ev.status, ev.minute || 0, ev.period || null, ev.score?.[0] || 0, ev.score?.[1] || 0, ev.ht?.[0] ?? null, ev.ht?.[1] ?? null, ev.stats || {}, !!ev.hot]);
   const id = rows[0].id;
+  await upsertMarkets(id, markets);
+  return id;
+}
+
+/** Insert or refresh an event's market rows (new keys are added, existing ones re-priced). */
+export async function upsertMarkets(id, markets) {
   for (const m of markets || []) {
     await q(`INSERT INTO markets (event_id, key, name, grp, cols, outcomes, suspended, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7, now())
-      ON CONFLICT (event_id, key) DO UPDATE SET outcomes=EXCLUDED.outcomes, suspended=EXCLUDED.suspended, name=EXCLUDED.name, updated_at=now()`,
+      ON CONFLICT (event_id, key) DO UPDATE SET outcomes=EXCLUDED.outcomes, suspended=EXCLUDED.suspended, name=EXCLUDED.name, grp=EXCLUDED.grp, cols=EXCLUDED.cols, updated_at=now()`,
       [id, m.key, m.name, m.group, m.cols, JSON.stringify(m.outcomes), !!m.suspended]);
   }
-  return id;
 }

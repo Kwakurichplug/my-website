@@ -2532,3 +2532,108 @@ html[data-theme="dark"] .au-via{background:#121418}
 html[data-theme="dark"] .au-via button.on{background:#262b33;color:#4fd08a;box-shadow:none}
 html[data-theme="dark"] .ac-cur{border-color:#2c3138;color:#eef0f2}
 html[data-theme="dark"] .ac-cur .ok{background:#16351f;color:#4fd08a}
+
+/* =========================================================
+   v23 – match page: pre-match on the reference's light layout,
+   the full market set (markets.js), table views, market info/star
+   ========================================================= */
+/* shared market block structure (dark live page keeps its colours) */
+.mkt-head{display:flex;align-items:center;min-height:45px;height:auto;padding:4px var(--side);gap:0;font-weight:400}
+.mkt-head::before{content:none}
+.mkt-head svg{display:none}
+.mkt-head .mkt-star svg{display:block}
+.mkt-tog{display:flex;align-items:center;gap:11px;flex:0 1 auto;min-width:0;height:100%;text-align:left;font-size:var(--fs-t);font-weight:400;color:inherit}
+.mkt-tog span{white-space:normal;line-height:1.25}
+.mkt-tog .tri{width:0;height:0;border-style:solid;border-width:6px 5px 0 5px;border-color:var(--live-g) transparent transparent;transition:transform .2s;flex:none}
+.mkt.closed .mkt-tog .tri{transform:rotate(-90deg)}
+.mkt.closed .mkt-th{display:none}
+.mkt-i{width:16px;height:16px;border-radius:50%;background:var(--mute);color:#fff;font:700 11px/16px Georgia,"Times New Roman",serif;margin-left:9px;flex:none;text-align:center}
+.mkt-head .susp{margin-left:10px;font-size:var(--fs-s);color:var(--mute);font-style:normal}
+.mkt-star{width:33px;height:33px;display:grid;place-items:center;color:var(--mute);margin-left:auto;flex:none}
+.mkt-star svg{width:24px;height:24px;fill:currentColor}
+.mkt-star.on{color:var(--gold)}
+.mkt-th{display:grid;height:24px;align-items:center;margin:4px var(--side) 0;background:rgba(234,236,239,.15);color:#dcdee5;font-size:var(--fs);text-align:center}
+.mkt-th.t2{grid-template-columns:92px 1fr 1fr}
+.mkt-th.t3{grid-template-columns:87px 1fr 1fr 1fr}
+.mkt-th.h2{grid-template-columns:1fr 1fr}
+.mkt-body.tbl{grid-template-columns:92px 1fr 1fr;gap:5.4px;padding-top:5px}
+.mkt-body.tbl3{grid-template-columns:87px 1fr 1fr 1fr;gap:5.4px;padding-top:5px}
+.mkt-body.tbl .line,.mkt-body.tbl3 .line{height:35px;display:grid;place-items:center;background:rgba(234,236,239,.15);color:#fff;font-size:var(--fs)}
+.mkt-body .odd.tb{height:35px}
+.group-chips .gstar{padding:0 12px 0 0;color:#fff;display:grid;place-items:center}
+.group-chips .gstar svg{width:17px;height:17px;fill:currentColor}
+.group-chips .gstar.active{color:var(--gold)}
+.group-chips .gstar.active::after{display:none}
+#page-match .empty{padding:40px var(--side);text-align:center;color:var(--mute)}
+#page-match .empty .big{display:block;font-size:28px;margin-bottom:6px}
+
+/* pre-match: light, like the reference's Details page */
+html:not([data-theme="dark"]) #page-match.pre{background:#fafafa;color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .sub-head{background:#fff;color:var(--ink);border-bottom:1px solid #eaecef}
+html:not([data-theme="dark"]) #page-match.pre .sub-head h1{color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .sub-head .icon-btn,html:not([data-theme="dark"]) #page-match.pre .fav{color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .fav.on{color:var(--gold)}
+html:not([data-theme="dark"]) #page-match.pre .md-hero{background:#fff;padding:8px var(--side) 4px;text-align:center}
+html:not([data-theme="dark"]) #page-match.pre .mh-lg{color:var(--g);font-size:var(--fs-s);line-height:13px;display:inline-block;max-width:100%}
+.mh-teams{display:grid;grid-template-columns:1fr 84px 1fr;align-items:start;padding:8px 20px 0}
+.mh-team{display:flex;flex-direction:column;align-items:center;font-weight:700;font-size:var(--fs);color:var(--ink-2);min-width:0}
+.mh-team .crest,.mh-team .crest.big{width:36px;height:36px;margin:5px 0 4px;filter:none}
+.mh-team b{line-height:16px;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mh-when{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:18px;font-size:var(--fs-s);color:var(--ink-2);line-height:12px;gap:0}
+.mh-when em{font-style:normal;font-weight:700;background:#eaecef;border-radius:2px;padding:0 4px;height:12px;line-height:12px;margin-top:5px}
+.mh-meta{font-size:8.7px;color:var(--ink-2);padding:12px 0 2px;display:flex;justify-content:center;align-items:center;gap:6px}
+.mh-meta .dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--ink-2);position:relative;margin-left:4px}
+.mh-meta .dot::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs{background:#fafafa;border:0;padding:6px var(--side) 5px;gap:1px;position:static;justify-content:flex-start}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button{flex:0 0 90px;height:30px;padding:0;background:#eaecef;color:var(--ink-2);border-radius:2px;font-weight:400;font-size:var(--fs)}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button.active{background:var(--ink);color:#fff}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button.active::after{display:none}
+html:not([data-theme="dark"]) #page-match.pre .group-chips{background:#fafafa;border-bottom:1px solid #eaecef;height:55px;padding:0 0 0 var(--side);position:sticky;top:var(--top-h);z-index:5}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button{color:var(--ink);font-weight:700;font-size:var(--fs);padding:0 12px}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button:first-child{padding-left:0}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button.active{color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button.active::after{height:4px;background:var(--g)}
+html:not([data-theme="dark"]) #page-match.pre .group-chips .gstar{color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .group-chips .gstar.active{color:var(--gold)}
+html:not([data-theme="dark"]) #page-match.pre .mkt{background:#fafafa;border-bottom:1px solid #eaecef}
+html:not([data-theme="dark"]) #page-match.pre .mkt-head{color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-tog .tri{border-top-color:var(--g)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body{gap:5.4px;padding:4px var(--side) 6px}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body.tbl,html:not([data-theme="dark"]) #page-match.pre .mkt-body.tbl3{padding-top:5px}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.ob,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.tb{height:35px;background:var(--g-bg);color:var(--g-ink);border-radius:0;padding:0 var(--side)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.ob span{color:var(--g-ink);font-weight:500;font-size:var(--fs);line-height:1.25;white-space:normal;text-align:left}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.ob b,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.tb b{color:var(--g-ink);font-size:var(--fs);font-weight:700}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd:hover{background:#c8e3d0}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.sel,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.tb.sel{background:var(--g);color:#fff}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.sel span,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.sel b{color:#fff}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.locked{background:#eaecef;color:var(--mute)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.locked span,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.locked .lock{color:var(--mute)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-th{background:#eaecef;color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body.tbl .line,html:not([data-theme="dark"]) #page-match.pre .mkt-body.tbl3 .line{background:#eaecef;color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.up,html:not([data-theme="dark"]) #page-match.pre .mkt-body .odd.down{animation:none}
+html:not([data-theme="dark"]) #page-match.pre .md-panel{background:#fff;color:var(--ink-2)}
+html:not([data-theme="dark"]) #page-match.pre .md-panel .card-pad{background:#fff}
+html:not([data-theme="dark"]) #page-match.pre .md-panel .sh,html:not([data-theme="dark"]) #page-match.pre .md-panel .muted,html:not([data-theme="dark"]) #page-match.pre .md-panel .minfo dt,html:not([data-theme="dark"]) #page-match.pre .md-panel p.muted{color:var(--mute)}
+html:not([data-theme="dark"]) #page-match.pre .md-panel .form-row,html:not([data-theme="dark"]) #page-match.pre .md-panel .h2h b{color:var(--ink-2);background:#eaecef}
+.mk-info h2{font-size:var(--fs-t);font-weight:700;color:var(--ink);padding-right:30px}
+.mk-guide{font-size:var(--fs);line-height:1.5;color:var(--ink-2)}
+.mk-guide.small{font-size:var(--fs-s);color:var(--mute);line-height:1.45;border-top:1px solid #eaecef;padding-top:10px}
+@media (min-width:900px){.mkt-th.t2,.mkt-body.tbl{grid-template-columns:120px 1fr 1fr}.mkt-th.t3,.mkt-body.tbl3{grid-template-columns:120px 1fr 1fr 1fr}}
+
+/* dark mode: the pre-match page uses the dark live layout; new hero pieces follow it */
+html[data-theme="dark"] #page-match.pre .md-hero{text-align:center;padding:8px var(--side) 4px}
+html[data-theme="dark"] .mh-team{color:#fff}
+html[data-theme="dark"] .mh-when{color:#c9ccd2}
+html[data-theme="dark"] .mh-when em{background:rgba(234,236,239,.15);color:#fff}
+html[data-theme="dark"] .mh-meta{color:#9ca0ab}
+html[data-theme="dark"] .mh-meta .dot{border-color:#9ca0ab}
+html[data-theme="dark"] .mh-meta .dot::after{background:#9ca0ab}
+html[data-theme="dark"] #page-match.pre .mh-lg{color:var(--live-g);font-size:var(--fs-s)}
+html[data-theme="dark"] .mk-info h2{color:#eef0f2}
+html[data-theme="dark"] .mk-guide{color:#c9cdd2}
+html[data-theme="dark"] .mk-guide.small{border-color:#2c3138}
+/* list rows: line cell for the O/U columns (tap to change the line) */
+.odd.lsel{flex-direction:row;gap:3px;font-weight:700;font-size:var(--fs-t);color:var(--g-ink)}
+.odd.lsel b{font-weight:700}
+.odd.lsel svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.live-block .odd.lsel{color:#36d26e}
