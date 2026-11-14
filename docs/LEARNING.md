@@ -18,6 +18,7 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 - → `server/src/routes/bets.js` `/place` (re-prices from DB, debits stake in a transaction)
 - → feed finishes the match (`server/src/feeds/oddsapi.js` `syncScores`) → `settleEvent()` in `server/src/lib/settle.js`
 - → `move()` in `server/src/lib/wallet.js` credits the win (ledger row + cached balance).
+- → on the next poll `liveBets()` in `betting/app.js` sees the ticket go open → won and shows the YOU WON screen, `Pages.trophy()` in `betting/pages.js` (once per ticket, remembered in `localStorage.lba_trophies`).
 
 ---
 
@@ -71,7 +72,7 @@ Gotcha: jsonb re-sorts object keys – outcome order is restored on the client b
 | Topic | Learn | Where |
 |---|---|---|
 | Vanilla JS modules on `window`, hash router | MDN (developer.mozilla.org) – "Window: hashchange event" | `route()` in `app.js`; `Account` / `Pages` modules |
-| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v17; dark via `tools/gen-dark.py` |
+| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v18 (v18 = trophy); dark via `tools/gen-dark.py` |
 | Mobile UX of sportsbooks | Study SportyBet, Bet9ja, BetKing mobile sites side by side | `tools/qa/compare2.js` |
 | Accessibility (WCAG 2.2 AA) | https://www.w3.org/WAI/WCAG22/quickref/, axe-core | `tools/qa/axe_run.js` |
 | PWA basics | web.dev/learn/pwa | `betting/manifest.webmanifest` |
