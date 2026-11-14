@@ -66,6 +66,30 @@ r.post('/withdraw', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Send money to another player in the same country. Instant, free, both sides go through the ledger.
+r.post('/transfer', async (req, res, next) => {
+  const p = z.object({
+    phone: z.string().transform(s => s.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '')).refine(s => s.length >= 9 && s.length <= 10, 'bad_phone'),
+    amount: z.number().positive(),
+    note: z.string().max(40).optional(),
+  }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  const { phone, amount, note } = p.data;
+  if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
+  if (phone === req.user.phone) return res.status(400).json({ error: 'self_transfer' });
+  try {
+    const { rows } = await q('SELECT id, phone FROM users WHERE country=$1 AND phone=$2 AND status=$3', [req.user.country, phone, 'active']);
+    if (!rows[0]) return res.status(404).json({ error: 'no_account' });
+    const ref = 'TF' + Date.now().toString(36).toUpperCase();
+    const balance = await tx(async c => {
+      const b = await debit(c, req.user.id, 'transfer_out', amount, ref, { to: phone, note });
+      await move(c, rows[0].id, 'transfer_in', amount, ref, { from: req.user.phone, note });
+      return b;
+    });
+    res.json({ ok: true, ref, balance });
+  } catch (e) { next(e); }
+});
+
 r.get('/payments', async (req, res, next) => {
   try {
     const { rows } = await q('SELECT id, kind, amount, method, status, created_at FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [req.user.id]);

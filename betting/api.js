@@ -59,6 +59,7 @@
       deposit: (amount, method) => post('/wallet/deposit', { amount, method }),
       withdraw: (amount, method, details) => post('/wallet/withdraw', { amount, method, details }),
       payments: () => get('/wallet/payments').then(r => r.payments),
+      transfer: (phone, amount, note) => post('/wallet/transfer', { phone, amount, note }),
     },
     events: {
       leagues: () => get('/events/leagues').then(r => r.leagues),

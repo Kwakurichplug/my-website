@@ -271,16 +271,19 @@
     </section>
 
     <!-- ============ DEPOSIT ============ -->
-    <section class="page" id="page-deposit">
-      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Deposit</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
-      <div id="depBody" class="pay"></div>
-    </section>
+    <section class="page acc-page" id="page-deposit"><div class="acc-root"></div></section>
 
     <!-- ============ WITHDRAW ============ -->
-    <section class="page" id="page-withdraw">
-      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Withdraw</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
-      <div id="wdBody" class="pay"></div>
-    </section>
+    <section class="page acc-page" id="page-withdraw"><div class="acc-root"></div></section>
+
+    <!-- ============ REGISTER ============ -->
+    <section class="page acc-page" id="page-register"><div class="acc-root"></div></section>
+
+    <!-- ============ LOGIN ============ -->
+    <section class="page acc-page" id="page-login"><div class="acc-root"></div></section>
+
+    <!-- ============ FORGOT ============ -->
+    <section class="page acc-page" id="page-forgot"><div class="acc-root"></div></section>
 
     <!-- ============ LEGAL ============ -->
     <section class="page" id="page-legal">
@@ -384,32 +387,6 @@
 </div>
 
 <!-- ============ MODALS ============ -->
-<div class="modal" id="loginModal">
-  <form class="modal-card" data-auth="login">
-    <button type="button" class="modal-x" data-close>×</button>
-    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
-    <h2>Welcome back</h2>
-    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
-    <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
-    <button class="btn btn-accent block">Login</button>
-    <p class="muted center">No account? <a href="#" data-switch="registerModal">Join Now</a></p>
-  </form>
-</div>
-<div class="modal" id="registerModal">
-  <form class="modal-card" data-auth="register">
-    <button type="button" class="modal-x" data-close>×</button>
-    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
-    <h2>Create account</h2>
-    <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
-    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
-    <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
-    <label>Email <span class="muted">(for receipts, optional)</span><input type="email" name="email" placeholder="you@example.com"></label>
-    <label class="otp-row" hidden>SMS code<input name="code" inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="6-digit code we sent you"></label>
-    <label class="check"><input type="checkbox" required> I am 18+ and accept the <a href="#/legal/terms">Terms &amp; Conditions</a></label>
-    <button class="btn btn-accent block">Register</button>
-    <p class="muted center">Have an account? <a href="#" data-switch="loginModal">Login</a></p>
-  </form>
-</div>
 
 <div class="modal" id="codeModal">
   <form class="modal-card" id="codeForm">
@@ -431,6 +408,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="api.js"></script>
+<script src="account.js"></script>
 <script src="motion.js"></script>
 <script src="icons.js"></script>
 <script src="games.js"></script>
