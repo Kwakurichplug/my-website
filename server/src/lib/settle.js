@@ -1,4 +1,5 @@
 // Grades a leg against a finished event, settles bets, and prices cashouts.
+import { createRequire } from 'node:module';
 import { q, tx } from '../db/pool.js';
 import { move } from './wallet.js';
 import { addTurnover } from './bonus.js';
@@ -7,36 +8,20 @@ import { sendEmail } from '../emails/index.js';
 const r3 = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
 const ou = (v, k) => { const L = parseFloat(k.slice(1)); return k[0] === 'o' ? v > L : v < L; };
 
+const M = createRequire(import.meta.url)('../../../betting/markets.js');
+
 /** Returns 'won' | 'lost' | 'void' for a leg given the event's final state. */
 export function gradeLeg(leg, ev) {
   const h = ev.score_home, a = ev.score_away, d = h - a, t = h + a, ok = leg.outcome_key || leg.outcome;
   const mk = leg.market_key || leg.market;
   const st = ev.stats || {};
-  const ht = [ev.ht_home ?? 0, ev.ht_away ?? 0];
-  let w;
-  switch (mk) {
-    case '1x2': w = r3(h, a) === ok; break;
-    case 'dc': w = ok.includes(r3(h, a)); break;
-    case 'dnb': if (d === 0) return 'void'; w = r3(h, a) === ok; break;
-    case 'gg': w = (h > 0 && a > 0) === (ok === 'gg'); break;
-    case 'ou': w = ou(t, ok); break;
-    case 'hou': w = ou(h, ok); break;
-    case 'aou': w = ou(a, ok); break;
-    case 'oe': w = (t % 2 === 1) === (ok === 'odd'); break;
-    case '1h1x2': w = r3(ht[0], ht[1]) === ok; break;
-    case '1hou': w = ou(ht[0] + ht[1], ok); break;
-    case 'htft': w = r3(ht[0], ht[1]) + '/' + r3(h, a) === ok; break;
-    case 'cs': w = ok === 'oth' ? (h > 4 || a > 4) : ok === `${h}-${a}`; break;
-    case 'eh-1': w = (d >= 2 ? '1' : d === 1 ? 'X' : '2') === ok; break;
-    case 'eh+1': w = (d >= 0 ? '1' : d === -1 ? 'X' : '2') === ok; break;
-    case 'cor': { const c = st.corners ? st.corners[0] + st.corners[1] : null; if (c == null) return 'void'; w = ou(c, ok); break; }
-    case 'next': { const n = +((leg.market_name || '').match(/\((\d+)\)/) || [0, 1])[1]; const g = (st.goals || [])[n - 1]; w = g ? (g.side ? '2' : '1') === ok : ok === 'none'; break; }
-    case 'win': if (d === 0) return 'void'; w = (d > 0 ? '1' : '2') === ok; break;
-    case 'hcp': { const hl = st.handicapLines || [-1.5, -3.5, -7.5]; const cover = d + hl[+ok[1]] > 0; w = ok.endsWith('1') ? cover : !cover; break; }
-    case 'tot': { const tot = st.total ?? t; w = ou(tot, ok); break; }
-    default: return 'void';
-  }
-  return w ? 'won' : 'lost';
+  // two-way sports (basketball, tennis…)
+  if (mk === 'win') return d === 0 ? 'void' : (d > 0 ? '1' : '2') === ok ? 'won' : 'lost';
+  if (mk === 'hcp') { const hl = st.handicapLines || [-1.5, -3.5, -7.5]; const cover = d + hl[+ok[1]] > 0; return (ok.endsWith('1') ? cover : !cover) ? 'won' : 'lost'; }
+  if (mk === 'tot') { const tot = st.total ?? t, L = parseFloat(ok.slice(1)); if (tot === L) return 'void'; return (ok[0] === 'o' ? tot > L : tot < L) ? 'won' : 'lost'; }
+  // football: every market key the engine offers (unknown keys are void, never paid)
+  return M.grade(mk, ok, { h, a, ht: ev.ht_home != null && ev.ht_away != null ? [ev.ht_home, ev.ht_away] : null,
+    corners: st.corners || null, cards: st.cards || null, goals: st.goals || null, marketName: leg.market_name || leg.marketName });
 }
 
 /** Settle every open leg on a finished event, then every bet that is now fully graded. */

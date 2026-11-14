@@ -315,3 +315,6 @@ CREATE INDEX IF NOT EXISTS otps_email_idx ON otps (email, created_at DESC) WHERE
 -- delivery log: sent (provider accepted it), logged (console provider), failed (with the reason)
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'sent';
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS error text;
+
+-- market set v2 (markets.js): the two legacy European handicap rows are replaced by the 'eh' table on open events
+DELETE FROM markets WHERE key IN ('eh-1','eh+1') AND event_id IN (SELECT id FROM events WHERE status IN ('scheduled','live'));

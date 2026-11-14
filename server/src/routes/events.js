@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { createRequire } from 'node:module';
 import { q } from '../db/pool.js';
+const M = createRequire(import.meta.url)('../../../betting/markets.js');
 
 const r = Router();
 
@@ -18,6 +20,7 @@ async function withMarkets(events, keys) {
   const ids = events.map(e => e.id);
   const { rows } = await q(`SELECT event_id, key, name, grp, cols, outcomes, suspended FROM markets WHERE event_id = ANY($1) ${keys ? 'AND key = ANY($2)' : ''}`, keys ? [ids, keys] : [ids]);
   const by = {};
+  rows.sort((a, b) => M.order(a.key) - M.order(b.key));
   rows.forEach(m => (by[m.event_id] ||= []).push({ key: m.key, name: m.name, group: m.grp, cols: m.cols, outcomes: m.outcomes, suspended: m.suspended }));
   return events.map(e => shape(e, by[e.id] || []));
 }
@@ -40,7 +43,7 @@ r.get('/', async (req, res, next) => {
   params.push(Math.min(+limit || 200, 500));
   try {
     const { rows } = await q(`${EV_SELECT} WHERE ${where.join(' AND ')} ORDER BY (e.status='live') DESC, e.kickoff LIMIT $${params.length}`, params);
-    const keys = markets ? String(markets).split(',') : ['1x2', 'dc', 'ou', 'gg', 'win', 'hcp', 'tot'];
+    const keys = markets ? String(markets).split(',') : ['1x2', 'dc', 'ou', 'gg', 'hou', 'aou', 'win', 'hcp', 'tot'];
     res.json({ events: await withMarkets(rows, keys) });
   } catch (e) { next(e); }
 });

@@ -25,7 +25,7 @@ async function createRound(kick) {
   for (let i = 0; i < 6; i++) {
     const m = { extId: `vl:${slot}:${uid}:${i}`, sport: 'vfootball', leagueId: lg, home: t[2 * i], away: t[2 * i + 1], kickoff: new Date(kick), status: 'scheduled',
       minute: 0, score: [0, 0], lh: 0.7 + rng() * 1.4, la: 0.5 + rng() * 1.2, stats: { round } };
-    const id = await upsertEvent(m, footballMarkets(m));
+    const id = await upsertEvent(m, footballMarkets(m, { noCorners: true, noCards: true }));
     await q('UPDATE events SET model = $2 WHERE id = $1', [id, { lh: m.lh, la: m.la, lc: 8 + rng() * 4 }]);
   }
 }
