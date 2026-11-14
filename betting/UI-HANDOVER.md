@@ -54,7 +54,7 @@ as CSS variables in `app.css` (`v6` block). Keep using the variables.
 | `--side` | 12px | **the one gutter**. Every section starts and ends 12px from the screen edge. |
 | `--ow` / `--og` | 67px / 1px | odds box width / gap (3 boxes = 203px) |
 | `--ink` | `#1b1e25` | dark panels (live block, match page, Me header, games) |
-| `--g` | `#0d9737` | primary green (odds text, active tabs) |
+| `--g` | `#0a7f32` | primary green (odds text, active tabs) – darkened from `#0d9737` in v15 to pass WCAG AA contrast |
 | `--g-bg` | `#d6ebdc` | light-green odds boxes |
 | `--live-g` | `#32ce62` | green on dark panels |
 | `--brand` | `#0a7d3e` | header green |
@@ -216,3 +216,58 @@ iPhone 13 size and placing it side-by-side (the environment allows
 - Toasts: `toast(msg)` / `toast(msg, 'err')`.
 - Navigation: set `location.hash`, never call render functions from links.
 - Country-specific text goes through `data-t="…"` spans and `applyCountry()`.
+
+---
+
+## 10. Update – November 2026 (account pages, reference rebuild, new games)
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<tab>`) and **withdraw** (`#/withdraw/<tab>`). Calls the API in live mode, simulates in demo mode. `PROVIDER:` comments mark where a payment provider plugs in. |
+| `pages.js` | `window.Pages`: screens rebuilt on the reference layout – **Live** (`#/live[/sport]`), **Sports filter** (`#/sports`), **event list** (`#/list/<sport>/<when>[/<lg,lg>\|out]`), **league** (`#/league/<idx>`), **Jackpot** (`#/jackpot[/results\|how\|tickets]`), **Promotions** (`#/promos[/tab]`, `#/promo/<id>`), **Results** (`#/results`), **Code Hub** (`#/codes`), **bet detail** (`#/bet/<id>`), **Instant Football** (`#/instant`). |
+| `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
+| `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
+
+Script order: `api.js → account.js → pages.js → motion.js → icons.js → games.js → app.js`.
+`app.js` exposes `window.LBA_APP` (state, data, render helpers, `live` flag) for the two modules;
+the router hands a route to `Account.render` / `Pages.render` when they claim it.
+The old login/register/deposit modals are gone – `openModal('loginModal' | 'registerModal' | 'depositModal')` now navigates to the pages.
+
+### Design notes
+
+- Inner pages use a 48px **brand-green header** (`.pg-head` / `.wl-head`) with back + actions, and hide the site top bar on phones, as the reference does. The reference's red is *their* brand – keep ours green.
+- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns.
+- Desktop (≥1024px) shows **Over/Under 2.5 beside 1X2** in every list (`exCols` / `exHead` in `app.js`).
+- Dark mode: toggle on the Me page, saved in `localStorage.lba_theme`, applied in `<head>` before first paint.
+- Offline banner appears when the connection drops.
+
+### Server endpoints added
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/wallet/transfer` | Transfer to Friend: moves money between two players in the same country through the ledger (`transfer_out` / `transfer_in`). |
+| `POST /api/jackpot/tickets`, `GET /api/jackpot/tickets` | Buys a 12-game jackpot ticket (multi-pick lines × line price, ledger type `jackpot`) and lists the player's tickets. |
+| `GET /api/virtuals/instant/round`, `POST /api/virtuals/instant/play` | Instant Football. The server prices the round, takes the stake, plays the round with a CSPRNG **after** the stake is taken, settles and pays. A round can be played once. |
+
+Also fixed: live markets read from Postgres `jsonb` came back with re-sorted keys (Home/Away/Draw, Over/Under rows paired wrongly). `mapMarkets` now restores betting order.
+
+### Testing used for this round
+
+All in the cloud session with the pre-installed Playwright, against both `file://…/betting/index.html` (demo) and the API server on `http://127.0.0.1:8080/` (live) with a local Postgres:
+
+- account flows (register with SMS code, login, reset, deposit per method, withdraw with ID check, transfer) – demo and live
+- every rebuilt page (filters, collapse, outrights, jackpot purchase, promos, results day nav, Code Hub add-to-slip, bet detail rebet/cashout, Instant Football incl. replay protection)
+- smoke test of 29 routes in both modes: no JS errors, no horizontal scroll
+- axe-core WCAG 2 AA audit on 19 pages
+- column-alignment check on phone and desktop
+- side-by-side screenshots against the reference at iPhone 13 size
+
+Note: `localhost:<port>` is treated as "no server" by `api.js` – use `127.0.0.1` when testing live mode locally.
+
+### Still open
+
+- Payment provider (Paystack/Flutterwave, MoMo collections), SMS provider, KYC provider – the UI flows are ready; see `PROVIDER:` comments.
+- Outright **betting** (prices are shown; placing needs server markets).
+- More games (Penalty Kick, Spin & Win, Lucky Dice) and an Aviator-style lobby entry.
