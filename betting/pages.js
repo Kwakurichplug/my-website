@@ -568,6 +568,10 @@
     <rect x="80" y="216" width="80" height="14" rx="2" fill="#2a1a00" opacity=".55"/>
     <text x="120" y="227" text-anchor="middle" font-family="Kanit,Roboto,sans-serif" font-style="italic" font-weight="800" font-size="10" fill="#ffd76a" letter-spacing="1">LETBET AFRIKA</text>
   </svg>`;
+  // LetBetAfrika trophy: our own 3D render (tools/trophy) – gold cup with the LB monogram, green wordmark plinth.
+  const TROPHY_SRCSET = 'img/trophy-lb-600.webp 600w, img/trophy-lb.webp 900w', TROPHY_SIZES = '(min-width: 500px) 380px, 84vw';
+  // warm the cache once the app is idle so the celebration never waits for the image
+  (window.requestIdleCallback || ((f) => setTimeout(f, 3000)))(() => { const i = new Image(); i.sizes = TROPHY_SIZES; i.srcset = TROPHY_SRCSET; i.src = 'img/trophy-lb-600.webp'; });
   function trophy({ amount, source = 'Sport', ref = '', href = '' } = {}) {
     const a = A(); if (!(amount > 0)) return;
     let el = $('#trophyOv');
@@ -575,7 +579,7 @@
     const code = a.C.cur === '₦' ? 'NGN' : 'GHS';
     el.innerHTML = `<button class="tr-x" data-tr="close" aria-label="Close">×</button>
       <div class="tr-top"><h2>YOU WON</h2><b class="tr-amt">${code} <span id="trAmt">0.00</span></b></div>
-      <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div><img class="tr-img" src="img/trophy-720.webp" srcset="img/trophy-720.webp 720w, img/trophy.webp 1080w" sizes="(min-width: 500px) 340px, 78vw" alt="Gold trophy" decoding="async" onerror="this.parentNode.classList.add('noimg')">${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
+      <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div><img class="tr-img" src="img/trophy-lb-600.webp" srcset="${TROPHY_SRCSET}" sizes="${TROPHY_SIZES}" width="900" height="1080" alt="LetBetAfrika gold trophy" decoding="async" onerror="this.parentNode.classList.add('noimg')">${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
       <p class="tr-src">From ${esc(source)}${ref ? ` / Ticket ID ${esc(ref)}` : ''}</p>
       <div class="tr-btns">${href ? `<a class="tr-btn ghost" href="${href}" data-tr="close">Details</a>` : `<button class="tr-btn ghost" data-tr="close">Close</button>`}<button class="tr-btn" data-tr="share">Show Off</button></div>`;
     el._share = `I just won ${a.money(amount)} on LetBetAfrika${source ? ' (' + source + ')' : ''}! 🏆`;
