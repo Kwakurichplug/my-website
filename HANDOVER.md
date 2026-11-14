@@ -117,6 +117,9 @@ Earn reward per country (₦1,000 / GH₵10).
   score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
   were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
   covered by `test/grade.test.js`.
+- **Match page on our design**: green header bar, our tab style, market groups stay pinned under the header while
+  scrolling, line icons for info and favourites, and the list's Over/Under line cell opens a picker with every open
+  line and its prices. Desktop shows only the betslip column (no floating betslip button).
 - **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
   pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
   and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).

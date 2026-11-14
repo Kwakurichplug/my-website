@@ -272,6 +272,13 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   Release: open/close by distance (30% down, 28% up from the pill) and velocity (±0.45 px/ms), with the spring
   transition. `.bs-grab` handle, `html.slip-open` locks the page, rows animate with `.bs-in` / `.bs-out`.
 - **Match page & market set** (`v25`, `markets.js` + `app.js`): see `MARKETS-FEATURE.md` at the repo root.
+- **Market feature on our design** (`v27`, `app.css` + `app.js`): pre-match header is our green bar (`var(--brand)`,
+  white title/icons, gold star when on); *Markets | Statistics | Match Info* are equal tabs with the 3px `--g` underline;
+  the market groups (`#mdGroups`) stick under the header (`top: calc(var(--top-h) + 48px)`, 138px on desktop) and the
+  three tabs scroll away. Info (`INFO`) and favourite (`STAR`) are line icons – outline, filled gold when on. The list
+  Over/Under line cell (`.odd.lsel`) is a neutral grey picker: tap opens `#lineModal` (rows `.ln-row`, `data-lpick=
+  "<mid>|<mk>|<line>"`, current line `.on`) listing every open line with its Over/Under prices; picking sets
+  `m.uiLine[mk]` and re-renders the row. Desktop never shows `#slipPill` (the betslip column is always there).
 - **Deposit & withdraw** (`v24`, `account.js`, classes `.wx-*`): `.wx-hero` balance card (gradient, Withdraw/Deposit +
   Transactions links), `.wx-bonus` first-deposit banner, `.wx-card` sections, `.wx-methods` tile grid (`data-method`, a
   check badge on the selected one; switching keeps the typed amount and uses `location.replace`), `.wx-sub` method
