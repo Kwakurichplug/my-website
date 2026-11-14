@@ -1144,10 +1144,19 @@
     }
     SERVER_LEAGUES[l.id] = idx; return idx;
   }
+  // Postgres jsonb re-sorts object keys, so put outcomes back in betting order (1 X 2, Over before Under, lines ascending)
+  const FIXED = { '1': 0, '1X': 0, X: 1, '12': 1, none: 1, '2': 2, X2: 2, gg: 0, ng: 1, odd: 0, even: 1, oth: 999 };
+  const okRank = k => {
+    if (k in FIXED) return FIXED[k];
+    let r = /^([ou])(\d+(?:\.\d+)?)$/.exec(k); if (r) return +r[2] * 10 + (r[1] === 'o' ? 0 : 1);
+    r = /^h(\d+)([12])$/.exec(k); if (r) return +r[1] * 10 + +r[2];
+    r = /^(\d+)-(\d+)$/.exec(k); if (r) return 100 + +r[1] * 10 + +r[2];
+    return 500;
+  };
   function mapMarkets(m, markets) {
     if (!markets) return;
     const old = m.map || {};
-    const mk = markets.map(x => ({ key: x.key, name: x.name, group: x.group, cols: x.cols, outs: Object.entries(x.outcomes).map(([k, o]) => ({ k, l: o.l, o: x.suspended ? null : o.o })) }));
+    const mk = markets.map(x => ({ key: x.key, name: x.name, group: x.group, cols: x.cols, outs: Object.entries(x.outcomes).sort((a, b) => okRank(a[0]) - okRank(b[0])).map(([k, o]) => ({ k, l: o.l, o: x.suspended ? null : o.o })) }));
     const have = new Set(mk.map(x => x.key));
     (m.mk || []).forEach(x => { if (!have.has(x.key)) mk.push(x); });   // list payloads are partial; keep detail markets
     const map = {}; mk.forEach(x => { map[x.key] = {}; x.outs.forEach(o => { if (o.k) map[x.key][o.k] = o; }); });
