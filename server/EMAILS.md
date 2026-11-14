@@ -103,7 +103,8 @@ SUPPORT_EMAIL=support@letbetafrika.com
 
 **Live site:** Spacemail mailbox `info@letbetafrika.online` – `EMAIL_PROVIDER=smtp`, `SMTP_HOST=mail.spacemail.com`,
 `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=info@letbetafrika.online`, `EMAIL_FROM=LetBetAfrika <info@letbetafrika.online>`,
-`SUPPORT_EMAIL=info@letbetafrika.online` are set in Railway; the owner adds `SMTP_PASS`. Railway allows outbound SMTP
+`SUPPORT_EMAIL=info@letbetafrika.online`, `SITE_URL=https://letbetafrika.online` and `SMTP_PASS` are set in Railway (live:
+the boot log says `– ready`). Railway allows outbound SMTP
 on the Pro plan only (Free/Trial/Hobby block it – use Resend there).
 
 At boot the server checks the connection and logs one line, e.g.

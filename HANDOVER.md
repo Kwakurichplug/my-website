@@ -3,7 +3,8 @@
 > **The standard:** this is a paid, commercial-grade product. Every task must meet `docs/QUALITY-BAR.md`
 > (Definition of Done) – official, professional, nothing fake, money always correct.
 >
-> **Live site:** https://api-production-2673beb3.up.railway.app (Railway project `letbetafrika` → service `api`, source branch `claude/bold-mccarthy-71siq8`).
+> **Live site:** https://letbetafrika.online (custom domain, certificate valid) and https://api-production-2673beb3.up.railway.app
+> (Railway project `letbetafrika` → service `api`, source branch `claude/bold-mccarthy-71siq8`).
 > **Deploys are NOT automatic on push** – trigger them as described in §8.
 >
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
@@ -81,7 +82,8 @@ Email (see §7 step 1 and `server/EMAILS.md`): `EMAIL_PROVIDER` = `console` (def
 or `RESEND_API_KEY` / `SENDGRID_API_KEY`. Secrets go in Railway variables only.
 **Live site (set):** `EMAIL_PROVIDER=smtp`, `EMAIL_FROM=LetBetAfrika <info@letbetafrika.online>`, `SMTP_HOST=mail.spacemail.com`,
 `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=info@letbetafrika.online`, `SUPPORT_EMAIL=info@letbetafrika.online` (Spacemail
-mailbox, Railway Pro allows outbound SMTP). **`SMTP_PASS` is added by the owner** in Railway → `api` → Variables.
+mailbox, Railway Pro allows outbound SMTP), `SMTP_PASS` (set in Railway only – never in git), `SITE_URL=https://letbetafrika.online`
+(email buttons link there).
 `NODE_ENV=production` hides sign-up codes; outside production, a channel without a provider runs in test mode and
 shows the code on screen.
 
@@ -186,10 +188,10 @@ Golden rules: the stake is taken **before** the result is drawn; results come fr
 
 The site is wired end to end. The owner's next steps are **SMTP → payments → admin portal**. Exact hook points:
 
-1. **SMTP email – connected to Spacemail (`info@letbetafrika.online`), only `SMTP_PASS` is missing:**
-   - Add `SMTP_PASS` (the mailbox password) in Railway → `api` → Variables and deploy. The boot log then prints
+1. **SMTP email – DONE: Spacemail (`info@letbetafrika.online`) is live.** The boot log prints
      `[email] smtp mail.spacemail.com:465 as LetBetAfrika <info@letbetafrika.online> – ready` (or the exact problem:
-     `EAUTH` = wrong password, `NOT reachable` = network). It re-checks every 10 minutes until it works.
+     `EAUTH` = wrong password, `NOT reachable` = network). It re-checks every 10 minutes until it works. If the mailbox
+     password changes, update `SMTP_PASS` in Railway and redeploy the branch (see the warning in §8).
    - Admin checks: `GET /api/admin/email/status?check=1` (provider, server, ready, last error), `GET /api/admin/email/log`
      (sent / logged / failed with reason), `POST /api/admin/email/test {"to": "you@example.com"}`.
    - Everything sends through it: sign-up / reset / email-change codes, welcome, deposits, withdrawals, bets, cashout,
@@ -242,7 +244,16 @@ start `npm start`, healthcheck `/health`). Postgres is the `Postgres` service in
 The schema (`server/src/db/schema.sql`) is applied on every boot, so it must stay **idempotent** – when you change an
 index or constraint, edit the original statement too (a later `DROP` is not enough: the original line runs first).
 
-**Pushing does NOT deploy automatically** (the GitHub trigger did not fire for this branch). To deploy:
+**Pushing does NOT deploy automatically** (the GitHub trigger did not fire for this branch).
+
+> **Warning – variable changes deploy the wrong branch.** The repository's default branch is named `(/root)` and only
+> holds an old two-file upload. Railway's service source has no branch saved, so when a variable is changed in Railway
+> its automatic redeploy builds `(/root)`, **fails**, and the site keeps running the previous deployment *without* the
+> new variable. Fix once: Railway → `api` → *Settings → Source* → set the branch to `claude/bold-mccarthy-71siq8`
+> (or make that the GitHub default branch). Until then: change variables with *skip deploy* (or ignore the failed
+> build) and deploy the branch as below.
+
+To deploy:
 - Railway dashboard → `api` → *Deployments* → *Deploy latest commit*; or
 - reconnect the source to the branch (dashboard *Settings → Source*, or the Railway MCP `connect-service-source`),
   which builds the branch head; or the CLI `railway up` from the repo root.
