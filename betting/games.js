@@ -3,7 +3,9 @@
    Artwork is drawn in SVG so it is crisp and ours to use.
    Rocket Crash runs two ways:
      live – shared rounds from the server (/api/games/crash/*), real bets
-            from real players, provably fair (hash before, seed after)
+            from real players. Each round is committed before betting opens and can be
+            audited on the server (GET /api/games/crash/verify/:id – for the admin portal,
+            never shown to players)
      demo – the same maths in the browser when there is no server
    ========================================================= */
 (() => {
@@ -117,7 +119,6 @@
       if (r.id === m.round && r.phase === 'crashed' && !m.out && !m.lost) { m.lost = true; api.toast(`Crashed at ${fmtX(r.point)} – bet lost`, 'err'); }
       if (r.id > m.round) LV.mine = null;
     }
-    if ($id('crFairBox')?.open && LV.fairRound !== r.id) { LV.fairRound = r.id; renderFair(api); }
     if (LV.queued && r.phase !== 'crashed' && r.id !== LV.queued.after && Date.now() + LV.off < r.startsAt - 300 && !LV.busy) { const q = LV.queued; LV.queued = null; livePlace(api, q); }
   }
   async function livePlace(api, nb) {
@@ -278,29 +279,6 @@
     if ($id('crBets').innerHTML !== rows) $id('crBets').innerHTML = rows;
   }
 
-  /* ----- provably fair panel (live) ----- */
-  async function sha256hex(txt) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
-  async function pointOf(seed) {
-    const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(seed), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const h = [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('LetBetAfrika Rocket Crash')))].map(x => x.toString(16).padStart(2, '0')).join('');
-    return GL.crashPoint(parseInt(h.slice(0, 13), 16) / 2 ** 52);
-  }
-  function renderFair(api) {
-    const el = $id('crFair'); if (!el) return;
-    if (!isLive(api)) { el.innerHTML = '<p>Rounds in demo mode are drawn in your browser. On the live site every round is provably fair.</p>'; return; }
-    const st = LV.st; if (!st || !st.round) { el.innerHTML = '<p>Loading…</p>'; return; }
-    el.innerHTML = `<p>Before betting opens we publish the round's <b>hash</b> = SHA-256(seed). After the crash we reveal the <b>seed</b>.
-      The crash point is <code>crashPoint(HMAC-SHA256(seed, "LetBetAfrika Rocket Crash") first 13 hex digits ÷ 2<sup>52</sup>)</code> – 3% house edge, top 200x.</p>
-      <div class="cr-frow cur"><span>#${st.round.id}</span><span>now</span><code>${st.round.hash}</code></div>
-      ${st.history.slice(0, 10).map(h => `<div class="cr-frow"><span>#${h.id}</span><b>${fmtX(h.point)}</b><code>${h.seed}</code><button data-crv="${h.id}">Verify</button></div>`).join('')}`;
-  }
-  async function verifyRound(api, id, btn) {
-    const h = LV.st && LV.st.history.find(x => x.id === +id); if (!h) return;
-    if (!window.crypto || !crypto.subtle) return api.toast('Your browser cannot verify here – use any SHA-256 tool', 'err');
-    const ok = (await sha256hex(h.seed)) === h.hash && (await pointOf(h.seed)) === h.point;
-    btn.textContent = ok ? 'Verified' : 'Mismatch'; btn.className = ok ? 'ok' : 'bad';
-  }
-
   function loop(api) {
     tick(api); draw(); renderPanel(api);
     CR.raf = requestAnimationFrame(() => loop(api));
@@ -312,9 +290,7 @@
     CR.phase = 'conn';
     $id('crQuick').innerHTML = api.C.chips.map(v => `<button data-crq="${v}">${api.whole(v)}</button>`).join('');
     $id('crStake').value = api.C.defStake;
-    document.addEventListener('toggle', e => { if (e.target.id === 'crFairBox' && e.target.open) renderFair(api); }, true);
     document.addEventListener('click', e => {
-      const v = e.target.closest('[data-crv]'); if (v) return verifyRound(api, v.dataset.crv, v);
       const t = e.target.closest('[data-cr],[data-crq],#crBtn'); if (!t) return;
       const st = $id('crStake');
       if (t.dataset.cr) { st.value = Math.max(api.C.minStake, (+st.value || 0) + (t.dataset.cr === '+' ? api.C.chips[0] : -api.C.chips[0])); return; }

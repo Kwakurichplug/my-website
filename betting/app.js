@@ -603,60 +603,48 @@
     return `<div class="srow"><div class="snum"><b>${a}${pct ? '%' : ''}</b><span>${label}</span><b>${b}${pct ? '%' : ''}</b></div>
       <div class="sbar"><i class="h" style="width:${pa}%"></i><i class="a" style="width:${100 - pa}%"></i></div></div>`;
   }
+  // What the betting market expects – implied probabilities from the current prices, margin removed.
+  function implied(m, mk, keys) {
+    const o = m.map[mk]; if (!o) return null;
+    const p = keys.map(k => (o[k] && o[k].o ? 1 / o[k].o : 0)), s = p.reduce((a, b) => a + b, 0);
+    return s && p.every(Boolean) ? p.map(x => x / s) : null;
+  }
+  function marketView(m) {
+    const keys = m.two ? ['1', '2'] : ['1', 'X', '2'], w = implied(m, m.two ? 'win' : '1x2', keys);
+    if (!w) return '';
+    const pc = x => Math.round(x * 100), lab = m.two ? [m.home, m.away] : [m.home, 'Draw', m.away];
+    const ou = !m.two && implied(m, 'ou', ['o2.5', 'u2.5']), gg = !m.two && implied(m, 'gg', ['gg', 'ng']);
+    const one = (label, x) => `<div class="mv-row"><span>${label}</span><div class="mv-track"><i style="width:${pc(x)}%"></i></div><b>${pc(x)}%</b></div>`;
+    return `<h4 class="sh">Market view <small>${m.live ? 'live odds' : 'current odds'}, bookmaker margin removed</small></h4>
+      <div class="mv-split">${w.map((x, i) => `<i class="s${m.two ? [0, 2][i] : i}" style="flex:${Math.max(x, 0.04)}"></i>`).join('')}</div>
+      <div class="mv-labels">${w.map((x, i) => `<span><b>${pc(x)}%</b>${esc(lab[i])}</span>`).join('')}</div>
+      ${ou ? one('Over 2.5 goals', ou[0]) : ''}${gg ? one('Both teams to score', gg[0]) : ''}`;
+  }
   function statsHTML(m) {
     const legend = `<div class="slegend"><span>${crest(m.home, 0, m.sport)} ${esc(m.home)}</span><span>${esc(m.away)} ${crest(m.away, 0, m.sport)}</span></div>`;
-    if (m.two) {
-      return `<div class="card-pad">${legend}${m.live ? statRow('Score', m.score[0], m.score[1]) : ''}
-        <p class="muted center pad">Detailed ${sportOf(m.sport).name.toLowerCase()} statistics will appear here from the data provider.</p></div>`;
-    }
-    if (!m.live) {
-      const r = mkRng(m.id * 7);
-      const f = x => +r2(x).toFixed(2);
-      return `<div class="card-pad">${legend}
-        <h4 class="sh">Season averages</h4>
-        ${statRow('Goals scored / game', f(m.lh + 0.2), f(m.la + 0.2))}
-        ${statRow('Goals conceded / game', f(1.6 - m.lh * 0.4), f(1.7 - m.la * 0.4))}
-        ${statRow('Clean sheets', Math.round(2 + r() * 6), Math.round(2 + r() * 6))}
-        ${statRow('Corners / game', f(m.lc * 0.55), f(m.lc * 0.45))}
-        ${statRow('Possession', Math.round(45 + m.lh * 5), 100 - Math.round(45 + m.lh * 5), true)}
-      </div>`;
-    }
-    const s = m.st;
+    const mv = marketView(m);
+    if (!m.live) return `<div class="card-pad">${legend}${mv || '<p class="muted center pad">Prices for this match are not open yet.</p>'}</div>`;
+    const s = m.st, rows = [statRow('Score', m.score[0], m.score[1])];
+    // only statistics the data feed actually provides (the demo simulation provides all of them)
+    if (!LIVE && !m.two) rows.push(statRow('Possession', s.poss[0], s.poss[1], true), statRow('Dangerous attacks', s.att[0], s.att[1]), statRow('Shots', s.shots[0], s.shots[1]), statRow('Shots on target', s.sot[0], s.sot[1]), statRow('Yellow cards', s.yc[0], s.yc[1]));
+    if (!m.two && (s.corners[0] + s.corners[1] > 0)) rows.push(statRow('Corners', s.corners[0], s.corners[1]));
     const tl = [...m.ev].reverse().map(e => `<li class="${e.side ? 'a' : 'h'}"><span class="tmin">${e.min}'</span><span class="tic">${e.type === 'goal' ? '⚽' : '🟨'}</span><span>${e.type === 'goal' ? 'Goal' : 'Yellow card'} – ${esc(e.side ? m.away : m.home)}</span></li>`).join('');
-    return `<div class="card-pad">${legend}
-      ${statRow('Possession', s.poss[0], s.poss[1], true)}
-      ${statRow('Dangerous attacks', s.att[0], s.att[1])}
-      ${statRow('Shots', s.shots[0], s.shots[1])}
-      ${statRow('Shots on target', s.sot[0], s.sot[1])}
-      ${statRow('Corners', s.corners[0], s.corners[1])}
-      ${statRow('Yellow cards', s.yc[0], s.yc[1])}
-      <h4 class="sh">Timeline</h4>
-      <ul class="timeline">${tl || '<li class="muted">No events yet</li>'}<li class="ko"><span class="tmin">0'</span><span class="tic">🏁</span><span>Kick-off</span></li></ul>
-    </div>`;
+    return `<div class="card-pad">${legend}${rows.join('')}
+      ${m.two ? '' : `<h4 class="sh">Timeline</h4><ul class="timeline">${tl || '<li class="muted">No goals yet</li>'}<li class="ko"><span class="tmin">0'</span><span class="tic">🏁</span><span>Kick-off</span></li></ul>`}
+      ${mv}</div>`;
   }
   function infoHTML(m) {
-    const r = mkRng(m.id * 13 + 5);
-    const form = l => Array.from({ length: 5 }, () => { const x = r(); return x < 0.3 + l * 0.12 ? 'W' : x < 0.62 + l * 0.05 ? 'D' : 'L'; });
-    const fh = form(m.two ? 1 : m.lh), fa = form(m.two ? 1 : m.la);
-    const lh = m.two ? 1.5 : m.lh, la = m.two ? 1.3 : m.la;
-    const yr = new Date().getFullYear();
-    const h2h = Array.from({ length: 5 }, (_, i) => {
-      const home = i % 2 ? m.away : m.home, away = i % 2 ? m.home : m.away;
-      const a = samplePois(i % 2 ? la : lh, r), b = samplePois(i % 2 ? lh : la, r);
-      return `<li><span class="muted">${String(1 + Math.floor(r() * 28)).padStart(2, '0')}/${String(1 + Math.floor(r() * 12)).padStart(2, '0')}/${yr - 1 - Math.floor(i / 2)}</span><span class="hh">${esc(home)}</span><b>${a} - ${b}</b><span class="ha">${esc(away)}</span></li>`;
-    }).join('');
-    const pill = f => f.map(x => `<i class="f${x}">${x}</i>`).join('');
-    const lg = league(m);
+    const lg = league(m), sp = sportOf(m.sport).name;
+    const rules = m.two ? `${sp} markets include overtime unless the market name says otherwise.`
+      : 'Football markets settle on the result after 90 minutes plus stoppage time (extra time and penalties do not count), unless the market name says otherwise. If the match is postponed or abandoned and not completed within 48 hours, bets on it are void.';
     return `<div class="card-pad">
-      <h4 class="sh">Recent form</h4>
-      <div class="form-row">${crest(m.home, 0, m.sport)}<span>${esc(m.home)}</span><div class="pills">${pill(fh)}</div></div>
-      <div class="form-row">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span><div class="pills">${pill(fa)}</div></div>
-      <h4 class="sh">Head-to-head (last 5)</h4>
-      <ul class="h2h">${h2h}</ul>
       <h4 class="sh">Match info</h4>
-      <dl class="minfo"><dt>Competition</dt><dd>${lg.flag} ${esc(lg.full)}</dd><dt>Kick-off</dt><dd>${new Date(m.kick).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</dd><dt>Event ID</dt><dd>${m.id}</dd></dl>
+      <dl class="minfo"><dt>Competition</dt><dd>${lg.flag} ${esc(lg.full)}</dd><dt>Kick-off</dt><dd>${new Date(m.kick).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</dd><dt>Status</dt><dd>${m.finished ? 'Finished' : m.live ? 'Live' : 'Not started'}</dd><dt>Event ID</dt><dd>${m.id}</dd></dl>
+      <h4 class="sh">How bets on this match settle</h4>
+      <p class="minfo-p">${rules}</p>
     </div>`;
   }
+
 
   /* ---------------- Betslip ---------------- */
   const BOOST = n => n >= 20 ? 1000 : n >= 15 ? 500 : n >= 10 ? 200 : n >= 5 ? 50 : n >= 3 ? 5 : 0;
@@ -731,7 +719,7 @@
       $('#bsWin').textContent = valid.length > 1 ? `${fmtN(lo)} ~ ${fmtN(wins.reduce((a, w) => a + w, 0))}` : fmtN(hi);
       $('#bsPay').textContent = `About to pay ${fmtN(totStake)}`;
     } else {
-      const c = valid.length, boost = BOOST(c), base = stake * total;
+      const c = valid.filter(x => x.odd >= 1.2).length, boost = BOOST(c), base = stake * total;   // Acca Win Boost counts selections at odds 1.20+
       const next = BOOST_STEPS.find(x => x > c);
       $('#bsStakeLbl').textContent = 'Stake';
       $('#bsOdds').parentElement.hidden = false;
@@ -739,7 +727,7 @@
       $('#bsTotStake').textContent = fmtN(stake);
       $('#bsBoost').textContent = boost + '%';
       $('#bbFill').style.width = Math.min(100, c / 20 * 100) + '%';
-      $('#bbText').textContent = next ? `Add ${next - c} more for ${BOOST(next)}% boost` : 'Max boost unlocked';
+      $('#bbText').textContent = next ? `Add ${next - c} more (odds 1.20+) for ${BOOST(next)}% boost` : 'Max boost unlocked';
       const winV = base + (base - stake) * boost / 100;
       if (window.Motion && state._lastWin != null && Math.abs(state._lastWin - winV) > 0.004) Motion.countUp($('#bsWin'), state._lastWin, winV, fmtN, 380);
       else $('#bsWin').textContent = fmtN(winV);
@@ -763,7 +751,7 @@
     if (single) {
       legs.forEach((l, i) => { const st = +state.slip[i].stake; state.bets.unshift({ id: 'T' + Date.now().toString(36).toUpperCase() + i, at: Date.now(), type: 'Single', legs: [l], stake: st, odds: l.odd, win: st * l.odd, status: 'open' }); });
     } else {
-      const total = legs.reduce((a, l) => a * l.odd, 1), boost = BOOST(legs.length), base = stake * total;
+      const total = legs.reduce((a, l) => a * l.odd, 1), boost = BOOST(legs.filter(l => l.odd >= 1.2).length), base = stake * total;
       state.bets.unshift({ id: 'T' + Date.now().toString(36).toUpperCase(), at: Date.now(), type: `Multiple · ${legs.length} legs`, legs, stake, odds: total, boost, win: base + (base - stake) * boost / 100, status: 'open' });
     }
     state.slip = []; state.slipType = 'multi'; saveSlip(); saveUser(); saveBets();
@@ -1058,9 +1046,15 @@
   const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
+    // live: bonus progress and referral stats come from the server
+    if (LIVE && state.user && (sec === 'bonus' || sec === 'refer') && Date.now() - (renderAcct['_' + sec] || 0) > 4000) {
+      renderAcct['_' + sec] = Date.now();
+      (sec === 'bonus' ? API.wallet.bonuses().then(r => { state.bonuses = r; }) : API.auth.referrals().then(r => { state.referrals = r; }))
+        .then(() => { if (state.route === 'acct' && state.arg === sec) renderAcct(sec); }).catch(() => {});
+    }
     if (LIVE && sec === 'tx' && state.user && Date.now() - (renderAcct._txAt || 0) > 4000) {
       renderAcct._txAt = Date.now();
-      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
+      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', referral: 'Referral reward', jackpot_win: 'Jackpot win', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
     }
     if (LIVE && sec === 'bets' && state.user) liveBets().then(() => { if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML(); });
     $('#acTitle').textContent = ACCT[sec];
@@ -1083,20 +1077,35 @@
         return `<div class="market-tabs">${Object.entries(F).map(([k, v]) => `<button data-txf="${k}" class="${k === f ? 'active' : ''}">${v}</button>`).join('')}</div>
           <div class="tx-list">${list.length ? list.map(t => `<div class="tx"><div><b>${t.type}${t.status ? ` <em class="tx-st ${t.status}">${t.status === 'pending' ? 'Pending' : t.status === 'failed' ? 'Failed' : 'Successful'}</em>` : ''}</b><small>${new Date(t.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}${t.method ? ' · ' + esc(t.method) : ''}</small>${t.ref ? `<small class="tx-ref">Ref ${esc(t.ref)}</small>` : ''}</div><div class="tx-r"><b class="${t.amt > 0 ? 'pos' : 'neg'}">${t.amt > 0 ? '+' : '−'}${money(Math.abs(t.amt))}</b><small>Bal ${money(t.bal)}</small></div></div>`).join('') : '<div class="empty">No transactions yet. Deposits, bets and winnings appear here.</div>'}</div>`;
       },
-      bonus: () => `<div class="card-list">
-          <div class="bonus"><div><b>200% Welcome Bonus</b><small>Up to ${whole(C.bonusMax)} on your first deposit</small></div><span class="status ${state.tx.some(t => t.type === 'Deposit') ? 'open' : 'won'}">${state.tx.some(t => t.type === 'Deposit') ? 'ACTIVE' : 'AVAILABLE'}</span></div>
-          <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 1000% extra on 3+ selection multiples</small></div><span class="status open">ACTIVE</span></div>
+      bonus: () => {
+        const B = LIVE ? state.bonuses : null, wb = B && B.bonuses.find(x => x.kind === 'welcome'), rules = (B && B.rules) || { times: 5, min_odds: 1.5, days: 14 };
+        let welcome;
+        if (LIVE && !B) welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>Loading…</small></div></div>`;
+        else if (wb) {
+          const pct = Math.min(100, wb.wagered / wb.required * 100), left = Math.max(0, wb.required - wb.wagered);
+          welcome = `<div class="bonus wb"><div><b>200% Welcome Bonus · ${money(wb.amount)}</b>
+            <small>${wb.status === 'active' ? `Stake ${money(left)} more on multiples (every selection ${(+rules.min_odds).toFixed(2)} or more) by ${new Date(wb.expiresAt).toLocaleDateString()} to unlock it.` : wb.status === 'released' ? `Unlocked and added to your balance on ${new Date(wb.releasedAt).toLocaleDateString()}.` : 'Expired before the stake target was reached.'}</small>
+            ${wb.status === 'active' ? `<div class="wb-bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><small>${money(wb.wagered)} of ${money(wb.required)} staked</small>` : ''}</div>
+            <span class="status ${wb.status === 'active' ? 'open' : wb.status === 'released' ? 'won' : 'lost'}">${wb.status === 'active' ? 'LOCKED' : wb.status.toUpperCase()}</span></div>`;
+        } else if (!LIVE || B.eligible) welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>Make your first deposit and get 200% of it as a bonus, up to ${whole(C.bonusMax)}. Unlock it by staking ${rules.times}× the bonus on multiples (every selection ${(+rules.min_odds).toFixed(2)}+) within ${rules.days} days.</small></div><span class="status won">AVAILABLE</span></div>`;
+        else welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>For a player's first deposit only.</small></div><span class="status lost">NOT ELIGIBLE</span></div>`;
+        return `<div class="card-list">${welcome}
+          <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 1000% extra winnings on multiples with 3 or more selections at odds 1.20+</small></div><span class="status open">ACTIVE</span></div>
           <div class="bonus"><div><b>Free Bets</b><small>You have no free bets right now</small></div><span class="status lost">NONE</span></div>
-        </div>`,
-      refer: () => { const code = 'LBA' + String(u.uid).slice(-5); const msg = encodeURIComponent(`Join me on LetBetAfrika and get a 200% welcome bonus. Use my code ${code}`);
-        return `<div class="card-pad refer"><p>Invite friends and get <b>${whole(C.referral)}</b> when they join and place their first bet.</p>
+        </div>`;
+      },
+      refer: () => {
+        const R = LIVE ? state.referrals : null, code = LIVE ? ((R && R.code) || u.refCode || '…') : 'LB' + u.uid, reward = R ? R.reward : C.referral;
+        const msg = encodeURIComponent(`Join me on LetBetAfrika and get a 200% welcome bonus on your first deposit. Use my code ${code} when you sign up: ${location.origin}`);
+        return `<div class="card-pad refer"><p>Invite friends. When a friend who signed up with your code has staked <b>${whole(reward)}</b> or more on sports bets, you get <b>${whole(reward)}</b> in cash.</p>
           <div class="code-box"><span>Your code</span><b>${code}</b><button class="btn btn-accent sm" data-copy="${code}">Copy</button></div>
           <a class="btn btn-ghost block mt" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a>
-          <div class="ref-stats"><div><b>0</b><small>Friends joined</small></div><div><b>${whole(0)}</b><small>Earned</small></div></div></div>`; },
-      messages: () => `<div class="card-list">${[
-          ['Welcome to LetBetAfrika', 'Your account is ready. Make your first deposit to unlock the 200% welcome bonus.'],
-          ['Acca Win Boost is on', 'Add 3 or more selections to a multiple and get up to 1000% extra winnings.'],
-          ['Play responsibly', 'Set deposit limits any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${new Date(Date.now() - i * 864e5).toLocaleDateString()}</small></div>`).join('')}</div>`,
+          <div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div></div>`;
+      },
+      messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
+          ['Welcome to LetBetAfrika', `Your account is ready. Make your first deposit to get a 200% welcome bonus, up to ${whole(C.bonusMax)}.`],
+          ['Acca Win Boost is on', 'Add 3 or more selections at odds 1.20+ to a multiple and get up to 1000% extra winnings.'],
+          ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
       verify: () => u.verified ? `<div class="empty"><b>Your account is verified ✔</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
           <p class="muted">Verify your identity to withdraw winnings.</p>
           <label>Full name<input name="name" required placeholder="As shown on your ID"></label>
@@ -1160,7 +1169,7 @@
   let LIVE = false;
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
-  const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country });
+  const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode });
   const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {

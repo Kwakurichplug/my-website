@@ -52,6 +52,7 @@
       password: (current, password) => post('/auth/password', { current, password }),
       verify: d => post('/auth/verify', d),
       limits: d => post('/auth/limits', d),
+      referrals: () => get('/auth/referrals'),
     },
     wallet: {
       balance: () => get('/wallet'),
@@ -60,6 +61,7 @@
       withdraw: (amount, method, details) => post('/wallet/withdraw', { amount, method, details }),
       payments: () => get('/wallet/payments').then(r => r.payments),
       transfer: (phone, amount, note) => post('/wallet/transfer', { phone, amount, note }),
+      bonuses: () => get('/wallet/bonuses'),
     },
     jackpot: {
       round: () => get('/jackpot/round'),
@@ -96,6 +98,7 @@
       cashout: id => post(`/bets/${id}/cashout`),
       book: selections => post('/bets/book', { selections }).then(r => r.code),
       load: code => get('/bets/book/' + encodeURIComponent(code)).then(r => r.selections),
+      codes: sport => get('/bets/codes' + (sport && sport !== 'all' ? '?sport=' + sport : '')).then(r => r.codes),
     },
     admin: {
       overview: () => get('/admin/overview'),

@@ -156,7 +156,7 @@
       </div>
       <div class="ar-hist"><h4>My plays</h4><div id="arHist">${histHTML(id)}</div></div>
       <details class="ar-info"><summary>How to play · return to player ${(GL.rtp(id) * 100).toFixed(1)}%</summary><p>${m.how}</p><div id="arTable">${TABLE[id]()}</div>
-        <p class="ar-fair">${a.live ? 'Every result is drawn on our server with a cryptographically secure random number generator, after your stake is taken.' : 'Demo mode – results are drawn in your browser.'} Play responsibly – set limits under Responsible gambling.</p></details>
+        <p class="ar-fair">Every result is decided on our secure server after your stake is placed, and every round is recorded for audit. Play responsibly – set limits under Responsible gambling.</p></details>
     </div>`;
     if (id === 'hilo') ensureDeal();
     if (a.live && a.state.user && !S.histLoaded[id]) loadHist(id);

@@ -330,17 +330,20 @@
       steps: ['Register with your mobile number.', 'Make your first deposit.', 'Your bonus is added straight away as locked bonus funds.', 'Bet the bonus 5 times on multiples with odds of 1.50 or more per selection to unlock it.'],
       terms: ['New players only, one bonus per person, household and device.', `Maximum bonus ${w(C.bonusMax)}.`, 'Bonus must be wagered within 14 days or it expires.', 'Cashed-out and void bets do not count towards wagering.'] },
     { id: 'acca', cat: 'sports', title: 'Acca Win Boost – up to 1000%', img: 'img/banner-2.jpg', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Add 3 or more selections to a multiple and your winnings get boosted.', cta: ['Bet Now', '#/home'],
-      steps: ['Add 3+ selections with odds of 1.20 or more to the betslip.', 'Choose Multiple.', 'The boost percentage grows with every selection – up to 1000% for 40+ legs.'],
+      steps: ['Add 3+ selections with odds of 1.20 or more to the betslip.', 'Choose Multiple.', 'The boost grows with the number of selections at 1.20+: 5% for 3, 50% for 5, 200% for 10, 500% for 15 and 1000% for 20 or more.'],
       terms: ['Applies to pre-match and live multiples.', 'The boost is paid as cash on winning bets.', 'Cashed-out bets do not get the boost.'] },
     { id: 'jackpot', cat: 'sports', title: `${C.jackpotShort} Weekly Jackpot`, img: C.b3, from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Predict 12 matches correctly and take the jackpot.', cta: ['Play Jackpot', '#/jackpot'],
       steps: ['Open Jackpot.', 'Pick 1, X or 2 for all 12 games.', `Buy your ticket – ${w(C.ticket)} per line.`],
       terms: ['The jackpot is shared equally between all lines with 12 correct.', '11 and 10 correct win a fixed prize per line.', 'Winnings are paid automatically when the last game of the round ends.'] },
-    { id: 'crash', cat: 'games', title: 'Rocket Crash: Daily Cashback', grad: 'linear-gradient(135deg,#3b0a5c,#d0306d)', from: `11/1/${y}`, to: `12/31/${y}`, lead: '10% of your daily net Rocket Crash losses back as a free bet.', cta: ['Play Rocket Crash', '#/play'],
+    { id: 'games', cat: 'games', title: 'LetBet Games – 11 games, results in seconds', grad: 'linear-gradient(135deg,#0a2a17,#0d9737)', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Rocket Crash up to 200x, Spin & Win, Lucky Dice, Penalty Kick, Keno, Scratch Cards and more.', cta: ['Play now', '#/games'],
+      steps: ['Open Games from the bottom menu.', 'Pick a game and set your stake.', 'Results are instant and winnings go straight to your balance.'],
+      terms: ['18+ only. Play responsibly – set limits under Responsible Gambling.', 'Each game shows its return to player under How to play.'] },
+    { id: 'crash', cat: 'games', demoOnly: true, title: 'Rocket Crash: Daily Cashback', grad: 'linear-gradient(135deg,#3b0a5c,#d0306d)', from: `11/1/${y}`, to: `12/31/${y}`, lead: '10% of your daily net Rocket Crash losses back as a free bet.', cta: ['Play Rocket Crash', '#/play'],
       steps: ['Play Rocket Crash.', 'At midnight we add up your net losses for the day.', '10% comes back as a free bet the next morning.'],
       terms: [`Maximum cashback ${w(C.bonusMax / 10)} per day.`, 'Free bet valid for 7 days.'] },
     { id: 'refer', cat: 'features', title: `Refer & Earn ${w(C.referral)}`, grad: 'linear-gradient(135deg,#06612f,#0d9a4c)', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Invite friends and earn for every friend who joins and bets.', cta: ['Get my code', '#/acct/refer'],
-      steps: ['Share your referral code.', 'Your friend registers and deposits.', `When they place their first bet you get ${w(C.referral)}.`],
-      terms: ['Friends must be new players.', 'Referral rewards are paid in cash.'] },
+      steps: ['Share your referral code from Me → Refer & Earn.', 'Your friend enters it when signing up.', `When your friend has staked ${w(C.referral)} or more on sports bets, you get ${w(C.referral)}.`],
+      terms: ['Friends must be new players in the same country.', 'One reward per friend, paid in cash.', 'Accounts created to abuse the offer are closed and rewards removed.'] },
     { id: 'cashout', cat: 'features', title: 'Cashout – Take Control', grad: 'linear-gradient(135deg,#1b1e25,#3a4352)', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Settle your bet early – win now or cut your losses.', cta: ['Open Bets', '#/acct/bets'],
       steps: ['Open your bet history.', 'The cashout value follows the live odds.', 'Tap Cashout to settle the bet now.'],
       terms: ['Cashout is not available on every market.', 'The offer can change or be withdrawn at any time.'] },
@@ -349,13 +352,14 @@
     <span class="pr-cap"><b>${esc(p.title)}</b>${I.right}</span><small>${p.from} – ${p.to}</small></a>`;
   function renderPromos(arg) {
     const tab = ['sports', 'games', 'features'].includes(arg) ? arg : 'all';
-    const list = PROMOS().filter(p => tab === 'all' || p.cat === tab);
+    // live: only offers the server actually runs (Daily Cashback needs the free-bet wallet – see HANDOVER.md)
+    const list = PROMOS().filter(p => (tab === 'all' || p.cat === tab) && !(A().live && p.demoOnly));
     root('promos').innerHTML = `${head('Promotions')}
       <div class="pg-tabs">${[['all', 'All'], ['sports', 'Sports'], ['games', 'Games'], ['features', 'Features']].map(([k, l]) => `<a href="#/promos${k === 'all' ? '' : '/' + k}" class="${tab === k ? 'on' : ''}">${l}</a>`).join('')}</div>
       <div class="pr-list">${list.map(promoCard).join('')}</div>`;
   }
   function renderPromo(id) {
-    const p = PROMOS().find(x => x.id === id); if (!p) return A().go('promos');
+    const p = PROMOS().find(x => x.id === id && !(A().live && x.demoOnly)); if (!p) return A().go('promos');
     root('promo').innerHTML = `${head('Promotion Details')}
       <span class="pr-img big" style="${p.img ? `background-image:url(${p.img})` : `background:${p.grad}`}"><b>${esc(p.title)}</b></span>
       <div class="pr-detail"><h2>${esc(p.title)}</h2><small>${p.from} – ${p.to}</small><p>${esc(p.lead)}</p>
@@ -411,23 +415,31 @@
       return { t, followers: 120 + ((i * 7919) % 900), uses: 900 + ((i * 3571) % 15000), code, sport, legs, odds };
     }).filter(c => c.legs.length >= 2);
   }
+  // live: real codes booked on the site (GET /api/bets/codes) – no invented tipsters or follower counts
+  const hubLive = c => ({ code: c.code, t: c.by || 'Guest player', uses: c.uses, at: new Date(c.at).getTime(), live: true, sport: c.sport, odds: c.odds,
+    legs: c.legs.map(l => ({ mid: l.eventId, mk: l.market, ok: l.outcome, odd: l.odd, label: l.label, mname: l.marketName, match: `${l.home} vs ${l.away}`, m: { home: l.home, away: l.away, kick: new Date(l.kickoff).getTime() } })) });
   function renderCodes() {
     const a = A(), el = root('codes');
     if (!CH.follow) CH.follow = new Set(store.get('follows', []));
-    const codes = hubCodes().filter(c => CH.sport === 'all' || c.sport === CH.sport);
+    if (a.live && CH.feed === undefined && !CH.loading) {
+      CH.loading = true;
+      API.bets.codes(CH.sport).then(r => { CH.feed = r.map(hubLive); }).catch(() => { CH.feed = []; }).finally(() => { CH.loading = false; if (a.state.route === 'codes') renderCodes(); });
+    }
+    const codes = a.live ? (CH.feed || []) : hubCodes().filter(c => CH.sport === 'all' || c.sport === CH.sport);
     // register the feed's codes so "Load" works for them too (demo mode)
     if (!a.live) { const saved = store.get('codes', {}); codes.forEach(c => { saved[c.code] = c.legs.map(l => ({ mid: l.mid, mk: l.mk, ok: l.ok })); }); store.set('codes', saved); }
-    el.innerHTML = `${head('Code Hub', `<button class="icon-btn" data-pg="chfollowing" aria-label="Following">${I.users}</button>${homeBtn}`)}
+    el.innerHTML = `${head('Code Hub', `${a.live ? '' : `<button class="icon-btn" data-pg="chfollowing" aria-label="Following">${I.users}</button>`}${homeBtn}`)}
       <form class="ch-load" data-pg-form="load"><p>Load a code or choose one from the feed.</p>
         <div class="ch-in"><input name="code" placeholder="Insert a code to load to betslip" autocapitalize="characters" aria-label="Booking code"><button class="au-btn">Load</button></div></form>
       <div class="ch-chips">${[['all', 'All'], ['football', 'Football'], ['basketball', 'Basketball']].map(([k, l]) => `<button data-pg="chsport" data-v="${k}" class="${CH.sport === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="ch-feed">${codes.map(c => `<article class="ch-card">
-        <div class="ch-user"><span class="ch-av" style="--h:${(c.t.length * 47) % 360}">${esc(c.t[0].toUpperCase())}</span><b>${esc(c.t)}</b><small>${c.followers + (CH.follow.has(c.t) ? 1 : 0)} Followers</small>
-          <button class="ch-follow ${CH.follow.has(c.t) ? 'on' : ''}" data-pg="chfollow" data-v="${esc(c.t)}">${CH.follow.has(c.t) ? 'Following' : 'Follow'}</button></div>
-        <div class="ch-code"><b>${c.code}</b><span>${I.slip}${c.uses.toLocaleString()}</span><span>Folds: <b>${c.legs.length}</b></span><span>Odds: <b>${c.odds.toFixed(2)}</b></span></div>
+        <div class="ch-user"><span class="ch-av" style="--h:${(c.t.length * 47) % 360}">${c.live ? I.users : esc(c.t[0].toUpperCase())}</span><b>${esc(c.t)}</b><small>${c.live ? `Booked ${new Date(c.at || Date.now()).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : `${c.followers + (CH.follow.has(c.t) ? 1 : 0)} Followers`}</small>
+          ${c.live ? '' : `<button class="ch-follow ${CH.follow.has(c.t) ? 'on' : ''}" data-pg="chfollow" data-v="${esc(c.t)}">${CH.follow.has(c.t) ? 'Following' : 'Follow'}</button>`}</div>
+        <div class="ch-code"><b>${c.code}</b><span title="Times this code was loaded">${I.slip}${c.uses.toLocaleString()}</span><span>Folds: <b>${c.legs.length}</b></span><span>Odds: <b>${c.odds.toFixed(2)}</b></span></div>
         <ul class="ch-legs">${c.legs.map(l => `<li><a href="#/match/${l.mid}"><span class="ch-pick"><b>${esc(l.label)} @${l.odd.toFixed(2)}</b> <span class="muted">| ${esc(l.mname)}</span></span><small>${esc(l.m.home)} <i>vs</i> ${esc(l.m.away)}</small></a><span class="ch-when">${a.fmtKick(l.m.kick)}</span></li>`).join('')}</ul>
         <div class="ch-act"><button data-pg="chshare" data-v="${c.code}">${I.share}Share</button><button class="go" data-pg="chadd" data-v="${c.code}">Add to Betslip</button></div>
-      </article>`).join('') || `<div class="pg-empty">${I.info}<b>No codes right now</b></div>`}</div>`;
+      </article>`).join('') || (a.live && CH.feed === undefined ? `<div class="pg-empty"><i class="spin big"></i><span>Loading codes…</span></div>`
+        : `<div class="pg-empty">${I.info}<b>No open codes right now</b><span>Book a multiple from your betslip and share the code – it appears here for other players.</span></div>`)}</div>`;
     CH.codes = codes;
   }
 
@@ -661,10 +673,10 @@
       case 'rspick': RS.pick = !RS.pick; return renderResults();
       case 'rssport': RS.sport = v; RS.pick = false; return renderResults();
       case 'rslg': { const i = +t.dataset.lg; RS.open.has(i) ? RS.open.delete(i) : RS.open.add(i); return t.parentElement.classList.toggle('open'); }
-      case 'chsport': CH.sport = v; return renderCodes();
+      case 'chsport': CH.sport = v; CH.feed = undefined; return renderCodes();
       case 'chfollow': { CH.follow.has(v) ? CH.follow.delete(v) : CH.follow.add(v); store.set('follows', [...CH.follow]); a.toast(CH.follow.has(v) ? `Following ${v}` : `Unfollowed ${v}`); return renderCodes(); }
       case 'chfollowing': return a.toast(CH.follow && CH.follow.size ? `You follow ${[...CH.follow].join(', ')}` : 'Follow tipsters to see their codes first');
-      case 'chadd': { const c = (CH.codes || []).find(x => x.code === v); if (!c) return; const n = toSlip(c.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} from ${c.code}` : 'These selections are already in your betslip'); }
+      case 'chadd': { const c = (CH.codes || []).find(x => x.code === v); if (!c) return; if (a.live) return a.loadCode(c.code); const n = toSlip(c.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} from ${c.code}` : 'These selections are already in your betslip'); }
       case 'chshare': { const c = (CH.codes || []).find(x => x.code === v); return share('LetBetAfrika booking code', `Booking code ${v} on LetBetAfrika – ${c.legs.length} folds, odds ${c.odds.toFixed(2)}. Load it in the app: ${location.origin}${location.pathname}#/codes`); }
       case 'vipick': { const i = +t.dataset.m, o = t.dataset.o; if (VI.picks[i] === o) delete VI.picks[i]; else VI.picks[i] = o; return renderInstant(); }
       case 'vitype': VI.type = v; return renderInstant();
@@ -708,6 +720,7 @@
   function render(page, arg, keep, prev) {
     if (keep && !LIVE_REFRESH.has(page)) return;
     if (!keep && page === 'list' && prev !== 'list') EL.tab = 'matches';
+    if (!keep && page === 'codes') CH.feed = undefined;
     if (!keep && page === 'jackpot') { JP.tickets = null; if (A().live && JP.round && JP.round.closesAt <= Date.now()) JP.round = undefined; }
     if (!keep && page === 'league' && prev !== 'league') { EL.tab = 'matches'; EL.shut.clear(); }
     RENDER[page](arg, keep);

@@ -17,7 +17,7 @@ export async function attachUser(req, _res, next) {
   if (!token) return next();
   try {
     const { sub } = jwt.verify(token, SECRET);
-    const { rows } = await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits FROM users WHERE id = $1', [sub]);
+    const { rows } = await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits, created_at FROM users WHERE id = $1', [sub]);
     if (rows[0] && rows[0].status !== 'suspended') req.user = rows[0];
   } catch { /* bad token = anonymous */ }
   next();
@@ -35,5 +35,5 @@ export function requireAdmin(req, res, next) {
 
 export const publicUser = u => ({
   id: u.id, uid: u.uid, country: u.country, phone: u.phone, email: u.email, fullName: u.full_name,
-  verified: u.verified, role: u.role, status: u.status, balance: Number(u.balance), limits: u.limits || {},
+  verified: u.verified, role: u.role, status: u.status, balance: Number(u.balance), limits: u.limits || {}, createdAt: u.created_at, refCode: 'LB' + u.uid,
 });

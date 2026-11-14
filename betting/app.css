@@ -2362,3 +2362,29 @@ body[data-page="game"] .slip-pill,body[data-page="play"] .slip-pill,body[data-pa
 @media (max-height:700px){.ar-stage{min-height:196px;padding:12px}.ar-die{width:76px;height:76px}.ar-reel,.ar-sym{height:84px}.ar-card{width:96px;height:134px}}
 html[data-theme="dark"] .ar-stake input,html[data-theme="dark"] .cr-stake input{background:none;border:0;box-shadow:none}
 @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .ar-stake input,html:not([data-theme="light"]) .cr-stake input{background:none;border:0;box-shadow:none}}
+
+/* ===== v21: honest data – match market view, welcome bonus progress, referral stats, Code Hub ===== */
+.mv-split{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;margin:6px 0 8px}
+.mv-split i{display:block;min-width:4px}
+.mv-split .s0{background:var(--g)}.mv-split .s1{background:#9ca0ab}.mv-split .s2{background:var(--gold)}
+.mv-labels{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:12px;color:var(--muted)}
+.mv-labels span{display:flex;flex-direction:column;min-width:0}
+.mv-labels span:nth-child(2){align-items:center;text-align:center}.mv-labels span:last-child{align-items:flex-end;text-align:right}
+.mv-labels b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
+.mv-row{display:grid;grid-template-columns:1fr 110px 44px;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.mv-track{height:6px;border-radius:3px;background:var(--line);overflow:hidden}.mv-track i{display:block;height:100%;background:var(--g)}
+.mv-row b{text-align:right;font-variant-numeric:tabular-nums}
+.sh small{font-weight:400;color:var(--muted);font-size:11px;margin-left:6px}
+.minfo-p{font-size:13px;line-height:1.5;color:var(--ink-2)}
+.bonus.wb>div{flex:1;min-width:0}
+.wb-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:8px 0 4px}
+.wb-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g),#2ed16b)}
+.ref-stats{grid-template-columns:1fr 1fr 1fr}
+.ch-av svg{width:16px;height:16px;stroke:#fff}
+html[data-theme="dark"] .mv-labels b{color:#eef0f2}
+#page-match .mv-labels b{color:#fff}
+#page-match .mv-labels{color:#9ca0ab}
+#page-match .mv-track{background:#3a4049}
+#page-match .mv-split .s1{background:#5d636b}
+#page-match .minfo-p{color:#c9cdd2}
+#page-match .sh small{color:#8d939c}

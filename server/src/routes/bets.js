@@ -36,6 +36,21 @@ async function priceSelections(client, sels, acceptChanges) {
 
 const boostFor = (steps, n) => steps.reduce((b, [k, v]) => (n >= k ? v : b), 0);
 
+/** Refer & Earn: once the referred player has staked at least the reward amount on sports bets, pay the referrer (once). */
+async function payReferral(user) {
+  const reward = (await getSetting('referral'))?.[user.country];
+  if (!reward) return;
+  await tx(async c => {
+    const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
+    const me = rows[0];
+    if (!me || !me.referred_by || me.ref_paid || me.rc !== user.country) return;
+    const { rows: st } = await c.query(`SELECT coalesce(sum(stake),0)::float AS staked FROM bets WHERE user_id=$1`, [user.id]);
+    if (st[0].staked < reward) return;
+    await c.query('UPDATE users SET ref_paid=true WHERE id=$1', [user.id]);
+    await move(c, me.referred_by, 'referral', reward, 'RF' + String(user.uid || '').slice(-8), { friend: user.id });
+  });
+}
+
 r.post('/place', requireUser, async (req, res, next) => {
   const p = z.object({
     type: z.enum(['single', 'multiple']),
@@ -61,7 +76,8 @@ r.post('/place', requireUser, async (req, res, next) => {
         const stake = p.data.stake;
         if (!stake || stake < minStake) throw Object.assign(new Error('min_stake'), { status: 400, detail: { min: minStake } });
         const odds = legs.reduce((a, l) => a * l.odd, 1);
-        const boost = legs.length >= 3 ? boostFor(boostSteps, legs.length) : 0;
+        const qualifying = legs.filter(l => l.odd >= 1.2).length;              // Acca Win Boost: selections at odds 1.20+
+        const boost = qualifying >= 3 ? boostFor(boostSteps, qualifying) : 0;
         const base = stake * odds;
         const potential = Math.min(maxPayout, base + (base - stake) * boost / 100);
         const id = ticket();
@@ -86,6 +102,7 @@ r.post('/place', requireUser, async (req, res, next) => {
       return { bets: placed, balance: Number(rows[0].balance), legs };
     });
     res.status(201).json({ bets: out.bets, balance: out.balance });
+    payReferral(req.user).catch(e => req.log?.warn(e, 'referral reward failed'));
     for (const b of out.bets) sendEmail('betPlaced', req.user, { bet: { ...b, type, placedAt: new Date(), legs: (type === 'multiple' ? out.legs : [out.legs[out.bets.indexOf(b)]]).map(l => ({ match: l.match, market: l.marketName, pick: l.label, odd: l.odd })) } });
   } catch (e) { next(e); }
 });
@@ -131,8 +148,33 @@ r.post('/book', async (req, res, next) => {
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   try {
     const cd = code();
-    await q('INSERT INTO booking_codes (code, selections) VALUES ($1,$2)', [cd, JSON.stringify(p.data.selections)]);
+    await q('INSERT INTO booking_codes (code, selections, user_id) VALUES ($1,$2,$3)', [cd, JSON.stringify(p.data.selections), req.user ? req.user.id : null]);
     res.status(201).json({ code: cd });
+  } catch (e) { next(e); }
+});
+
+// Code Hub feed: real codes booked on the site in the last 3 days, multiples whose games are all still open
+const maskPhone = p => { const d = '0' + String(p || ''); return d.slice(0, 3) + '****' + d.slice(-2); };
+r.get('/codes', async (req, res, next) => {
+  const sport = ['football', 'basketball', 'tennis'].includes(req.query.sport) ? req.query.sport : null;
+  try {
+    const { rows } = await q(`SELECT b.code, b.selections, b.uses, b.created_at, u.phone FROM booking_codes b LEFT JOIN users u ON u.id = b.user_id
+      WHERE b.created_at > now() - interval '3 days' ORDER BY b.uses DESC, b.created_at DESC LIMIT 150`);
+    const ids = [...new Set(rows.flatMap(x => x.selections.map(s => s.eventId)))];
+    const evs = ids.length ? (await q(`SELECT e.id, e.sport, e.home, e.away, e.kickoff, e.status, m.key, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id = e.id WHERE e.id = ANY($1)`, [ids])).rows : [];
+    const byKey = new Map(evs.map(x => [x.id + '|' + x.key, x])), now = Date.now(), codes = [];
+    for (const x of rows) {
+      const legs = [];
+      for (const s of x.selections) {
+        const e = byKey.get(s.eventId + '|' + s.market), o = e?.outcomes?.[s.outcome];
+        if (!e || !o || o.o == null || e.suspended || e.status !== 'scheduled' || +new Date(e.kickoff) <= now) { legs.length = 0; break; }
+        legs.push({ eventId: Number(e.id), sport: e.sport, market: s.market, outcome: s.outcome, label: o.l, marketName: e.name, home: e.home, away: e.away, kickoff: e.kickoff, odd: o.o });
+      }
+      if (legs.length < 2 || (sport && !legs.every(l => l.sport === sport))) continue;
+      codes.push({ code: x.code, by: x.phone ? maskPhone(x.phone) : null, uses: x.uses, at: x.created_at, sport: legs[0].sport, legs, odds: Math.round(legs.reduce((p, l) => p * l.odd, 1) * 100) / 100 });
+      if (codes.length >= 30) break;
+    }
+    res.json({ codes });
   } catch (e) { next(e); }
 });
 
@@ -140,6 +182,7 @@ r.get('/book/:code', async (req, res, next) => {
   try {
     const { rows } = await q('SELECT selections FROM booking_codes WHERE code=$1', [req.params.code.toUpperCase()]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    q('UPDATE booking_codes SET uses = uses + 1 WHERE code=$1', [req.params.code.toUpperCase()]).catch(() => {});
     const out = [];
     for (const s of rows[0].selections) {
       const m = (await q('SELECT e.home, e.away, e.status, mk.name, mk.outcomes, mk.suspended FROM events e JOIN markets mk ON mk.event_id=e.id AND mk.key=$2 WHERE e.id=$1', [s.eventId, s.market])).rows[0];

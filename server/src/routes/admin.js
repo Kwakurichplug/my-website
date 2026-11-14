@@ -9,6 +9,7 @@ import { settleEvent } from '../lib/settle.js';
 import { sendEmail } from '../emails/index.js';
 import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
+import { creditDeposit } from '../lib/bonus.js';
 
 const r = Router();
 r.use(requireAdmin);
@@ -94,7 +95,7 @@ r.post('/payments/:id/:action', async (req, res, next) => {
       const ok = action === 'approve';
       await c.query(`UPDATE payments SET status=$2, updated_at=now(), details = details || $3::jsonb WHERE id=$1`, [p.id, ok ? 'success' : 'rejected', JSON.stringify({ by: req.user.id, at: new Date().toISOString() })]);
       if (p.kind === 'withdrawal' && !ok) await move(c, p.user_id, 'refund', Number(p.amount), p.id, { reason: 'withdrawal_rejected' });
-      if (p.kind === 'deposit' && ok) await move(c, p.user_id, 'deposit', Number(p.amount), p.id, { method: p.method });
+      if (p.kind === 'deposit' && ok) await creditDeposit(c, { id: p.user_id, country: (await c.query('SELECT country FROM users WHERE id=$1', [p.user_id])).rows[0].country }, Number(p.amount), p.id, { method: p.method });
       const u = (await c.query('SELECT * FROM users WHERE id=$1', [p.user_id])).rows[0];
       if (p.kind === 'withdrawal') sendEmail(ok ? 'withdrawalPaid' : 'withdrawalRejected', u, { amount: Number(p.amount), method: p.method, paymentId: p.id, account: p.details?.account, when: new Date(), reason: req.body?.reason, balance: Number(u.balance) });
       else sendEmail(ok ? 'depositSuccess' : 'depositFailed', u, { amount: Number(p.amount), method: p.method, paymentId: p.id, balance: Number(u.balance), when: new Date(), reason: req.body?.reason });

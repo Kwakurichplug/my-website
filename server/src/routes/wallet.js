@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { requireUser } from '../lib/auth.js';
 import { move, debit } from '../lib/wallet.js';
+import { creditDeposit, bonusesOf } from '../lib/bonus.js';
+import { getSetting } from '../lib/settings.js';
 import { sendEmail } from '../emails/index.js';
 
 const r = Router();
@@ -40,11 +42,18 @@ r.post('/deposit', async (req, res, next) => {
       const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status) VALUES ($1,'deposit',$2,$3,$4,$5) RETURNING id`,
         [req.user.id, amount, method, demo ? 'demo' : 'pending', demo ? 'success' : 'pending']);
       const pid = rows[0].id;
-      const balance = demo ? await move(c, req.user.id, 'deposit', amount, pid, { method }) : Number(req.user.balance);
+      const balance = demo ? await creditDeposit(c, req.user, amount, pid, { method }) : Number(req.user.balance);
       return { paymentId: pid, balance, status: demo ? 'success' : 'pending' };
     });
     res.json(out);
     if (out.status === 'success') sendEmail('depositSuccess', req.user, { amount, method, paymentId: out.paymentId, balance: out.balance, when: new Date() });
+  } catch (e) { next(e); }
+});
+
+r.get('/bonuses', async (req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT count(*)::int AS n FROM transactions WHERE user_id=$1 AND type='deposit'`, [req.user.id]);
+    res.json({ bonuses: await bonusesOf(req.user.id), rules: await getSetting('welcome_bonus'), eligible: rows[0].n === 0 });
   } catch (e) { next(e); }
 });
 

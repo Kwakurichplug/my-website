@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getSetting } from '../lib/settings.js';
 import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { hash, verifyHash, sign, requireUser, publicUser } from '../lib/auth.js';
@@ -27,15 +28,18 @@ r.post('/otp', async (req, res, next) => {
 
 // Step 2 of register: code + password → account
 r.post('/register', async (req, res, next) => {
-  const p = z.object({ ...base, code: z.string().length(6), password: z.string().min(6).max(72), fullName: z.string().max(80).optional(), email: z.string().email().max(120).optional() }).safeParse(req.body);
+  const p = z.object({ ...base, code: z.string().length(6), password: z.string().min(6).max(72), fullName: z.string().max(80).optional(), email: z.string().email().max(120).optional(), ref: z.string().max(20).optional() }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
-  const { country, phone, code, password, fullName, email } = p.data;
+  const { country, phone, code, password, fullName, email, ref } = p.data;
   try {
     if (!(await checkOtp(country, phone, 'register', code))) return res.status(400).json({ error: 'bad_code' });
     const user = await tx(async c => {
+      // Refer & Earn: a referral code is the friend's public id ("LB10000123" or just the digits), same country only
+      const refUid = ref && /^\d{6,12}$/.test(ref.replace(/^LB/i, '')) ? Number(ref.replace(/^LB/i, '')) : null;
+      const referrer = refUid ? (await c.query('SELECT id FROM users WHERE uid=$1 AND country=$2', [refUid, country])).rows[0] : null;
       const { rows } = await c.query(
-        `INSERT INTO users (uid, country, phone, password_hash, full_name, email) VALUES (nextval('users_uid_seq'), $1, $2, $3, $4, $5) RETURNING *`,
-        [country, phone, await hash(password), fullName || null, email || null],
+        `INSERT INTO users (uid, country, phone, password_hash, full_name, email, referred_by) VALUES (nextval('users_uid_seq'), $1, $2, $3, $4, $5, $6) RETURNING *`,
+        [country, phone, await hash(password), fullName || null, email || null, referrer ? referrer.id : null],
       );
       return rows[0];
     });
@@ -45,6 +49,18 @@ r.post('/register', async (req, res, next) => {
     if (e.code === '23505') return res.status(409).json({ error: 'phone_taken' });
     next(e);
   }
+});
+
+// Refer & Earn: the player's code and what it has earned
+r.get('/referrals', requireUser, async (req, res, next) => {
+  try {
+    const [{ rows: f }, { rows: e }, reward] = await Promise.all([
+      q(`SELECT count(*)::int AS joined, count(*) FILTER (WHERE ref_paid)::int AS qualified FROM users WHERE referred_by=$1`, [req.user.id]),
+      q(`SELECT coalesce(sum(amount),0)::float AS earned FROM transactions WHERE user_id=$1 AND type='referral'`, [req.user.id]),
+      getSetting('referral'),
+    ]);
+    res.json({ code: 'LB' + req.user.uid, joined: f[0].joined, qualified: f[0].qualified, earned: e[0].earned, reward: reward?.[req.user.country] ?? 0 });
+  } catch (err) { next(err); }
 });
 
 r.post('/login', async (req, res, next) => {

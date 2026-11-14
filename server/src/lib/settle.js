@@ -1,6 +1,7 @@
 // Grades a leg against a finished event, settles bets, and prices cashouts.
 import { q, tx } from '../db/pool.js';
 import { move } from './wallet.js';
+import { addTurnover } from './bonus.js';
 import { sendEmail } from '../emails/index.js';
 
 const r3 = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
@@ -56,7 +57,7 @@ export async function settleEvent(eventId) {
       const b = rows[0]; if (!b) return;
       const ls = (await c.query('SELECT * FROM bet_legs WHERE bet_id=$1', [id])).rows;
       if (ls.some(l => l.result === 'lost')) {
-        await c.query(`UPDATE bets SET status='lost', paid=0, settled_at=now() WHERE id=$1`, [id]); settled++; notify(b, ls, 'lost', 0); return;
+        await c.query(`UPDATE bets SET status='lost', paid=0, settled_at=now() WHERE id=$1`, [id]); await addTurnover(c, b, ls); settled++; notify(b, ls, 'lost', 0); return;
       }
       if (!ls.every(l => l.result)) return;
       const odds = ls.reduce((acc, l) => acc * (l.result === 'void' ? 1 : Number(l.odd)), 1);
@@ -66,6 +67,7 @@ export async function settleEvent(eventId) {
       const status = ls.every(l => l.result === 'void') ? 'void' : 'won';
       await c.query(`UPDATE bets SET status=$2, paid=$3, settled_at=now() WHERE id=$1`, [id, status, Math.round(paid * 100) / 100]);
       const balance = await move(c, b.user_id, status === 'won' ? 'win' : 'refund', paid, id);
+      if (status === 'won') await addTurnover(c, b, ls);
       settled++;
       notify(b, ls, status, paid, balance);
     });

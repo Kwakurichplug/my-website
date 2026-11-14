@@ -219,7 +219,7 @@
     let u;
     if (live()) {
       // server checks the code, hashes the password and opens the wallet
-      u = a.mapUser(await API.auth.register({ country: a.CC, phone: reg.phone, code, password: reg.pw }));
+      u = a.mapUser(await API.auth.register({ country: a.CC, phone: reg.phone, code, password: reg.pw, ...(reg.refCode ? { ref: reg.refCode } : {}) }));
       if (reg.refCode) u.referredBy = reg.refCode;
     } else {
       if (code !== reg.code) throw new Error('bad_code');

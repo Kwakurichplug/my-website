@@ -260,3 +260,32 @@ INSERT INTO settings (key, value) VALUES
   ('games', '{"NG":{"min":100,"max":500000},"GH":{"min":1,"max":5000}}'),
   ('jackpot', '{"NG":{"jackpot":50000000,"t11":100000,"t10":10000,"line":100},"GH":{"jackpot":500000,"t11":1000,"t10":100,"line":1}}')
 ON CONFLICT (key) DO NOTHING;
+
+-- ===================== Code Hub + Refer & Earn =====================
+-- Code Hub: who booked a code (shown masked) and how many times it was loaded
+ALTER TABLE booking_codes ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id);
+ALTER TABLE booking_codes ADD COLUMN IF NOT EXISTS uses int NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS booking_codes_recent_idx ON booking_codes (created_at DESC);
+-- Refer & Earn: the referrer is paid once, when the friend has staked at least the reward amount on sports bets
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by uuid REFERENCES users(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_paid boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS users_referred_by_idx ON users (referred_by) WHERE referred_by IS NOT NULL;
+INSERT INTO settings (key, value) VALUES ('referral', '{"NG":1000,"GH":10}') ON CONFLICT (key) DO NOTHING;
+
+-- ===================== Welcome bonus (server/src/lib/bonus.js) =====================
+CREATE TABLE IF NOT EXISTS bonuses (
+  id          serial PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES users(id),
+  kind        text NOT NULL,                       -- 'welcome'
+  amount      numeric(14,2) NOT NULL CHECK (amount > 0),
+  required    numeric(14,2) NOT NULL,              -- turnover needed to release
+  wagered     numeric(14,2) NOT NULL DEFAULT 0,
+  status      text NOT NULL DEFAULT 'active' CHECK (status IN ('active','released','expired','forfeited')),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  expires_at  timestamptz NOT NULL,
+  released_at timestamptz,
+  UNIQUE (user_id, kind)
+);
+INSERT INTO settings (key, value) VALUES
+  ('welcome_bonus', '{"NG":{"pct":200,"max":100000},"GH":{"pct":200,"max":1000},"times":5,"min_odds":1.5,"days":14}')
+ON CONFLICT (key) DO NOTHING;
