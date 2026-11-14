@@ -91,7 +91,7 @@
       <div class="icon-row">
         <a href="#/sports"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8"/></svg><span>All Sports</span></a>
         <a href="#/live"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4M10 11l5 2.5-5 2.5z"/></svg><span>Live</span></a>
-        <a href="#" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg><span>Load Code</span></a>
+  <a href="#" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg><span>Load Code</span></a>
         <a href="#/virtuals"><svg viewBox="0 0 24 24"><path d="M4 6l4 12 4-9 4 9 4-12"/></svg><span>Virtuals</span></a>
         <a href="#/jackpot"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg><span>Jackpot</span></a>
         <a href="#" id="moreBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01" stroke-width="2.6"/></svg><span>More</span></a>
@@ -121,21 +121,12 @@
     </section>
 
     <!-- ============ LIVE ============ -->
-    <section class="page" id="page-live">
-      <div class="page-title"><h1><span class="live-dot"></span> Live Betting</h1><span class="muted" id="liveCount"></span></div>
-      <div class="sport-tabs" id="liveSportTabs"></div>
-      <div id="liveList" class="match-list"></div>
-    </section>
+    <section class="page pg-page pg-dark" id="page-live"><div class="pg-root"></div></section>
+
 
     <!-- ============ LEAGUE ============ -->
-    <section class="page" id="page-league">
-      <div class="sub-head">
-        <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <div><small class="muted" id="lgSport"></small><h1 id="lgTitle"></h1></div>
-      </div>
-      <div class="market-tabs" id="lgMarketTabs"></div>
-      <div id="lgList" class="match-list"></div>
-    </section>
+    <section class="page pg-page" id="page-league"><div class="pg-root"></div></section>
+
 
     <!-- ============ MATCH DETAIL ============ -->
     <section class="page" id="page-match">
@@ -158,41 +149,17 @@
       <div id="mdInfo" class="md-panel" hidden></div>
     </section>
 
-    <!-- ============ A–Z ============ -->
-    <section class="page" id="page-sports">
-      <div class="page-title"><h1>A–Z Sports</h1></div>
-      <div class="search"><input id="sportSearch" placeholder="Search sports or leagues…"></div>
-      <div class="az-list" id="azList"></div>
-    </section>
+    <!-- ============ SPORTS ============ -->
+    <section class="page pg-page" id="page-sports"><div class="pg-root"></div></section>
+
 
     <!-- ============ JACKPOT ============ -->
-    <section class="page" id="page-jackpot">
-      <div class="jackpot-hero">
-        <small>THIS WEEK'S JACKPOT</small>
-        <h1 data-t="jackpot"></h1>
-        <p>Pick 1, X or 2 for all 12 games. <span data-t="ticket"></span> per ticket.</p>
-        <div class="countdown" id="countdown"></div>
-      </div>
-      <div class="jp-tools"><button class="btn btn-ghost sm" id="jpAuto">Auto-pick</button><button class="btn btn-ghost sm" id="jpClear">Clear</button></div>
-      <div id="jackpotList" class="jp-list"></div>
-      <div class="jp-foot">
-        <span id="jpPicked">0/12 picked</span>
-        <button class="btn btn-accent" id="jpSubmit" disabled>Submit <span data-t="ticket"></span></button>
-      </div>
-    </section>
+    <section class="page pg-page pg-dark" id="page-jackpot"><div class="pg-root"></div></section>
+
 
     <!-- ============ PROMOS ============ -->
-    <section class="page" id="page-promos">
-      <div class="page-title"><h1>Promotions</h1></div>
-      <div class="promo-grid">
-        <article class="promo"><span class="ph" data-img="b1"></span><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to <span data-t="bonusMax"></span>.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
-        <article class="promo"><span class="ph" data-img="b2"></span><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
-        <article class="promo"><span class="ph" data-img="b3"></span><span class="tag">WEEKLY</span><h3><span data-t="jackpotShort"></span> Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
-        <article class="promo"><span class="tag">ALL USERS</span><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
-        <article class="promo"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get <span data-t="referral"></span> for every friend who joins and bets.</p></article>
-        <article class="promo"><span class="tag">LIVE</span><h3>Live Odds Boost</h3><p>Daily boosted odds on top live matches.</p></article>
-      </div>
-    </section>
+    <section class="page pg-page" id="page-promos"><div class="pg-root"></div></section>
+
 
     <!-- ============ ME ============ -->
     <section class="page" id="page-me">
@@ -264,11 +231,8 @@
     </section>
 
     <!-- ============ RESULTS ============ -->
-    <section class="page" id="page-results">
-      <div class="page-title"><h1>Results</h1><span class="muted" id="resCount"></span></div>
-      <div class="market-tabs" id="resTabs"></div>
-      <div id="resList" class="res-list"></div>
-    </section>
+    <section class="page pg-page" id="page-results"><div class="pg-root"></div></section>
+
 
     <!-- ============ DEPOSIT ============ -->
     <section class="page acc-page" id="page-deposit"><div class="acc-root"></div></section>
@@ -284,6 +248,18 @@
 
     <!-- ============ FORGOT ============ -->
     <section class="page acc-page" id="page-forgot"><div class="acc-root"></div></section>
+
+    <!-- ============ LIST ============ -->
+    <section class="page pg-page" id="page-list"><div class="pg-root"></div></section>
+
+    <!-- ============ CODES ============ -->
+    <section class="page pg-page" id="page-codes"><div class="pg-root"></div></section>
+
+    <!-- ============ PROMO ============ -->
+    <section class="page pg-page" id="page-promo"><div class="pg-root"></div></section>
+
+    <!-- ============ BET ============ -->
+    <section class="page pg-page" id="page-bet"><div class="pg-root"></div></section>
 
     <!-- ============ LEGAL ============ -->
     <section class="page" id="page-legal">
@@ -373,6 +349,7 @@
   <a href="#/promos"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg>Promotions</a>
   <a href="#/me"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>My Bets</a>
   <a href="#" data-open="depositModal"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Deposit</a>
+  <a href="#/codes"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>Code Hub</a>
   <a href="#" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg>Load Booking Code</a>
   <div class="drawer-foot"><b class="age">18+</b> Bet responsibly</div>
 </div>
@@ -409,6 +386,7 @@
 
 <script src="api.js"></script>
 <script src="account.js"></script>
+<script src="pages.js"></script>
 <script src="motion.js"></script>
 <script src="icons.js"></script>
 <script src="games.js"></script>

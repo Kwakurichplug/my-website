@@ -61,6 +61,10 @@
       payments: () => get('/wallet/payments').then(r => r.payments),
       transfer: (phone, amount, note) => post('/wallet/transfer', { phone, amount, note }),
     },
+    jackpot: {
+      buy: (round, picks) => post('/jackpot/tickets', { round, picks }),
+      tickets: () => get('/jackpot/tickets').then(r => r.tickets),
+    },
     events: {
       leagues: () => get('/events/leagues').then(r => r.leagues),
       list: (params = {}) => get('/events?' + new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null)))).then(r => r.events),

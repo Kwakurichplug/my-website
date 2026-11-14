@@ -14,6 +14,7 @@ import wallet from './routes/wallet.js';
 import bets from './routes/bets.js';
 import events from './routes/events.js';
 import admin from './routes/admin.js';
+import jackpot from './routes/jackpot.js';
 import { startFeeds } from './feeds/index.js';
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -31,6 +32,7 @@ app.use('/api/wallet', wallet);
 app.use('/api/bets', bets);
 app.use('/api/events', events);
 app.use('/api/admin', admin);
+app.use('/api/jackpot', jackpot);
 
 // Serve the front end from the same origin (betting/ folder one level up)
 const here = dirname(fileURLToPath(import.meta.url));

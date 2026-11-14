@@ -1,0 +1,544 @@
+/* =========================================================
+   LetBetAfrika – sportsbook pages modelled on the reference
+   mobile site, screen by screen.
+   ---------------------------------------------------------
+   #/live[/sport]                      dark live list
+   #/sports                            sport + date + league filter
+   #/list/<sport>/<when>[/<lg,lg>]     filtered event list
+   #/league/<idx>                      one league (same list view)
+   #/jackpot[/tab]                     12-game jackpot
+   #/promos[/tab]  #/promo/<id>        promotions + detail
+   #/results                           results by day
+   #/codes                             Code Hub (booking-code feed)
+   #/bet/<id>                          bet ticket detail
+   Odds buttons use the app's own data-mid/mk/ok handler, so the
+   betslip, odds changes and settlement keep working unchanged.
+   ========================================================= */
+(() => {
+  'use strict';
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const A = () => window.LBA_APP;
+  const esc = s => A().esc(s);
+  const root = page => $(`#page-${page} .pg-root`);
+  const DAY = 864e5;
+  const sod = ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const store = { get: (k, d) => A().store.get(k, d), set: (k, v) => A().store.set(k, v) };
+
+  const I = {
+    back: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+    home: '<svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+    down: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+    right: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+    left: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',
+    tri: '<svg viewBox="0 0 24 24" class="tri"><path d="M7 9h10l-5 6z" fill="currentColor" stroke="none"/></svg>',
+    stats: '<svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 6-7 3 3"/><path d="M3 21h18"/></svg>',
+    slip: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
+    filter: '<svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.7-3.4 3-5 6-5s5.3 1.6 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.4c2.6.1 4.7 1.6 5.5 4.6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>',
+  };
+  const head = (title, right = '', opts = {}) => `<div class="pg-head${opts.dark ? ' dark' : ''}">
+    <button class="icon-btn" data-back aria-label="Back">${I.back}</button><h1>${title}</h1>
+    <div class="pg-act">${right}</div></div>`;
+  const homeBtn = `<a class="icon-btn" href="#/home" aria-label="Home">${I.home}</a>`;
+  const searchBtn = `<button class="icon-btn" data-pg="search" aria-label="Search">${I.search}</button>`;
+  const cols = cfg => `<div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>`;
+  const dateLabel = ts => { const d = new Date(ts); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`; };
+  const upcoming = () => A().MATCHES.filter(m => !m.live && !m.finished && !m.virtual);
+
+  /* =========================================================
+     LIVE  (#/live[/sport])
+     ========================================================= */
+  const LV = { sport: null, sort: 'league', shut: new Set(), all: false };
+  function renderLive(arg, keep) {
+    const a = A(), el = root('live');
+    const liveBy = id => a.MATCHES.filter(m => m.live && m.sport === id);
+    const sports = a.VISIBLE().filter(s => liveBy(s.id).length);
+    if (arg && a.sportOf(arg)) LV.sport = arg;
+    if (!LV.sport || !liveBy(LV.sport).length) LV.sport = sports[0]?.id || 'football';
+    const cfg = a.mktFor(LV.sport), list = liveBy(LV.sport);
+    const y = keep ? window.scrollY : 0, tx = $('#lvTabs', el)?.scrollLeft || 0, mx = $('#lvMkt', el)?.scrollLeft || 0;
+    let body;
+    if (!list.length) body = `<div class="pg-empty dark">${I.info}<b>No live events right now</b><span>Check the schedule for matches starting soon.</span><a class="au-btn" href="#/list/football/3h">See upcoming matches</a></div>`;
+    else if (LV.sort === 'time') body = list.slice().sort((x, y) => y.minute - x.minute).map(m => a.matchRow(m, cfg, true)).join('');
+    else {
+      const g = new Map(); list.forEach(m => { if (!g.has(m.lg)) g.set(m.lg, []); g.get(m.lg).push(m); });
+      body = [...g].map(([lgi, ms]) => {
+        const lg = a.LEAGUES[lgi], shut = LV.shut.has(lgi);
+        return `<div class="lv-grp ${shut ? 'shut' : ''}"><button class="lv-lg" data-pg="lvlg" data-lg="${lgi}" aria-expanded="${!shut}">${I.tri}<span>${esc(lg.country)} - ${esc(lg.name)}</span><em>${ms.length}</em></button>
+          <div class="lv-rows">${ms.map(m => a.matchRow(m, cfg, false)).join('')}</div></div>`;
+      }).join('');
+    }
+    el.innerHTML = `${head('Live', `<a class="pg-txt" href="#/list/${LV.sport}/3h">Schedule</a>${homeBtn}`)}
+      <div class="live-block pg-live">
+        <div class="pg-sticky">
+        <div class="sp-tabs dark" id="lvTabs" role="tablist">${sports.map(s => `<button role="tab" data-pg="lvsport" data-s="${s.id}" class="${s.id === LV.sport ? 'on' : ''}" aria-selected="${s.id === LV.sport}"><i>${liveBy(s.id).length}</i>${s.em}<span>${s.name}</span></button>`).join('') || '<span class="muted pad">No live sports</span>'}</div>
+          <div class="mkt-tabs dark" id="lvMkt">${a.listMarkets(LV.sport).map(x => `<button data-market="${x.id}" data-msport="${LV.sport}" class="${x.id === cfg.id ? 'active' : ''}">${x.name}</button>`).join('')}</div>
+          <div class="lv-tool"><button data-pg="lvall">${I.tri}${list.length && [...new Set(list.map(m => m.lg))].every(i => LV.shut.has(i)) ? 'Expand All' : 'Collapse All'}</button>
+            <label>Sort by <select data-pg="lvsort" aria-label="Sort by"><option value="league" ${LV.sort === 'league' ? 'selected' : ''}>Leagues</option><option value="time" ${LV.sort === 'time' ? 'selected' : ''}>Match time</option></select></label></div>
+          <div class="day-sep dark" style="--n:${cfg.outs.length}"><span>${list.length} live</span>${cols(cfg)}</div>
+        </div>
+        ${body}
+      </div>`;
+    $('#lvTabs', el).scrollLeft = tx; $('#lvMkt', el).scrollLeft = mx;
+    if (keep) window.scrollTo(0, y);
+  }
+
+  /* =========================================================
+     SPORTS FILTER  (#/sports)
+     ========================================================= */
+  const SF = { sport: 'football', mode: 'daily', when: null, tab: 'top', sel: new Set(), open: new Set(), q: '' };
+  const DAYS = () => Array.from({ length: 7 }, (_, i) => { const t = sod(Date.now()) + i * DAY; return { id: 'd' + i, label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(t).toLocaleDateString('en-GB', { weekday: 'long' }), from: t, to: t + DAY }; });
+  const RANGES = () => [['h3', 'Next 3 hours', 3], ['h12', 'Next 12 hours', 12], ['h24', 'Next 24 hours', 24], ['h72', 'Next 3 days', 72]].map(([id, label, h]) => ({ id, label, from: Date.now(), to: Date.now() + h * 36e5 }));
+  const WHEN = id => [...DAYS(), ...RANGES(), { id: 'all', label: 'All', from: 0, to: Infinity }, { id: 'today', label: 'Today', from: sod(Date.now()), to: sod(Date.now()) + DAY }, { id: 'tomorrow', label: 'Tomorrow', from: sod(Date.now()) + DAY, to: sod(Date.now()) + 2 * DAY }, { id: '3h', label: 'Next 3 hours', from: Date.now(), to: Date.now() + 3 * 36e5 }].find(w => w.id === id) || { id: 'all', label: 'All', from: 0, to: Infinity };
+  function renderSports() {
+    const a = A(), el = root('sports');
+    const sp = a.VISIBLE().filter(s => a.MATCHES.some(m => m.sport === s.id));
+    if (!sp.some(s => s.id === SF.sport)) SF.sport = sp[0]?.id || 'football';
+    const all = upcoming().filter(m => m.sport === SF.sport);
+    const w = SF.when ? WHEN(SF.when) : null;
+    const inWhen = m => !w || (m.kick >= w.from && m.kick < w.to);
+    const lgs = a.LEAGUES.filter(l => l.sport === SF.sport);
+    const cnt = l => all.filter(m => m.lg === l.idx && inWhen(m)).length;
+    const today = all.filter(m => m.kick < sod(Date.now()) + DAY).length;
+    const liveN = a.MATCHES.filter(m => m.live && m.sport === SF.sport).length;
+    const chk = (id, on, label, n, extra = '') => `<label class="sf-row ${extra}"><span>${label}</span><em>${n}</em><input type="checkbox" data-pg="sfchk" value="${id}" ${on ? 'checked' : ''} aria-label="${esc(String(label).replace(/<[^>]+>/g, ''))}"></label>`;
+    let list;
+    if (SF.tab === 'top') {
+      const top = lgs.filter(l => l.top || cnt(l) > 0).sort((x, y) => (y.top ? 1 : 0) - (x.top ? 1 : 0) || cnt(y) - cnt(x));
+      const dup = n => lgs.filter(x => x.name === n).length > 1;
+      list = chk('all', SF.sel.size === 0, 'All', all.filter(inWhen).length) + top.map(l => chk(l.idx, SF.sel.has(l.idx), `${l.flag} ${esc(l.name)}${dup(l.name) ? ` <small class="muted">${esc(l.country)}</small>` : ''}`, cnt(l))).join('');
+    } else if (SF.tab === 'countries') {
+      const byC = new Map(); lgs.forEach(l => { if (!byC.has(l.country)) byC.set(l.country, []); byC.get(l.country).push(l); });
+      list = [...byC].sort((x, y) => x[0].localeCompare(y[0])).map(([c, ls]) => {
+        const open = SF.open.has(c), n = ls.reduce((s, l) => s + cnt(l), 0);
+        return `<div class="sf-ctry ${open ? 'open' : ''}"><button class="sf-row head" data-pg="sfctry" data-c="${esc(c)}" aria-expanded="${open}">${ls[0].flag}<span>${esc(c)}</span><em>${n}</em>${I.down}</button>
+          <div class="sf-sub">${ls.map(l => chk(l.idx, SF.sel.has(l.idx), esc(l.name), cnt(l))).join('')}</div></div>`;
+      }).join('');
+    } else {
+      list = lgs.slice().sort((x, y) => x.full.localeCompare(y.full)).map(l => chk(l.idx, SF.sel.has(l.idx), `${l.flag} ${esc(l.country)} - ${esc(l.name)}`, cnt(l))).join('');
+    }
+    const picks = SF.mode === 'daily' ? DAYS() : RANGES();
+    const n = all.filter(m => inWhen(m) && (!SF.sel.size || SF.sel.has(m.lg))).length;
+    const x = $('#sfTabs', el)?.scrollLeft || 0, cx = $('#sfChips', el)?.scrollLeft || 0;
+    el.innerHTML = `${head('Sports', searchBtn + homeBtn)}
+      <div class="sp-tabs" id="sfTabs" role="tablist">${sp.map(s => `<button role="tab" data-pg="sfsport" data-s="${s.id}" class="${s.id === SF.sport ? 'on' : ''}" aria-selected="${s.id === SF.sport}">${s.em}<span>${s.name}</span></button>`).join('')}</div>
+      <div class="sf-quick">
+        <a href="#/list/${SF.sport}/today">Today games (${today})</a>
+        <a href="#/live/${SF.sport}">Live (${liveN})</a>
+        <a href="#/list/${SF.sport}/all">All ${esc(a.sportOf(SF.sport).name)} (${all.length})</a>
+        <a href="#/list/${SF.sport}/all/out">Outrights (${lgs.filter(l => l.teams && l.teams.length > 2).length})</a>
+      </div>
+      <div class="sf-sec">
+        <div class="pg-tabs sm"><button data-pg="sfmode" data-v="daily" class="${SF.mode === 'daily' ? 'on' : ''}">Daily</button><button data-pg="sfmode" data-v="range" class="${SF.mode === 'range' ? 'on' : ''}">Range</button></div>
+        <div class="sf-chips" id="sfChips">${picks.map(p => `<button data-pg="sfwhen" data-v="${p.id}" class="${SF.when === p.id ? 'on' : ''}" aria-pressed="${SF.when === p.id}">${p.label}</button>`).join('')}</div>
+      </div>
+      <div class="sf-sec">
+        <div class="pg-tabs sm"><button data-pg="sftab" data-v="top" class="${SF.tab === 'top' ? 'on' : ''}">Top Leagues</button><button data-pg="sftab" data-v="countries" class="${SF.tab === 'countries' ? 'on' : ''}">Top Countries</button><button data-pg="sftab" data-v="az" class="${SF.tab === 'az' ? 'on' : ''}">A-Z</button></div>
+        <div class="sf-list">${list || '<div class="pg-empty">No leagues for this sport yet.</div>'}</div>
+      </div>
+      <div class="sf-foot"><button class="au-btn ghost" data-pg="sfclear">Clear</button><button class="au-btn" data-pg="sfview" ${n ? '' : 'disabled'}>View${n ? ` (${n})` : ''}</button></div>`;
+    $('#sfTabs', el).scrollLeft = x; $('#sfChips', el).scrollLeft = cx;
+  }
+
+  /* =========================================================
+     EVENT LIST  (#/list/<sport>/<when>[/<lgs>|out])  and  LEAGUE (#/league/<idx>)
+     ========================================================= */
+  const EL = { tab: 'matches', sort: 'time', shut: new Set() };
+  function parseList(page, arg) {
+    const a = A();
+    if (page === 'league') { const lg = a.LEAGUES[+arg]; return lg ? { sport: lg.sport, when: 'all', lgs: [lg.idx], league: lg } : null; }
+    const parts = location.hash.replace(/^#\/list\/?/, '').split('/');
+    const sport = a.sportOf(parts[0]) ? parts[0] : 'football';
+    const out = parts[2] === 'out';
+    const lgs = !out && parts[2] ? parts[2].split(',').map(Number).filter(n => a.LEAGUES[n]) : [];
+    return { sport, when: parts[1] || 'all', lgs, out };
+  }
+  function renderList(page, arg, keep) {
+    const a = A(), el = root(page), f = parseList(page, arg);
+    if (!f) return a.go('home');
+    if (f.out) EL.tab = 'out';
+    const cfg = a.mktFor(f.sport), w = WHEN(f.when);
+    let list = upcoming().filter(m => m.sport === f.sport && m.kick >= w.from && m.kick < w.to && (!f.lgs.length || f.lgs.includes(m.lg)));
+    if (page === 'league') list = a.MATCHES.filter(m => m.lg === f.lgs[0] && !m.finished && !m.virtual);
+    const liveN = a.MATCHES.filter(m => m.live && m.sport === f.sport).length;
+    const title = f.league ? esc(f.league.name) : esc(a.sportOf(f.sport).name);
+    const lgOpts = [...new Set(list.map(m => m.lg))];
+    let body;
+    if (EL.tab === 'out') body = outrightsHTML(f);
+    else if (!list.length) body = `<div class="pg-empty">${I.info}<b>No matches for this filter</b><span>Try another day or league.</span><a class="au-btn ghost" href="#/sports">Change filter</a></div>`;
+    else {
+      const sorted = list.slice().sort((x, y) => (y.live - x.live) || (EL.sort === 'league' ? x.lg - y.lg || x.kick - y.kick : x.kick - y.kick));
+      const g = new Map();
+      if (EL.sort === 'league' || page === 'league') sorted.forEach(m => { if (!g.has(m.lg)) g.set(m.lg, []); g.get(m.lg).push(m); });
+      else g.set(-1, sorted);
+      body = [...g].map(([lgi, ms]) => {
+        let day = '', rows = '';
+        ms.forEach(m => {
+          const d = m.live ? 'Live' : new Date(m.kick).toDateString();
+          if (d !== day) { day = d; rows += `<div class="day-sep" style="--n:${cfg.outs.length}"><span>${m.live ? 'Live now' : dateLabel(m.kick)}</span>${cols(cfg)}</div>`; }
+          rows += a.matchRow(m, cfg, lgi === -1);
+        });
+        if (lgi === -1) return rows;
+        const lg = a.LEAGUES[lgi], shut = EL.shut.has(lgi);
+        return `<div class="el-grp ${shut ? 'shut' : ''}"><button class="el-lg" data-pg="ellg" data-lg="${lgi}" aria-expanded="${!shut}">${I.tri}${lg.flag}<span>${esc(lg.country)} - ${esc(lg.name)}</span><em>${ms.length}</em></button><div class="el-rows">${rows}</div></div>`;
+      }).join('');
+    }
+    const y = keep ? window.scrollY : 0, mx = $('.mkt-tabs', el)?.scrollLeft || 0;
+    el.innerHTML = `${head(title + (f.league ? `<small>${esc(a.sportOf(f.sport).name)} · ${esc(f.league.country)}</small>` : ''), searchBtn + homeBtn)}
+      <a class="el-live" href="#/live/${f.sport}"><b>All Live</b><em>${liveN}</em>${I.right}</a>
+      <div class="pg-tabs"><button data-pg="eltab" data-v="matches" class="${EL.tab === 'matches' ? 'on' : ''}">Matches</button><button data-pg="eltab" data-v="out" class="${EL.tab === 'out' ? 'on' : ''}">Outrights</button></div>
+      ${EL.tab === 'out' ? '' : `<div class="pg-sticky light">
+        <div class="el-filters">
+          <label><select data-pg="elwhen" aria-label="Time">${['all', 'today', 'tomorrow', '3h', 'h24', 'h72'].map(id => `<option value="${id}" ${f.when === id ? 'selected' : ''}>${id === 'all' ? 'Daily' : WHEN(id).label}</option>`).join('')}</select></label>
+          <label class="${f.lgs.length ? 'on' : ''}"><select data-pg="ellgs" aria-label="League"><option value="">All leagues</option>${a.LEAGUES.filter(l => l.sport === f.sport).map(l => `<option value="${l.idx}" ${f.lgs.length === 1 && f.lgs[0] === l.idx ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+          <label><select data-pg="elmkt" data-msport="${f.sport}" aria-label="Market">${a.listMarkets(f.sport).map(x => `<option value="${x.id}" ${x.id === cfg.id ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
+          <label class="on"><select data-pg="elsort" aria-label="Sort">${[['time', 'Sort: Time'], ['league', 'Sort: League']].map(([v, l]) => `<option value="${v}" ${EL.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>
+        <div class="mkt-tabs">${a.listMarkets(f.sport).map(x => `<button data-market="${x.id}" data-msport="${f.sport}" class="${x.id === cfg.id ? 'active' : ''}">${x.name}</button>`).join('')}</div>
+      </div>`}
+      <div class="el-body">${body}</div>
+      ${lgOpts.length && EL.tab !== 'out' ? `<p class="pg-foot-note">${list.length} match${list.length === 1 ? '' : 'es'} · odds update live</p>` : ''}`;
+    const mt = $('.mkt-tabs', el); if (mt) mt.scrollLeft = mx;
+    if (keep) window.scrollTo(0, y);
+  }
+  // Outright winner prices from each team's strength in the odds model (display + coming-soon betting)
+  function outrightsHTML(f) {
+    const a = A();
+    const lgs = (f.lgs.length ? f.lgs.map(i => a.LEAGUES[i]) : a.LEAGUES.filter(l => l.sport === f.sport)).filter(l => l.teams && l.teams.length > 2);
+    if (!lgs.length) return `<div class="pg-empty">${I.info}<b>No outright markets</b><span>Outrights appear when a season or tournament opens.</span></div>`;
+    return lgs.map(lg => {
+      const n = lg.teams.length;
+      const w = lg.teams.map((t, i) => Math.pow(0.78, i) * (1 + ((t.length * 7) % 5) / 20));
+      const tot = w.reduce((s, x) => s + x, 0);
+      const rows = lg.teams.map((t, i) => ({ t, o: Math.max(1.2, Math.round(0.88 * tot / w[i] * 100) / 100) })).sort((x, y) => x.o - y.o);
+      const shut = EL.shut.has('o' + lg.idx);
+      return `<div class="el-grp ${shut ? 'shut' : ''}"><button class="el-lg" data-pg="ellg" data-lg="o${lg.idx}">${I.tri}${lg.flag}<span>${esc(lg.country)} - ${esc(lg.name)} · Winner</span><em>${n}</em></button>
+        <div class="el-rows out-rows">${rows.map(r => `<div class="out-row">${a.crest(r.t, 0, lg.sport)}<span>${esc(r.t)}</span><button class="odd" data-pg="outright">${r.o.toFixed(2)}</button></div>`).join('')}</div></div>`;
+    }).join('') + '<p class="pg-foot-note">Outright prices are a preview – betting opens with the season feed.</p>';
+  }
+
+  /* =========================================================
+     JACKPOT  (#/jackpot[/results|how|tickets])
+     ========================================================= */
+  const JP = { picks: {}, tab: 'play' };
+  const jpRound = () => { const d = new Date(); const s = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}${String(Math.ceil(((d - s) / DAY + s.getDay() + 1) / 7)).padStart(2, '0')}`; };
+  const jpGames = () => A().MATCHES.filter(m => m.sport === 'football' && !m.live && !m.finished && !m.virtual && m.map['1x2']?.['1']?.o).sort((a, b) => a.kick - b.kick).slice(0, 12);
+  const jpEnd = () => { const games = jpGames(); return games[0] ? games[0].kick : Date.now() + DAY; };
+  const lines = () => jpGames().reduce((n, m) => n * Math.max(1, (JP.picks[m.id] || []).length), 1);
+  function renderJackpot(arg) {
+    const a = A(), el = root('jackpot'), C = a.C;
+    JP.tab = ['results', 'how', 'tickets'].includes(arg) ? arg : 'play';
+    const games = jpGames(), picked = games.filter(m => (JP.picks[m.id] || []).length).length, ln = lines();
+    let body = '';
+    if (JP.tab === 'play') {
+      body = `<div class="jp-round">Round No. ${jpRound()}</div>
+        <div class="jp-th"><span>Date/Match</span><span>1(Home)</span><span>X(Draw)</span><span>2(Away)</span></div>
+        ${games.length ? games.map((m, i) => `<div class="jp-r"><b class="n">${i + 1}</b><div class="jp-m"><small>${new Date(m.kick).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}</small><span>${esc(m.home)}</span><span>${esc(m.away)}</span></div>
+          ${['1', 'X', '2'].map(o => { const on = (JP.picks[m.id] || []).includes(o); return `<button class="jp-o ${on ? 'on' : ''}" data-pg="jpick" data-m="${m.id}" data-o="${o}" aria-pressed="${on}" aria-label="${o} ${esc(m.home)} v ${esc(m.away)}">${(m.map['1x2']?.[o]?.o || 0).toFixed(2)}</button>`; }).join('')}</div>`).join('') : '<div class="pg-empty dark"><b>The next round opens soon</b></div>'}
+        <div class="jp-bar"><div><span><b>${picked}</b>/12 selected${ln > 1 ? ` · ${ln} lines` : ''}</span><small>${ln > 1 ? `${ln} × ${a.whole(C.ticket)}` : 'Pick 1, X or 2 – pick more than one to cover outcomes'}</small></div>
+          <button class="jp-tool" data-pg="jplucky">Lucky Pick</button><button class="jp-tool" data-pg="jpclear">Clear</button>
+          <button class="au-btn" data-pg="jpbuy" ${picked === 12 && games.length === 12 ? '' : 'disabled'}>Buy ${a.whole(ln * C.ticket)}</button></div>`;
+    } else if (JP.tab === 'results') {
+      const past = [1, 2, 3].map(k => {
+        const r = Math.abs(Math.sin(+jpRound() * 7 + k)) * 1e4 | 0;
+        return { round: String(+jpRound() - k), w12: r % 3, w11: 4 + r % 9, w10: 30 + r % 80, pot: C.jackpot * (0.8 + (r % 40) / 100) };
+      });
+      body = past.map(p => `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${p.round}</b><span>${a.whole(Math.round(p.pot))}</span></div>
+        <div class="jp-tiers">${[['12 correct', p.w12, p.pot], ['11 correct', p.w11, p.pot * 0.08], ['10 correct', p.w10, p.pot * 0.02]].map(([t, w, v]) => `<div><span>${t}</span><b>${w} winner${w === 1 ? '' : 's'}</b><small>${w ? a.whole(Math.round(v / w)) + ' each' : 'Rolled over'}</small></div>`).join('')}</div></div>`).join('');
+    } else if (JP.tab === 'how') {
+      body = `<div class="jp-how">${[
+        ['Predict 12 games', 'Pick Home (1), Draw (X) or Away (2) for every game in the round.'],
+        ['Cover more outcomes', `Pick two or three outcomes for a game to cover it. Each extra combination is one more line at ${a.whole(C.ticket)}.`],
+        ['Win big', `Get all 12 right to share the ${a.whole(C.jackpot)} jackpot. 11 and 10 correct win prizes too.`],
+        ['Results', 'Results are confirmed after the last game ends. Winnings are paid straight into your balance.'],
+        ['Postponed games', 'If a game is postponed or abandoned, its outcome is drawn at random under the jackpot rules.'],
+      ].map(([t, d], i) => `<div class="how-step"><b>${i + 1}</b><div><strong>${t}</strong><p>${d}</p></div></div>`).join('')}</div>`;
+    } else {
+      const tk = JP.tickets || [];
+      body = !a.state.user ? `<div class="pg-empty dark"><b>Log in to see your tickets</b><button class="au-btn" data-open="loginModal">Log in</button></div>`
+        : JP.tickets == null ? '<div class="pg-empty dark"><i class="spin big"></i><span>Loading your tickets…</span></div>'
+        : tk.length ? tk.map(t => `<div class="jp-past"><div class="jp-past-h"><b>Round No. ${esc(t.round)}</b><span>${a.whole(t.cost)}</span></div><p class="jp-tk">${t.lines} line${t.lines === 1 ? '' : 's'} · ${new Date(t.at).toLocaleString()} · <b>${esc(t.ref)}</b> · <em>Pending</em></p></div>`).join('')
+        : '<div class="pg-empty dark"><b>No tickets yet</b><span>Your jackpot tickets appear here.</span></div>';
+      if (!JP.loading && a.state.user && JP.tickets == null) { JP.loading = true; loadTickets().then(() => { JP.loading = false; if (a.state.route === 'jackpot' && JP.tab === 'tickets') renderJackpot('tickets'); }); }
+    }
+    el.innerHTML = `${head('Jackpot', `<a class="icon-btn" href="#/jackpot/tickets" aria-label="My tickets">${I.slip}</a>${homeBtn}`, { dark: true })}
+      <div class="jp-hero" style="background-image:linear-gradient(180deg,rgba(10,20,14,.55),rgba(27,30,37,1)),url(${C.b3})">
+        <div class="jp-prize"><p>Predict 12 GAMES to Win</p><h2>${a.C.cur === '₦' ? 'NGN' : 'GHS'} ${Number(C.jackpot).toLocaleString('en')}</h2><small>Prizes for 11 and 10 correct predictions too!</small></div>
+        <div class="jp-cd" id="jpCd"></div>
+      </div>
+      <div class="pg-tabs dark">${[['play', 'Jackpot 12'], ['results', 'Previous Results'], ['how', 'How to play'], ['tickets', 'My Tickets']].map(([k, l]) => `<a href="#/jackpot${k === 'play' ? '' : '/' + k}" class="${JP.tab === k ? 'on' : ''}">${l}</a>`).join('')}</div>
+      <div class="jp-body">${body}</div>`;
+    tick();
+  }
+  async function loadTickets() {
+    const a = A();
+    if (a.live) { try { JP.tickets = await API.jackpot.tickets(); } catch { JP.tickets = JP.tickets || []; } }
+    else JP.tickets = store.get('jp_tickets', []).filter(t => t.phone === a.state.user?.phone);
+  }
+  function tick() {
+    const el = $('#jpCd'); if (!el || A().state.route !== 'jackpot') return;
+    let s = Math.max(0, (jpEnd() - Date.now()) / 1000 | 0);
+    el.innerHTML = [['Days', 86400], ['Hours', 3600], ['Min.', 60], ['Sec.', 1]].map(([l, d]) => { const v = s / d | 0; s -= v * d; return `<div><small>${l}</small><b>${v}</b></div>`; }).join('');
+  }
+  async function buyJackpot() {
+    const a = A(), u = a.state.user, games = jpGames(), ln = lines(), cost = ln * a.C.ticket;
+    if (!u) return a.openModal('loginModal');
+    if (u.balance < cost) { a.toast('Insufficient balance – please deposit', 'err'); return a.go('deposit'); }
+    const picks = games.map(m => ({ eventId: m.id, outcomes: JP.picks[m.id] }));
+    try {
+      let ref;
+      if (a.live) { const r = await API.jackpot.buy(jpRound(), picks); u.balance = r.balance; ref = r.ref; }
+      else {
+        ref = 'JP' + Date.now().toString(36).toUpperCase();
+        u.balance = a.r2(u.balance - cost); a.addTx('Jackpot ticket', -cost, { ref, method: `${ln} line${ln === 1 ? '' : 's'}`, status: 'success' });
+        store.set('jp_tickets', [{ ref, round: jpRound(), lines: ln, cost, picks, at: Date.now(), phone: u.phone }, ...store.get('jp_tickets', [])].slice(0, 50));
+      }
+      a.saveUser(); a.renderAuth(); JP.picks = {}; JP.tickets = null;
+      a.toast(`Ticket ${ref} bought – good luck!`); a.go('jackpot/tickets');
+    } catch (e) { a.toast(a.apiErr(e, 'Ticket could not be bought'), 'err'); }
+  }
+
+  /* =========================================================
+     PROMOTIONS  (#/promos[/tab])  +  detail (#/promo/<id>)
+     ========================================================= */
+  const PROMOS = () => { const a = A(), C = a.C, w = a.whole; const y = new Date().getFullYear(); return [
+    { id: 'welcome', cat: 'sports', title: '200% Welcome Bonus', img: C.b1, from: `1/1/${y}`, to: `12/31/${y}`, lead: `Triple your first deposit, up to ${w(C.bonusMax)}.`, cta: ['Join Now', '#/register'],
+      steps: ['Register with your mobile number.', 'Make your first deposit.', 'Your bonus is added straight away as locked bonus funds.', 'Bet the bonus 5 times on multiples with odds of 1.50 or more per selection to unlock it.'],
+      terms: ['New players only, one bonus per person, household and device.', `Maximum bonus ${w(C.bonusMax)}.`, 'Bonus must be wagered within 14 days or it expires.', 'Cashed-out and void bets do not count towards wagering.'] },
+    { id: 'acca', cat: 'sports', title: 'Acca Win Boost – up to 1000%', img: 'img/banner-2.jpg', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Add 3 or more selections to a multiple and your winnings get boosted.', cta: ['Bet Now', '#/home'],
+      steps: ['Add 3+ selections with odds of 1.20 or more to the betslip.', 'Choose Multiple.', 'The boost percentage grows with every selection – up to 1000% for 40+ legs.'],
+      terms: ['Applies to pre-match and live multiples.', 'The boost is paid as cash on winning bets.', 'Cashed-out bets do not get the boost.'] },
+    { id: 'jackpot', cat: 'sports', title: `${C.jackpotShort} Weekly Jackpot`, img: C.b3, from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Predict 12 matches correctly and take the jackpot.', cta: ['Play Jackpot', '#/jackpot'],
+      steps: ['Open Jackpot.', 'Pick 1, X or 2 for all 12 games.', `Buy your ticket – ${w(C.ticket)} per line.`],
+      terms: ['Prize shared equally between winning tickets.', '11 and 10 correct win tier prizes.', 'Unwon jackpots roll over to the next round.'] },
+    { id: 'crash', cat: 'games', title: 'Rocket Crash: Daily Cashback', grad: 'linear-gradient(135deg,#3b0a5c,#d0306d)', from: `11/1/${y}`, to: `12/31/${y}`, lead: '10% of your daily net Rocket Crash losses back as a free bet.', cta: ['Play Rocket Crash', '#/play'],
+      steps: ['Play Rocket Crash.', 'At midnight we add up your net losses for the day.', '10% comes back as a free bet the next morning.'],
+      terms: [`Maximum cashback ${w(C.bonusMax / 10)} per day.`, 'Free bet valid for 7 days.'] },
+    { id: 'refer', cat: 'features', title: `Refer & Earn ${w(C.referral)}`, grad: 'linear-gradient(135deg,#06612f,#0d9a4c)', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Invite friends and earn for every friend who joins and bets.', cta: ['Get my code', '#/acct/refer'],
+      steps: ['Share your referral code.', 'Your friend registers and deposits.', `When they place their first bet you get ${w(C.referral)}.`],
+      terms: ['Friends must be new players.', 'Referral rewards are paid in cash.'] },
+    { id: 'cashout', cat: 'features', title: 'Cashout – Take Control', grad: 'linear-gradient(135deg,#1b1e25,#3a4352)', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Settle your bet early – win now or cut your losses.', cta: ['Open Bets', '#/acct/bets'],
+      steps: ['Open your bet history.', 'The cashout value follows the live odds.', 'Tap Cashout to settle the bet now.'],
+      terms: ['Cashout is not available on every market.', 'The offer can change or be withdrawn at any time.'] },
+  ]; };
+  const promoCard = p => `<a class="pr-card" href="#/promo/${p.id}"><span class="pr-img" style="${p.img ? `background-image:url(${p.img})` : `background:${p.grad}`}"><b>${esc(p.title)}</b></span>
+    <span class="pr-cap"><b>${esc(p.title)}</b>${I.right}</span><small>${p.from} – ${p.to}</small></a>`;
+  function renderPromos(arg) {
+    const tab = ['sports', 'games', 'features'].includes(arg) ? arg : 'all';
+    const list = PROMOS().filter(p => tab === 'all' || p.cat === tab);
+    root('promos').innerHTML = `${head('Promotions')}
+      <div class="pg-tabs">${[['all', 'All'], ['sports', 'Sports'], ['games', 'Games'], ['features', 'Features']].map(([k, l]) => `<a href="#/promos${k === 'all' ? '' : '/' + k}" class="${tab === k ? 'on' : ''}">${l}</a>`).join('')}</div>
+      <div class="pr-list">${list.map(promoCard).join('')}</div>`;
+  }
+  function renderPromo(id) {
+    const p = PROMOS().find(x => x.id === id); if (!p) return A().go('promos');
+    root('promo').innerHTML = `${head('Promotion Details')}
+      <span class="pr-img big" style="${p.img ? `background-image:url(${p.img})` : `background:${p.grad}`}"><b>${esc(p.title)}</b></span>
+      <div class="pr-detail"><h2>${esc(p.title)}</h2><small>${p.from} – ${p.to}</small><p>${esc(p.lead)}</p>
+        <h3>How it works</h3><ol>${p.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+        <h3>Terms &amp; Conditions</h3><ul>${p.terms.map(s => `<li>${esc(s)}</li>`).join('')}<li>General <a href="#/legal/terms">Terms &amp; Conditions</a> apply. 18+ only. Play responsibly.</li></ul>
+        <a class="au-btn" href="${p.cta[1]}">${p.cta[0]}</a></div>`;
+  }
+
+  /* =========================================================
+     RESULTS  (#/results)
+     ========================================================= */
+  const RS = { day: 0, sport: 'football', open: new Set(), pick: false };
+  function renderResults() {
+    const a = A(), el = root('results');
+    const from = sod(Date.now()) - RS.day * DAY, to = from + DAY;
+    const sports = [...new Set(a.RESULTS.map(m => m.sport))];
+    if (!sports.includes(RS.sport)) RS.sport = sports[0] || 'football';
+    const list = a.RESULTS.filter(m => m.sport === RS.sport && m.endAt >= from && m.endAt < to && m.ft);
+    const g = new Map(); list.forEach(m => { if (!g.has(m.lg)) g.set(m.lg, []); g.get(m.lg).push(m); });
+    const d = new Date(from);
+    el.innerHTML = `${head('Results', searchBtn + homeBtn)}
+      <div class="rs-date"><button data-pg="rsday" data-v="1" aria-label="Previous day" ${RS.day >= 6 ? 'disabled' : ''}>${I.left}</button><b>${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}</b><button data-pg="rsday" data-v="-1" aria-label="Next day" ${RS.day <= 0 ? 'disabled' : ''}>${I.right}</button></div>
+      <div class="rs-crumb"><span>${esc(a.sportOf(RS.sport)?.name || 'Football')} / All Categories / All Tournaments</span><button data-pg="rspick">Change</button></div>
+      ${RS.pick ? `<div class="rs-pick">${sports.map(s => `<button data-pg="rssport" data-v="${s}" class="${s === RS.sport ? 'on' : ''}">${a.sportOf(s).em}${a.sportOf(s).name}</button>`).join('')}</div>` : ''}
+      <div class="rs-list">${list.length ? [...g].map(([lgi, ms]) => {
+        const open = RS.open.has(lgi) || g.size === 1, lg = a.LEAGUES[lgi];
+        return `<div class="rs-grp ${open ? 'open' : ''}"><button class="rs-lg" data-pg="rslg" data-lg="${lgi}" aria-expanded="${open}">${I.tri}<span>${esc(lg.country)} - ${esc(lg.name)}</span><em>${ms.length}</em></button>
+          <div class="rs-rows">${ms.sort((x, y) => x.endAt - y.endAt).map(m => `<div class="rs-row"><small>${new Date(m.endAt - 105 * 6e4).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</small><span class="h">${esc(m.home)}</span><b>${m.ft[0]} : ${m.ft[1]}</b><span class="w">${esc(m.away)}</span>${m.ht ? `<small class="ht">HT ${m.ht[0]}:${m.ht[1]}</small>` : ''}</div>`).join('')}</div></div>`;
+      }).join('') : `<div class="pg-empty">${I.info}<b>No results for this day</b><span>Results appear here when matches finish.</span></div>`}</div>`;
+  }
+
+  /* =========================================================
+     CODE HUB  (#/codes)
+     ========================================================= */
+  const CH = { sport: 'all', follow: null };
+  const TIPSTERS = ['naija_banker', 'kwame.odds', 'stephen_tips', 'accra_king', 'lagos_punter', 'odds_doctor', 'bigwin_ade', 'kumasi_kofi'];
+  function hubCodes() {
+    const a = A(), ms = upcoming().filter(m => m.map['1x2']?.['1']?.o);
+    const pick = (seed, n, sport) => {
+      const pool = ms.filter(m => sport === 'all' || m.sport === sport); const out = []; let s = seed;
+      for (let i = 0; i < pool.length && out.length < n; i++) { s = (s * 16807) % 2147483647; const m = pool[s % pool.length]; if (!out.some(x => x.mid === m.id)) out.push(m.id && { mid: m.id }); }
+      return out.map(({ mid }) => {
+        const m = a.byId(mid), mk = m.map.gg ? (mid % 3 === 0 ? 'gg' : mid % 3 === 1 ? 'ou' : '1x2') : '1x2';
+        const outs = Object.keys(m.map[mk] || {}); const ok = outs[mid % Math.max(1, outs.length)] || '1';
+        const o = m.map[mk]?.[ok] || m.map['1x2']['1'];
+        return { mid, mk: m.map[mk]?.[ok] ? mk : '1x2', ok: m.map[mk]?.[ok] ? ok : '1', odd: o.o, label: o.l, mname: m.mk.find(x => x.key === (m.map[mk]?.[ok] ? mk : '1x2'))?.name || '1X2', match: `${m.home} vs ${m.away}`, m };
+      });
+    };
+    return TIPSTERS.map((t, i) => {
+      const sport = i % 4 === 3 ? 'basketball' : 'football', legs = pick(97 + i * 131, 3 + (i % 4), sport);
+      const odds = legs.reduce((p, l) => p * l.odd, 1);
+      const code = ((i + 11) * 2654435761 % 2176782336).toString(36).toUpperCase().padStart(6, 'X').slice(-6);
+      return { t, followers: 120 + ((i * 7919) % 900), uses: 900 + ((i * 3571) % 15000), code, sport, legs, odds };
+    }).filter(c => c.legs.length >= 2);
+  }
+  function renderCodes() {
+    const a = A(), el = root('codes');
+    if (!CH.follow) CH.follow = new Set(store.get('follows', []));
+    const codes = hubCodes().filter(c => CH.sport === 'all' || c.sport === CH.sport);
+    // register the feed's codes so "Load" works for them too (demo mode)
+    if (!a.live) { const saved = store.get('codes', {}); codes.forEach(c => { saved[c.code] = c.legs.map(l => ({ mid: l.mid, mk: l.mk, ok: l.ok })); }); store.set('codes', saved); }
+    el.innerHTML = `${head('Code Hub', `<button class="icon-btn" data-pg="chfollowing" aria-label="Following">${I.users}</button>${homeBtn}`)}
+      <form class="ch-load" data-pg-form="load"><p>Load a code or choose one from the feed.</p>
+        <div class="ch-in"><input name="code" placeholder="Insert a code to load to betslip" autocapitalize="characters" aria-label="Booking code"><button class="au-btn">Load</button></div></form>
+      <div class="ch-chips">${[['all', 'All'], ['football', 'Football'], ['basketball', 'Basketball']].map(([k, l]) => `<button data-pg="chsport" data-v="${k}" class="${CH.sport === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="ch-feed">${codes.map(c => `<article class="ch-card">
+        <div class="ch-user"><span class="ch-av" style="--h:${(c.t.length * 47) % 360}">${esc(c.t[0].toUpperCase())}</span><b>${esc(c.t)}</b><small>${c.followers + (CH.follow.has(c.t) ? 1 : 0)} Followers</small>
+          <button class="ch-follow ${CH.follow.has(c.t) ? 'on' : ''}" data-pg="chfollow" data-v="${esc(c.t)}">${CH.follow.has(c.t) ? 'Following' : 'Follow'}</button></div>
+        <div class="ch-code"><b>${c.code}</b><span>${I.slip}${c.uses.toLocaleString()}</span><span>Folds: <b>${c.legs.length}</b></span><span>Odds: <b>${c.odds.toFixed(2)}</b></span></div>
+        <ul class="ch-legs">${c.legs.map(l => `<li><a href="#/match/${l.mid}"><span class="ch-pick"><b>${esc(l.label)} @${l.odd.toFixed(2)}</b> <span class="muted">| ${esc(l.mname)}</span></span><small>${esc(l.m.home)} <i>vs</i> ${esc(l.m.away)}</small></a><span class="ch-when">${a.fmtKick(l.m.kick)}</span></li>`).join('')}</ul>
+        <div class="ch-act"><button data-pg="chshare" data-v="${c.code}">${I.share}Share</button><button class="go" data-pg="chadd" data-v="${c.code}">Add to Betslip</button></div>
+      </article>`).join('') || `<div class="pg-empty">${I.info}<b>No codes right now</b></div>`}</div>`;
+    CH.codes = codes;
+  }
+
+  /* =========================================================
+     BET DETAIL  (#/bet/<id>)
+     ========================================================= */
+  function renderBet(id) {
+    const a = A(), b = a.state.bets.find(x => String(x.id) === decodeURIComponent(id || ''));
+    const el = root('bet');
+    if (!b) { el.innerHTML = `${head('Bet Details')}<div class="pg-empty">${I.info}<b>Bet not found</b><span>It may belong to another account.</span><a class="au-btn" href="#/acct/bets">Bet history</a></div>`; return; }
+    const co = b.status === 'open' ? (a.live ? b.cashout : a.cashoutValue(b)) : null;
+    const res = l => a.live ? l.result : a.legResult(l);
+    const st = { open: 'Running', won: 'Won', lost: 'Lost', void: 'Void', cashout: 'Cashed out' }[b.status] || b.status;
+    const ret = b.status === 'open' ? b.win : b.paid || 0;
+    el.innerHTML = `${head('Bet Details')}
+      <div class="bd-top ${b.status}"><span class="status ${b.status}">${st.toUpperCase()}</span><b>${a.money(ret)}</b><small>${b.status === 'open' ? 'Potential win' : b.status === 'lost' ? 'Return' : 'Returned'}</small></div>
+      <dl class="wl-dl bd-dl">
+        <div><dt>Ticket ID</dt><dd>${esc(b.id)} <button class="bd-copy" data-pg="copy" data-v="${esc(b.id)}" aria-label="Copy ticket ID">${I.copy}</button></dd></div>
+        <div><dt>Placed</dt><dd>${new Date(b.at).toLocaleString()}</dd></div>
+        <div><dt>Bet type</dt><dd>${esc(b.type)}</dd></div>
+        <div><dt>Total stake</dt><dd>${a.money(b.stake)}</dd></div>
+        <div><dt>Total odds</dt><dd>${b.odds.toFixed(2)}</dd></div>
+        ${b.boost ? `<div><dt>Win boost</dt><dd>+${b.boost}%</dd></div>` : ''}
+        <div><dt>${b.status === 'open' ? 'Potential win' : 'Paid'}</dt><dd><b>${a.money(ret)}</b></dd></div>
+      </dl>
+      <h3 class="bd-h">Selections (${b.legs.length})</h3>
+      <div class="bd-legs">${b.legs.map(l => { const r = res(l), m = a.byId(l.mid); return `<a class="bd-leg" href="#/match/${l.mid}">
+        <span class="bd-dot ${r || (m && m.live ? 'live' : 'open')}"></span>
+        <div><b>${esc(l.label)}</b><small>${esc(l.mname)}</small><span>${esc(l.match)}</span>
+          <em>${m && m.live ? `<i class="live-t">LIVE ${a.liveLabel(m)}</i> ${m.score[0]}:${m.score[1]}` : m && m.finished && m.ft ? `FT ${m.ft[0]}:${m.ft[1]}` : m ? a.fmtKick(m.kick) : ''}</em></div>
+        <span class="bd-odd">${l.odd.toFixed(2)}<small>${r ? r.toUpperCase() : m && m.live ? 'LIVE' : 'OPEN'}</small></span></a>`; }).join('')}</div>
+      <div class="bd-act">
+        ${b.status === 'open' ? `<button class="au-btn ${co ? 'gold' : ''}" data-cashout="${esc(b.id)}" ${co ? '' : 'disabled'}>${co ? 'Cashout ' + a.money(co) : 'Cashout unavailable'}</button>` : ''}
+        <button class="au-btn ghost" data-pg="rebet" data-v="${esc(b.id)}">Rebet these selections</button>
+        <button class="au-btn ghost" data-pg="sharebet" data-v="${esc(b.id)}">${I.share} Share ticket</button>
+      </div>`;
+  }
+
+  /* =========================================================
+     Events
+     ========================================================= */
+  const toSlip = legs => {
+    const a = A(); let n = 0;
+    legs.forEach(l => {
+      const m = a.byId(l.mid), o = m?.map[l.mk]?.[l.ok];
+      if (!o || !o.o || a.state.slip.some(s => s.mid === l.mid)) return;
+      a.state.slip.push({ mid: l.mid, mk: l.mk, ok: l.ok, odd: o.o, label: o.l, mname: m.mk.find(x => x.key === l.mk)?.name || l.mname, match: `${m.home} vs ${m.away}`, live: m.live, stake: a.C.defStake }); n++;
+    });
+    a.saveSlip(); a.renderAfterSlipChange(); a.openSlip();
+    return n;
+  };
+  const share = async (title, text) => {
+    try { if (navigator.share) return await navigator.share({ title, text }); } catch { return; }
+    navigator.clipboard?.writeText(text).catch(() => {}); A().toast('Copied – paste it anywhere to share');
+  };
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-pg]'); if (!t || t.tagName === 'SELECT' || t.type === 'checkbox') return;
+    const a = A(), v = t.dataset.v, k = t.dataset.pg;
+    switch (k) {
+      case 'search': return a.openSearch();
+      case 'lvsport': LV.sport = t.dataset.s; LV.shut.clear(); return renderLive();
+      case 'lvlg': { const i = +t.dataset.lg; LV.shut.has(i) ? LV.shut.delete(i) : LV.shut.add(i); return t.parentElement.classList.toggle('shut'); }
+      case 'lvall': { const ids = $$('.lv-lg').map(b => +b.dataset.lg); if (ids.length && ids.every(i => LV.shut.has(i))) LV.shut.clear(); else ids.forEach(i => LV.shut.add(i)); return renderLive(null, true); }
+      case 'sfsport': SF.sport = t.dataset.s; SF.sel.clear(); return renderSports();
+      case 'sfmode': SF.mode = v; SF.when = null; return renderSports();
+      case 'sfwhen': SF.when = SF.when === v ? null : v; return renderSports();
+      case 'sftab': SF.tab = v; return renderSports();
+      case 'sfctry': { const c = t.dataset.c; SF.open.has(c) ? SF.open.delete(c) : SF.open.add(c); return t.parentElement.classList.toggle('open'); }
+      case 'sfclear': SF.sel.clear(); SF.when = null; return renderSports();
+      case 'sfview': return a.go(`list/${SF.sport}/${SF.when || 'all'}${SF.sel.size ? '/' + [...SF.sel].join(',') : ''}`);
+      case 'eltab': EL.tab = v; return renderList(a.state.route, a.state.arg);
+      case 'ellg': { const i = t.dataset.lg; const key = i.startsWith('o') ? i : +i; EL.shut.has(key) ? EL.shut.delete(key) : EL.shut.add(key); return t.parentElement.classList.toggle('shut'); }
+      case 'outright': return a.toast('Outright betting opens with the season feed');
+      case 'jpick': { const id = +t.dataset.m, o = t.dataset.o, cur = JP.picks[id] || []; JP.picks[id] = cur.includes(o) ? cur.filter(x => x !== o) : [...cur, o]; if (!JP.picks[id].length) delete JP.picks[id]; return renderJackpot(); }
+      case 'jplucky': jpGames().forEach(m => { const p = ['1', 'X', '2'].map(o => 1 / (m.map['1x2'][o]?.o || 99)); const s = p.reduce((x, y) => x + y, 0); const u = Math.random() * s; JP.picks[m.id] = [u < p[0] ? '1' : u < p[0] + p[1] ? 'X' : '2']; }); return renderJackpot();
+      case 'jpclear': JP.picks = {}; return renderJackpot();
+      case 'jpbuy': return buyJackpot();
+      case 'rsday': RS.day = Math.min(6, Math.max(0, RS.day + +v)); return renderResults();
+      case 'rspick': RS.pick = !RS.pick; return renderResults();
+      case 'rssport': RS.sport = v; RS.pick = false; return renderResults();
+      case 'rslg': { const i = +t.dataset.lg; RS.open.has(i) ? RS.open.delete(i) : RS.open.add(i); return t.parentElement.classList.toggle('open'); }
+      case 'chsport': CH.sport = v; return renderCodes();
+      case 'chfollow': { CH.follow.has(v) ? CH.follow.delete(v) : CH.follow.add(v); store.set('follows', [...CH.follow]); a.toast(CH.follow.has(v) ? `Following ${v}` : `Unfollowed ${v}`); return renderCodes(); }
+      case 'chfollowing': return a.toast(CH.follow && CH.follow.size ? `You follow ${[...CH.follow].join(', ')}` : 'Follow tipsters to see their codes first');
+      case 'chadd': { const c = (CH.codes || []).find(x => x.code === v); if (!c) return; const n = toSlip(c.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} from ${c.code}` : 'These selections are already in your betslip'); }
+      case 'chshare': { const c = (CH.codes || []).find(x => x.code === v); return share('LetBetAfrika booking code', `Booking code ${v} on LetBetAfrika – ${c.legs.length} folds, odds ${c.odds.toFixed(2)}. Load it in the app: ${location.origin}${location.pathname}#/codes`); }
+      case 'copy': navigator.clipboard?.writeText(v).catch(() => {}); return a.toast('Copied');
+      case 'rebet': { const b = a.state.bets.find(x => String(x.id) === v); if (!b) return; const n = toSlip(b.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} to your betslip` : 'Those matches are no longer open for betting', n ? 'ok' : 'err'); }
+      case 'sharebet': { const b = a.state.bets.find(x => String(x.id) === v); if (!b) return; return share('My LetBetAfrika ticket', `My ${b.type} on LetBetAfrika – odds ${b.odds.toFixed(2)}, stake ${a.money(b.stake)}:\n` + b.legs.map(l => `• ${l.match}: ${l.label} @${l.odd.toFixed(2)}`).join('\n')); }
+    }
+  });
+  document.addEventListener('change', e => {
+    const t = e.target.closest('[data-pg]'); if (!t) return;
+    const a = A(), k = t.dataset.pg;
+    if (k === 'lvsort') { LV.sort = t.value; return renderLive(null, true); }
+    if (k === 'sfchk') {
+      if (t.value === 'all') SF.sel.clear(); else { const i = +t.value; t.checked ? SF.sel.add(i) : SF.sel.delete(i); }
+      return renderSports();
+    }
+    if (k === 'elwhen' || k === 'ellgs') {
+      const f = parseList(a.state.route, a.state.arg);
+      const when = k === 'elwhen' ? t.value : f.when, lg = k === 'ellgs' ? t.value : (f.lgs.length ? f.lgs.join(',') : '');
+      return a.go(`list/${f.sport}/${when}${lg ? '/' + lg : ''}`);
+    }
+    if (k === 'elmkt') { a.state.market[t.dataset.msport] = t.value; return a.renderCurrent(true); }
+    if (k === 'elsort') { EL.sort = t.value; return renderList(a.state.route, a.state.arg); }
+  });
+  document.addEventListener('submit', e => {
+    const f = e.target.closest('[data-pg-form]'); if (!f) return;
+    e.preventDefault();
+    if (f.dataset.pgForm === 'load') A().loadCode(f.code.value);
+  });
+
+  /* ---------------- Router glue ---------------- */
+  const RENDER = {
+    live: (arg, keep) => renderLive(arg, keep), sports: () => renderSports(), list: (arg, keep) => renderList('list', arg, keep), league: (arg, keep) => renderList('league', arg, keep),
+    jackpot: arg => renderJackpot(arg), promos: arg => renderPromos(arg), promo: arg => renderPromo(arg), results: () => renderResults(), codes: () => renderCodes(), bet: arg => renderBet(arg),
+  };
+  // pages that refresh with live odds keep their scroll; static ones only re-render on navigation
+  const LIVE_REFRESH = new Set(['live', 'list', 'league', 'bet']);
+  function render(page, arg, keep, prev) {
+    if (keep && !LIVE_REFRESH.has(page)) return;
+    if (!keep && page === 'list' && prev !== 'list') EL.tab = 'matches';
+    if (!keep && page === 'jackpot') JP.tickets = null;
+    if (!keep && page === 'league' && prev !== 'league') { EL.tab = 'matches'; EL.shut.clear(); }
+    RENDER[page](arg, keep);
+  }
+  // jackpot header turns solid once the hero scrolls away (as on the reference)
+  window.addEventListener('scroll', () => { const h = $('#page-jackpot.active .pg-head.dark'); if (h) h.classList.toggle('solid', window.scrollY > 120); }, { passive: true });
+  window.Pages = { handles: p => p in RENDER, render, tick };
+})();

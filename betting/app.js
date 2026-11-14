@@ -348,14 +348,14 @@
     return 'LIVE';
   };
 
-  function oddBtn(m, mk, ok, label, style) {
+  function oddBtn(m, mk, ok, label, style, short) {
     const o = m.map[mk]?.[ok];
     if (!o) return `<span class="odd void"></span>`;
-    if (!o.o) return `<button class="odd ${style || ''} locked" disabled>${style === 'ob' ? `<span>${esc(o.l)}</span>` : ''}${LOCK}</button>`;
+    if (!o.o) return `<button class="odd ${style || ''} locked" disabled>${style === 'ob' ? `<span>${esc(short || o.l)}</span>` : ''}${LOCK}</button>`;
     if (style === 'tb' && !o) return '<span class="odd void"></span>';
     const cls = ['odd', style || '', isSel(m.id, mk, ok) ? 'sel' : '', m.flash[mk + '|' + ok] || ''].join(' ');
     const inner = style === 'ob'
-      ? `<span>${esc(o.l)}</span><b>${o.o.toFixed(2)}</b>`
+      ? `<span>${esc(short || o.l)}</span><b>${o.o.toFixed(2)}</b>`
       : style === 'tb' ? `<b>${o.o.toFixed(2)}</b>`
       : `${label ? `<small>${esc(label)}</small>` : ''}<b>${o.o.toFixed(2)}</b>`;
     return `<button class="${cls}" data-mid="${m.id}" data-mk="${mk}" data-ok="${esc(ok)}">${inner}</button>`;
@@ -441,7 +441,7 @@
       ['GHANA PREMIER LEAGUE', '#ffc20e', `href="#/league/${lgIdx('Ghana', 'Premier League')}"`],
       ['ENGLAND PREMIER LEAGUE', '#3d1a6e', `href="#/league/${lgIdx('England', 'Premier League')}"`],
     ].map(([t, c, a]) => `<a class="cat" ${a.startsWith('href') ? a : 'href="#" ' + a} style="--c:${c}">${t}</a>`).join('');
-    $('#hotTabs').innerHTML = `<button class="active">Matches</button><a href="#/virtuals">Virtuals</a><a href="#/jackpot">Jackpot</a><a href="#/results">Results</a>`;
+    $('#hotTabs').innerHTML = `<button class="active">Matches</button><a href="#/games">Games</a><a href="#/codes">Codes</a><a href="#/virtuals">Virtuals</a><a href="#/jackpot">Jackpot</a>`;
     const hotLgs = LEAGUES.filter(l => l.sport === 'football' && MATCHES.some(m => m.lg === l.idx && !m.live && !m.finished));
     if (state.hotLg == null || !hotLgs.some(l => l.idx === state.hotLg)) state.hotLg = hotLgs[0] ? hotLgs[0].idx : null;
     const pl = $('#leagueChips'), px = pl.scrollLeft;
@@ -458,7 +458,7 @@
           <span class="fc-time"><span class="fc-dt"><b>${t}</b><i></i><small>${d}</small></span><em>1X2</em></span>
           <span class="fc-team">${crest(m.away, 1, m.sport)}<i>${esc(m.away)}</i></span>
         </a>
-        <div class="fc-odds">${['1', 'X', '2'].map(k => oddBtn(m, '1x2', k, null, 'ob')).join('')}</div>
+        <div class="fc-odds">${['1', 'X', '2'].map(k => oddBtn(m, '1x2', k, null, 'ob', k)).join('')}</div>
       </div>`;
     }).join('');
     fe.scrollLeft = fx;
@@ -467,11 +467,14 @@
     renderMarketTabs($('#marketTabs'), state.sport);
     const F = { all: 'All', today: 'Today', '3h': 'Next 3 hours', tomorrow: 'Tomorrow' };
     if (!F[state.list]) state.list = 'all';
-    $('#filterBar').innerHTML = state.list === 'all' ? '' : `<button data-list="all" class="active">${F[state.list]} ✕</button>`;
-    $('#filterBar').hidden = state.list === 'all';
+    const hv = state.homeView || 'hl';
+    $('#filterBar').innerHTML = `<button data-hview="hl" class="${hv === 'hl' ? 'active' : ''}">Highlights</button><button data-hview="today" class="${hv === 'today' ? 'active' : ''}">Today</button><button data-hview="countries" class="${hv === 'countries' ? 'active' : ''}">Countries</button>`
+      + (state.list !== 'all' && hv === 'hl' ? `<button data-list="all" class="chip-x">${F[state.list]} ✕</button>` : '');
+    $('#filterBar').hidden = false;
+    $('#matchList').hidden = hv === 'countries'; $('#leagueAcc').hidden = hv !== 'countries';
     let list = MATCHES.filter(m => m.sport === state.sport && !m.live && !m.finished).sort((a, b) => a.kick - b.kick);
     const now = Date.now(), dayOf = ts => new Date(ts).toDateString();
-    if (state.list === 'today') list = list.filter(m => dayOf(m.kick) === dayOf(now));
+    if (state.list === 'today' || hv === 'today') list = list.filter(m => dayOf(m.kick) === dayOf(now));
     if (state.list === 'tomorrow') list = list.filter(m => dayOf(m.kick) === dayOf(now + 864e5));
     if (state.list === '3h') list = list.filter(m => m.kick - now <= 3 * 36e5);
     $('#matchList').innerHTML = flatList(list.slice(0, 30), mktFor(state.sport));
@@ -787,7 +790,7 @@
       : list.map(b => {
         const co = b.status === 'open' ? (LIVE ? b.cashout : cashoutValue(b)) : null;
         return `<div class="bet-card">
-          <div class="bh"><span><b>${b.type}</b><br><small>${new Date(b.at).toLocaleString()} · ${b.id}</small></span><span class="status ${b.status}">${b.status === 'cashout' ? 'CASHED OUT' : b.status.toUpperCase()}</span></div>
+          <a class="bh" href="#/bet/${encodeURIComponent(b.id)}"><span><b>${b.type}</b><br><small>${new Date(b.at).toLocaleString()} · ${b.id}</small></span><span class="status ${b.status}">${b.status === 'cashout' ? 'CASHED OUT' : b.status.toUpperCase()}</span></a>
           ${b.legs.map(l => { const r = LIVE ? l.result : legResult(l), m = byId(l.mid); return `<a class="bl" href="${m && m.finished ? '#/results' : '#/match/' + l.mid}"><span>${esc(l.match)}${m && m.finished ? ` <small class="ftag">FT ${m.ft[0]}-${m.ft[1]}</small>` : ''}<br><small class="muted">${esc(l.mname)}: <b>${esc(l.label)}</b></small></span><b class="lr ${r || ''}">${l.odd.toFixed(2)}</b></a>`; }).join('')}
           <div class="bf"><span>Stake ${naira(b.stake)}<br><small class="muted">Odds ${b.odds.toFixed(2)}${b.boost ? ` · +${b.boost}% boost` : ''}</small></span><span class="${b.status === 'lost' ? 'lostc' : 'accent'}">${b.status === 'cashout' ? 'Returned ' + naira(b.paid) : b.status === 'won' ? 'Paid ' + naira(b.paid) : b.status === 'void' ? 'Refunded ' + naira(b.paid) : b.status === 'lost' ? 'Lost' : 'To win ' + naira(b.win)}</span></div>
           ${b.status === 'open' ? `<button class="btn ${co ? 'btn-gold' : 'btn-ghost'} block mt" data-cashout="${b.id}" ${co ? '' : 'disabled'}>${co ? 'Cashout ' + naira(co) : 'Cashout unavailable'}</button>` : ''}
@@ -833,6 +836,7 @@
     $('#jpSubmit').disabled = n < 12;
   }
   function tickCountdown() {
+    if (window.Pages) return Pages.tick();
     if (state.route !== 'jackpot') return;
     const end = new Date(); end.setDate(end.getDate() + ((6 - end.getDay() + 7) % 7 || 7)); end.setHours(15, 0, 0, 0);
     let s = Math.max(0, (end - Date.now()) / 1000 | 0);
@@ -1193,7 +1197,7 @@
       syncSlipOdds(); updateLiveBadges();
       const y = window.scrollY;
       if (state.route === 'home') renderHome();
-      else if (['live', 'match', 'league', 'results', 'me', 'acct'].includes(state.route)) renderCurrent(false);
+      else if (['live', 'match', 'league', 'list', 'results', 'me', 'acct', 'bet'].includes(state.route)) renderCurrent(false);
       window.scrollTo(0, y); renderSlip(); renderAuth();
     } catch (e) { if (!e.offline) console.warn('[live]', e); }
     finally { refreshing = false; }
@@ -1268,7 +1272,7 @@
   }
 
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;
@@ -1289,16 +1293,12 @@
     closeDrawer(); closeSlip(); closeSearch(); closeModals();
     document.body.dataset.page = page;
     if (page === 'home') renderHome();
-    if (page === 'live') renderLive();
-    if (page === 'sports') renderAZ($('#sportSearch').value);
     if (page === 'me') renderMe();
-    if (page === 'jackpot') { renderJackpot(); tickCountdown(); }
-    if (page === 'league') renderLeague(+arg);
     if (page === 'virtuals') renderVirtuals();
     if (page === 'games') renderGames();
-    if (page === 'results') renderResults();
     if (page === 'acct') renderAcct(arg);
     if (window.Account && Account.handles(page)) Account.render(page, arg, prevRoute);
+    if (window.Pages && Pages.handles(page)) Pages.render(page, arg, false, prevRoute);
     if (page === 'legal') renderLegal(arg);
     if (page === 'match') renderMatch(+arg);
     else window.scrollTo(0, 0);
@@ -1336,11 +1336,9 @@
   function renderCurrent(keepScroll) {
     const y = window.scrollY;
     if (state.route === 'home') renderHome();
-    if (state.route === 'live') renderLive();
-    if (state.route === 'league') renderLeague(+state.arg);
+    if (window.Pages && Pages.handles(state.route)) Pages.render(state.route, state.arg, true);
     if (state.route === 'match') renderMatch(+state.arg, true);
     if (state.route === 'me') renderMe();
-    if (state.route === 'results') renderResults();
     if (state.route === 'virtuals') renderVirtuals();
     if (state.route === 'acct') renderAcct(state.arg);
     if (keepScroll) window.scrollTo(0, y);
@@ -1391,6 +1389,7 @@
     if (d.soon) { e.preventDefault(); return toast(`${d.soon} is coming soon`); }
     if ('chat' in d) return toast('Live chat will connect to your support desk');
     if (d.list) { state.list = d.list; return renderHome(); }
+    if (d.hview) { state.homeView = d.hview; return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
     if (d.bstype) { if (d.bstype === 'system') return toast('System bets are coming soon'); state.slipType = d.bstype; return renderSlip(); }
@@ -1456,14 +1455,14 @@
     $('#bsWin').textContent = valid.length > 1 ? `${fmtN(Math.min(...wins))} ~ ${fmtN(wins.reduce((a, w) => a + w, 0))}` : fmtN(wins[0] || 0);
     $('#bsPay').textContent = `About to pay ${fmtN(tot)}`;
   });
-  $('#sportSearch').addEventListener('input', e => renderAZ(e.target.value));
   $('#gSearch').addEventListener('input', renderGames);
   $('#gCat').addEventListener('change', renderGames);
   $('#searchInput').addEventListener('input', e => renderSearch(e.target.value));
 
-  $('#codeForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    const code = $('#codeInput').value.trim().toUpperCase();
+  $('#codeForm').addEventListener('submit', e => { e.preventDefault(); loadCode($('#codeInput').value); });
+  async function loadCode(raw) {
+    const code = String(raw || '').trim().toUpperCase();
+    if (!code) return toast('Enter a booking code', 'err');
     if (LIVE) {
       try {
         const list = await API.bets.load(code);
@@ -1482,7 +1481,7 @@
     });
     saveSlip(); closeModals(); renderAfterSlipChange(); openSlip();
     toast(`Loaded ${state.slip.length} selection(s)`);
-  });
+  }
 
   /* ---------------- Live simulation ---------------- */
   function simTick() {
@@ -1547,7 +1546,9 @@
   })();
   // internal API used by account.js (sign-up, login, reset, deposit, withdraw pages)
   window.LBA_APP = { state, C, CC, store, money, whole, esc, toast, saveUser, addTx, renderAuth, renderMe, go, openModal, r2,
-    get live() { return LIVE; }, apiErr, mapUser, liveBets, liveUser };
+    get live() { return LIVE; }, apiErr, mapUser, liveBets, liveUser,
+    MATCHES, LEAGUES, SPORTS, RESULTS, VISIBLE, sportOf, byId, listMarkets, mktFor, matchRow, oddBtn, crest, fmtKick, fmtDay, liveLabel, isHot,
+    saveSlip, saveBets, renderSlip, openSlip, renderCurrent, renderAfterSlipChange, openSearch, loadCode, legResult, cashoutValue, naira, closeModals, betsHTML };
   setInterval(() => {
     tickCountdown(); vTick();
     const sec = Math.floor(Date.now() / 1000);
