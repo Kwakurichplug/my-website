@@ -48,7 +48,7 @@
     <div class="pg-act">${right}</div></div>`;
   const homeBtn = `<a class="icon-btn" href="#/home" aria-label="Home">${I.home}</a>`;
   const searchBtn = `<button class="icon-btn" data-pg="search" aria-label="Search">${I.search}</button>`;
-  const cols = cfg => `<div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>`;
+  const cols = cfg => `<div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${A().exHead ? A().exHead(cfg) : ''}`;
   const dateLabel = ts => { const d = new Date(ts); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`; };
   const upcoming = () => A().MATCHES.filter(m => !m.live && !m.finished && !m.virtual);
 

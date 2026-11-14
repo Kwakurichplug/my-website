@@ -2154,3 +2154,17 @@ html[data-theme="dark"] .sf-chips button:not(.on){color:#4cd07d;border-color:#2a
 .net-bar{position:fixed;left:0;right:0;top:0;z-index:200;background:#3a3f48;color:#fff;text-align:center;font-size:13px;padding:7px 12px calc(7px);transform:translateY(-100%);transition:transform .25s}
 .net-bar.on{transform:none}
 .net-bar.ok{background:var(--brand)}
+
+/* =========================================================
+   v16 – desktop: Over/Under 2.5 beside 1X2 (reference wide table)
+   ========================================================= */
+.ev-odds.ex,.cols.ex{display:none}
+@media (min-width:1024px){
+  .ev-odds.ex{display:grid;grid-template-columns:repeat(2,var(--ow));gap:var(--og);margin-left:10px}
+  .cols.ex{display:grid;grid-template-columns:repeat(2,var(--ow));gap:var(--og);margin-left:10px;text-align:center}
+  .day-sep,.league-head{gap:0}
+  .desk-nav a{padding:9px 13px}
+}
+@media (min-width:1024px){
+  .day-sep>span:first-child,.league-head .lh-name{flex:1;min-width:0}
+}

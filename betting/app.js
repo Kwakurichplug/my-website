@@ -393,10 +393,15 @@
           <small>+${n} ›</small>
         </a>
         <div class="ev-odds">${cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('')}</div>
+        ${exCols(m, cfg)}
       </div>
     </div>`;
   }
 
+  // desktop shows Over/Under 2.5 next to 1X2, like the reference's wide table (hidden on phones by CSS)
+  const exOk = cfg => cfg.mk === '1x2';
+  const exCols = (m, cfg) => exOk(cfg) ? `<div class="ev-odds ex">${m.map.ou?.['o2.5'] ? oddBtn(m, 'ou', 'o2.5') + oddBtn(m, 'ou', 'u2.5') : '<span class="odd void"></span><span class="odd void"></span>'}</div>` : '';
+  const exHead = cfg => exOk(cfg) ? '<div class="cols ex"><span>Over 2.5</span><span>Under 2.5</span></div>' : '';
   function groupRender(list, cfgFn, hideHead) {
     if (!list.length) return `<div class="empty"><span class="big">🗓️</span>No events available right now.</div>`;
     const groups = new Map();
@@ -406,7 +411,7 @@
       return `<div class="league-block">
         <div class="league-head" style="--n:${cfg.outs.length}">
           ${hideHead ? `<span class="lh-name">${esc(cfg.name)}</span>` : `<a class="lh-name" href="#/league/${lgi}"><span class="flag">${lg.flag}</span><span class="lh-t">${esc(lg.full)}</span></a>`}
-          <div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div><span class="cols-pad"></span></div>
+          <div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}<span class="cols-pad"></span></div>
         ${ms.map(m => matchRow(m, cfg, false)).join('')}
       </div>`;
     }).join('');
@@ -417,7 +422,7 @@
     let day = '', html = '';
     list.forEach(m => {
       const d = new Date(m.kick).toDateString();
-      if (d !== day) { day = d; html += `<div class="day-sep" style="--n:${cfg.outs.length}"><span>${fmtDay(m.kick)}</span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div></div>`; }
+      if (d !== day) { day = d; html += `<div class="day-sep" style="--n:${cfg.outs.length}"><span>${fmtDay(m.kick)}</span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}</div>`; }
       html += matchRow(m, cfg, true);
     });
     return html || '<div class="empty">No events for this filter.</div>';
@@ -490,7 +495,7 @@
     renderMarketTabs($('#homeLiveMkt'), state.hls);
     const cfg = mktFor(state.hls);
     const live = MATCHES.filter(m => m.live && m.sport === state.hls).slice(0, 6);
-    $('#liveStrip').innerHTML = `<div class="day-sep dark" style="--n:${cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div></div>` + live.map(m => matchRow(m, cfg, true)).join('');
+    $('#liveStrip').innerHTML = `<div class="day-sep dark" style="--n:${cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}</div>` + live.map(m => matchRow(m, cfg, true)).join('');
   }
 
   function renderLive() {
@@ -1564,7 +1569,7 @@
   })();
   // internal API used by account.js (sign-up, login, reset, deposit, withdraw pages)
   window.LBA_APP = { state, C, CC, store, money, whole, esc, toast, saveUser, addTx, renderAuth, renderMe, go, openModal, r2,
-    get live() { return LIVE; }, apiErr, mapUser, liveBets, liveUser,
+    get live() { return LIVE; }, exHead, apiErr, mapUser, liveBets, liveUser,
     MATCHES, LEAGUES, SPORTS, RESULTS, VISIBLE, sportOf, byId, listMarkets, mktFor, matchRow, oddBtn, crest, fmtKick, fmtDay, liveLabel, isHot,
     saveSlip, saveBets, renderSlip, openSlip, renderCurrent, renderAfterSlipChange, openSearch, loadCode, legResult, cashoutValue, naira, closeModals, betsHTML };
   setInterval(() => {
