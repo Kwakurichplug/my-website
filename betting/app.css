@@ -2188,3 +2188,35 @@ svg.flg{width:18px;height:13.5px}
 .fc-team .crest.nation.big{width:36px;height:36px}
 .crest-fb{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#3a4049;color:#fff;font:700 9px Roboto,sans-serif;width:16px;height:16px}
 .crest-fb.big{width:40px;height:40px;font-size:13px}
+
+/* =========================================================
+   v18 – YOU WON trophy celebration
+   ========================================================= */
+.tr-ov{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  background:radial-gradient(ellipse at 50% 46%,rgba(80,52,0,.55),rgba(8,9,12,.97) 62%);color:#fff;opacity:0;pointer-events:none;transition:opacity .3s}
+.tr-ov.on{opacity:1;pointer-events:auto}
+body.tr-lock{overflow:hidden}
+.tr-x{position:absolute;top:calc(10px + env(safe-area-inset-top));right:14px;font-size:30px;color:#c3c7cd;width:40px;height:40px}
+.tr-top{text-align:center;transform:translateY(-16px);opacity:0;transition:.5s .15s}
+.tr-ov.on .tr-top{transform:none;opacity:1}
+.tr-top h2{font:900 clamp(44px,13vw,64px)/1 Roboto,sans-serif;letter-spacing:1px;text-shadow:0 4px 18px rgba(0,0,0,.6)}
+.tr-amt{display:block;margin-top:8px;font:900 clamp(26px,8vw,38px)/1.1 Roboto,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 3px 12px rgba(0,0,0,.6)}
+.tr-stage{position:relative;width:min(78vw,340px);aspect-ratio:1;display:grid;place-items:center}
+.tr-rays{position:absolute;inset:-18%;background:repeating-conic-gradient(from 0deg,rgba(255,214,106,.22) 0 7deg,transparent 7deg 22deg);border-radius:50%;
+  -webkit-mask:radial-gradient(circle,#000 18%,transparent 66%);mask:radial-gradient(circle,#000 18%,transparent 66%);animation:trSpin 14s linear infinite}
+.tr-glow{position:absolute;width:62%;height:62%;border-radius:50%;background:radial-gradient(circle,rgba(255,236,170,.95),rgba(255,194,14,.45) 40%,transparent 70%);filter:blur(6px);animation:trPulse 2.2s ease-in-out infinite}
+.tr-cup{position:relative;width:74%;filter:drop-shadow(0 12px 22px rgba(0,0,0,.55));transform:scale(.4) translateY(40px);opacity:0;transition:transform .7s cubic-bezier(.2,1.5,.35,1) .1s,opacity .3s .1s}
+.tr-ov.on .tr-cup{transform:none;opacity:1}
+.tr-sp{position:absolute;width:10px;height:10px;background:#fff6d6;clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:trTw 1.8s ease-in-out infinite}
+.tr-sp.s1{top:12%;left:20%}.tr-sp.s2{top:18%;right:16%;animation-delay:.4s;width:14px;height:14px}.tr-sp.s3{top:50%;left:6%;animation-delay:.9s}.tr-sp.s4{top:58%;right:8%;animation-delay:1.3s;width:12px;height:12px}.tr-sp.s5{top:4%;left:52%;animation-delay:.6s}
+.tr-src{color:#e6e8eb;font-size:15px;text-align:center}
+.tr-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:440px}
+.tr-btn{display:grid;place-items:center;height:54px;border-radius:4px;background:#2ed16b;color:#0b2a14;font:700 19px Roboto,sans-serif}
+.tr-btn.ghost{background:transparent;border:2px solid #2ed16b;color:#2ed16b}
+@keyframes trSpin{to{transform:rotate(360deg)}}
+@keyframes trPulse{50%{transform:scale(1.12);opacity:.85}}
+@keyframes trTw{0%,100%{transform:scale(.3);opacity:.2}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.tr-rays,.tr-glow,.tr-sp{animation:none}}
+svg.tr-cup{width:74%;height:auto}
+.tr-ov{background:radial-gradient(ellipse at 50% 48%,#4a3206 0%,#1a1408 38%,#0b0c0f 70%)}
+svg.tr-cup{stroke:none}

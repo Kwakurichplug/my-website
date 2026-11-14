@@ -537,11 +537,65 @@
       VI.playing.min = Math.min(90, Math.round((Date.now() - t0) / dur * 90));
       if (a.state.route === 'instant') renderInstant();
       if (VI.playing.min < 90) setTimeout(step, 400);
-      else { a.renderAuth(); if (r.payout > 0) { a.toast(`You won ${a.money(r.payout)}!`); window.Motion && Motion.confetti && Motion.confetti(); } }
+      else { a.renderAuth(); if (r.payout > 0) setTimeout(() => trophy({ amount: r.payout, source: 'Instant Football', ref: r.ref }), 700); }
     };
     step();
   }
   document.addEventListener('input', e => { if (e.target.id === 'viStake') { VI.stake = +e.target.value.replace(/[^\d.]/g, '') || 0; const c = viCalc(), b = $('[data-pg=vikick]'); if (b) { b.disabled = !(c.picks.length && c.stake >= A().C.minStake); b.textContent = `Kick Off · ${A().money(c.total)}`; } const w = $('.vi-sum b'); if (w) w.textContent = A().money(c.win); } });
+
+  /* =========================================================
+     TROPHY – full-screen "YOU WON" celebration for every win
+     Pages.trophy({ amount, source: 'Sport' | 'Instant Football' | …, ref, href })
+     ========================================================= */
+  const TROPHY_SVG = `<svg class="tr-cup" viewBox="0 0 240 280" aria-hidden="true">
+    <defs>
+      <linearGradient id="trG" x1="0" x2="1"><stop offset="0" stop-color="#8a5a00"/><stop offset=".22" stop-color="#ffd76a"/><stop offset=".45" stop-color="#fff3c4"/><stop offset=".62" stop-color="#ffc20e"/><stop offset="1" stop-color="#7a4d00"/></linearGradient>
+      <linearGradient id="trD" x1="0" x2="1"><stop offset="0" stop-color="#5c3a00"/><stop offset=".5" stop-color="#d49a1c"/><stop offset="1" stop-color="#4a2e00"/></linearGradient>
+      <radialGradient id="trE" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#1b1e25"/><stop offset="1" stop-color="#0b0d10"/></radialGradient>
+    </defs>
+    <path d="M58 40c-36 0-44 22-40 44 5 26 30 40 52 44l4-16c-16-4-34-14-37-32-2-14 4-24 20-24z" fill="url(#trD)"/>
+    <path d="M182 40c36 0 44 22 40 44-5 26-30 40-52 44l-4-16c16-4 34-14 37-32 2-14-4-24-20-24z" fill="url(#trD)"/>
+    <path d="M52 26h136v34c0 52-30 88-68 96-38-8-68-44-68-96z" fill="url(#trG)"/>
+    <path d="M52 26h136v10H52z" fill="#fff3c4" opacity=".55"/>
+    <path d="M70 34c2 52 18 82 46 100" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".35"/>
+    <circle cx="120" cy="80" r="30" fill="url(#trE)" stroke="#ffd76a" stroke-width="4"/>
+    <g transform="translate(120 80)" fill="none" stroke="#ffd76a" stroke-width="2.2">
+      <circle r="17"/><path d="M0-17l7 5-3 9H-4l-3-9zM7-12l9 2M-7-12l-9 2M4-3l7 8M-4-3l-7 8M11 5l-3 9M-11 5l3 9"/>
+    </g>
+    <path d="M106 154h28l6 34h-40z" fill="url(#trD)"/>
+    <path d="M86 188h68l8 22H78z" fill="url(#trG)"/>
+    <rect x="66" y="210" width="108" height="26" rx="3" fill="url(#trD)"/>
+    <rect x="80" y="216" width="80" height="14" rx="2" fill="#2a1a00" opacity=".55"/>
+    <text x="120" y="227" text-anchor="middle" font-family="Kanit,Roboto,sans-serif" font-style="italic" font-weight="800" font-size="10" fill="#ffd76a" letter-spacing="1">LETBET AFRIKA</text>
+  </svg>`;
+  function trophy({ amount, source = 'Sport', ref = '', href = '' } = {}) {
+    const a = A(); if (!(amount > 0)) return;
+    let el = $('#trophyOv');
+    if (!el) { el = document.createElement('div'); el.id = 'trophyOv'; el.className = 'tr-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'You won'); document.body.appendChild(el); }
+    const code = a.C.cur === '₦' ? 'NGN' : 'GHS';
+    el.innerHTML = `<button class="tr-x" data-tr="close" aria-label="Close">×</button>
+      <div class="tr-top"><h2>YOU WON</h2><b class="tr-amt">${code} <span id="trAmt">0.00</span></b></div>
+      <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div>${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
+      <p class="tr-src">From ${esc(source)}${ref ? ` / Ticket ID ${esc(ref)}` : ''}</p>
+      <div class="tr-btns">${href ? `<a class="tr-btn ghost" href="${href}" data-tr="close">Details</a>` : `<button class="tr-btn ghost" data-tr="close">Close</button>`}<button class="tr-btn" data-tr="share">Show Off</button></div>`;
+    el._share = `I just won ${a.money(amount)} on LetBetAfrika${source ? ' (' + source + ')' : ''}! 🏆`;
+    requestAnimationFrame(() => el.classList.add('on'));
+    document.body.classList.add('tr-lock');
+    // count the amount up
+    const t0 = performance.now(), dur = 1400, span = $('#trAmt', el), f = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const step = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); span.textContent = f(amount * e); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    if (window.Motion && Motion.confetti) setTimeout(() => Motion.confetti(), 250);
+    if (navigator.vibrate) try { navigator.vibrate([40, 60, 40]); } catch {}
+    setTimeout(() => $('[data-tr=share]', el)?.focus({ preventScroll: true }), 300);
+  }
+  const closeTrophy = () => { const el = $('#trophyOv'); if (el) el.classList.remove('on'); document.body.classList.remove('tr-lock'); };
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-tr]'); if (!t) return;
+    if (t.dataset.tr === 'close') return closeTrophy();
+    if (t.dataset.tr === 'share') { const txt = $('#trophyOv')._share; if (navigator.share) navigator.share({ title: 'LetBetAfrika win', text: txt, url: location.origin }).catch(() => {}); else { navigator.clipboard?.writeText(txt + ' ' + location.origin).catch(() => {}); A().toast('Copied – paste it to show off your win'); } }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTrophy(); });
 
   /* =========================================================
      Events
@@ -648,5 +702,5 @@
     clearTimeout(b._t); if (navigator.onLine) b._t = setTimeout(() => b.classList.remove('on'), 2500);
   };
   window.addEventListener('offline', net); window.addEventListener('online', net);
-  window.Pages = { handles: p => p in RENDER, render, tick };
+  window.Pages = { handles: p => p in RENDER, render, tick, trophy };
 })();

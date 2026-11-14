@@ -941,7 +941,7 @@
       b.paid = r2(b.boost && rs.every(r => r === 'won') ? base + (base - b.stake) * b.boost / 100 : base);
       b.status = rs.every(r => r === 'void') ? 'void' : 'won'; b.settledAt = Date.now(); changed = true;
       if (state.user) { state.user.balance += b.paid; addTx(b.status === 'won' ? 'Winnings' : 'Refund', b.paid); }
-      if (b.status === 'won') { toast(`You won ${money(b.paid)} 🎉`); if (window.Motion) Motion.confetti(); }
+      if (b.status === 'won') window.Pages ? Pages.trophy({ amount: b.paid, source: 'Sport', ref: b.id, href: '#/bet/' + encodeURIComponent(b.id) }) : toast(`You won ${money(b.paid)}`);
     });
     if (changed) { saveBets(); saveUser(); renderAuth(); if (state.route === 'me') renderMe(); }
   }
@@ -958,6 +958,7 @@
   /* ---------------- Virtual football ---------------- */
   const VTEAMS = ['Lagos City', 'Accra United', 'Kumasi Stars', 'Abuja Kings', 'Kano Falcons', 'Tema Mariners', 'Ibadan Lions', 'Takoradi Sharks', 'Port Harcourt Rivers', 'Tamale Eagles', 'Benin Royals', 'Sunyani Leopards'];
   const VLG = LEAGUES.length;
+  let VLG_LIVE = null; // virtual league index after live mode resets the league list
   LEAGUES.push({ sport: 'vfootball', name: 'Virtual League', country: 'LetBet Virtuals', flag: LBA.sport('vfootball'), idx: VLG, full: 'LetBet Virtual League', teams: VTEAMS });
   const VR_LEN = 120000;
   const VR = { round: 1000 + Math.floor(Date.now() / VR_LEN) % 9000, endsAt: 0, ids: [], last: [], lastRound: null };
@@ -965,7 +966,7 @@
     VR.round++; VR.endsAt = Date.now() + VR_LEN; VR.ids = [];
     const t = [...VTEAMS].sort(() => Math.random() - 0.5);
     for (let i = 0; i < 6; i++) {
-      const m = { id: nextId++, sport: 'vfootball', lg: VLG, home: t[2 * i], away: t[2 * i + 1], live: false, kick: VR.endsAt,
+      const m = { id: nextId++, sport: 'vfootball', lg: VLG_LIVE ?? VLG, home: t[2 * i], away: t[2 * i + 1], live: false, kick: VR.endsAt,
         score: [0, 0], minute: 0, prog: 0, ev: [], flash: {}, two: false, virtual: true, round: VR.round,
         lh: 0.7 + Math.random() * 1.4, la: 0.5 + Math.random() * 1.2, lc: 8 + Math.random() * 4,
         st: { poss: [50, 50], shots: [0, 0], sot: [0, 0], corners: [0, 0], yc: [0, 0], att: [0, 0] } };
@@ -997,7 +998,7 @@
   function renderVirtuals() {
     $('#vRound').textContent = '#' + VR.round;
     renderMarketTabs($('#vMarketTabs'), 'vfootball');
-    $('#vList').innerHTML = groupRender(VR.ids.map(byId), mktFor, true);
+    $("#vList").innerHTML = groupRender(VR.ids.map(byId).filter(Boolean), mktFor, true);
     $('#vLastRound').textContent = VR.lastRound ? 'Round #' + VR.lastRound : 'waiting for first result';
     $('#vResults').innerHTML = VR.last.length ? `<div class="res-block">${VR.last.map(resRow).join('')}</div>` : '<div class="empty">Results appear here when the countdown ends.</div>';
     vTick();
@@ -1192,7 +1193,18 @@
     stake: +b.stake, odds: +b.odds, boost: b.boost, win: +b.potential, status: b.status, paid: b.paid == null ? null : +b.paid, cashout: b.cashout });
   async function liveBets() {
     if (!LIVE || !state.user) return;
-    try { const [open, settled] = await Promise.all([API.bets.list('open'), API.bets.list('settled')]); state.bets = [...open, ...settled].map(mapBet); } catch { /* keep what we have */ }
+    try {
+      const was = new Map(state.bets.map(b => [String(b.id), b.status]));
+      const [open, settled] = await Promise.all([API.bets.list('open'), API.bets.list('settled')]); state.bets = [...open, ...settled].map(mapBet);
+      // a bet we saw open has just been settled as won → trophy (once per bet, also across reloads)
+      let seen = []; try { seen = JSON.parse(localStorage.getItem('lba_trophies') || '[]'); } catch {}
+      const fresh = state.bets.filter(b => b.status === 'won' && was.get(String(b.id)) === 'open' && !seen.includes(String(b.id)));
+      if (fresh.length && window.Pages) {
+        fresh.forEach(b => seen.push(String(b.id))); try { localStorage.setItem('lba_trophies', JSON.stringify(seen.slice(-200))); } catch {}
+        const top = fresh.sort((a, b) => b.paid - a.paid)[0], total = fresh.reduce((t, b) => t + (+b.paid || 0), 0);
+        Pages.trophy({ amount: total, source: 'Sport', ref: fresh.length > 1 ? `${fresh.length} tickets` : top.id, href: '#/bet/' + encodeURIComponent(top.id) });
+      }
+    } catch { /* keep what we have */ }
   }
   async function liveUser() {
     if (!API.token) { state.user = null; return; }
@@ -1221,7 +1233,8 @@
     if (!window.API || !API.enabled) return false;
     if (!(await API.ping())) return false;
     LIVE = true; document.documentElement.dataset.live = '1';
-    MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0;
+    // keep only the virtual league (browser-run rounds); real leagues come from the server
+    { const v = LEAGUES[VLG]; MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0; v.idx = 0; LEAGUES.push(v); VLG_LIVE = 0; }
     await liveUser();
     try { const evs = await API.events.list({ limit: 400 }); evs.forEach(mapEvent); } catch {}
     try { (await API.events.results()).forEach(mapEvent); } catch {}
