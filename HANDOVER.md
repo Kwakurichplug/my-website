@@ -1,5 +1,10 @@
 # LetBetAfrika – Project Handover (read this first)
 
+> **The standard:** this is a paid, commercial-grade product. Every task must meet `docs/QUALITY-BAR.md`
+> (Definition of Done) – official, professional, nothing fake, money always correct.
+>
+> **Live site:** https://api-production-2673beb3.up.railway.app (Railway `letbetafrika` → `api`, deploys from branch `claude/bold-mccarthy-71siq8`).
+>
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
 > then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
 
@@ -35,6 +40,7 @@ Rule of thumb for every decision: *does it look and behave like a top African sp
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
 | `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football). |
 | `server/test/` | `grade.test.js` (unit), `payout.test.js` (money flow integration). |
+| `docs/QUALITY-BAR.md` | **Definition of Done** – professional acceptance checklist for every area. |
 | `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
 | `tools/qa/` | Playwright QA scripts, SportyBet side-by-side tool, mock Odds API + real EPL fixtures. |
 
@@ -118,9 +124,9 @@ plus for real data:
 
 ## 7. Deploy
 
-Railway project `letbetafrika`, service `api` deploys from the **`backend`** branch (root `/`, `npm start`,
-healthcheck `/health`). All new work is on `claude/bold-mccarthy-71siq8` – open a PR into `backend` to deploy,
-then set `ODDS_PROVIDER=oddsapi` + `ODDS_API_KEY` in Railway variables.
+Railway project `letbetafrika`, service `api` now deploys from **`claude/bold-mccarthy-71siq8`** (root `/`, `npm start`,
+healthcheck `/health`) – every push to that branch goes live. `ODDS_PROVIDER=oddsapi` and `ODDS_API_KEY` are set in
+Railway variables. Recommended: create a `staging` environment in Railway and only push to production after QA.
 
 ## 8. Testing
 
