@@ -450,6 +450,100 @@
   }
 
   /* =========================================================
+     INSTANT FOOTBALL  (#/instant)
+     Pick results for a 10-match round, kick off, results in ~10 seconds.
+     live: the server prices the round, takes the stake, plays and settles.
+     demo: the same maths runs in the browser.
+     ========================================================= */
+  const VI = { round: null, picks: {}, type: 'multiple', stake: null, playing: null, loading: false };
+  const VTEAMS = ['Lagos Lions', 'Accra Hearts', 'Kano Pillars', 'Kumasi Kings', 'Enugu Rangers', 'Tamale Eagles', 'Ibadan Stars', 'Cape Coast United', 'Abuja City', 'Takoradi Sharks', 'Port Harcourt FC', 'Tema Mariners', 'Benin Arsenal', 'Sunyani Chelsea', 'Jos Plateau', 'Ho Volta', 'Warri Wolves', 'Obuasi Goldfields', 'Owerri Heartland', 'Koforidua Royals'];
+  const vPois = (l, n = 10) => { const a = []; let p = Math.exp(-l); for (let k = 0; k <= n; k++) { a.push(p); p *= l / (k + 1); } return a; };
+  const vSample = l => { let k = 0, p = Math.exp(-l), s = p; const u = Math.random(); while (u > s && k < 10) { k++; p *= l / k; s += p; } return k; };
+  function demoRound() {
+    const t = [...VTEAMS].sort(() => Math.random() - 0.5), price = p => Math.max(1.05, Math.round(0.92 / p * 100) / 100);
+    const matches = Array.from({ length: 10 }, (_, i) => {
+      const lh = 0.7 + Math.random() * 1.6, la = 0.5 + Math.random() * 1.4, ph = vPois(lh), pa = vPois(la); let H = 0, D = 0, Aw = 0;
+      ph.forEach((x, a) => pa.forEach((y, b) => { if (a > b) H += x * y; else if (a === b) D += x * y; else Aw += x * y; }));
+      return { i, home: t[i * 2], away: t[i * 2 + 1], lh, la, odds: { 1: price(H), X: price(D), 2: price(Aw) } };
+    });
+    return { id: 'demo-' + Date.now(), matches };
+  }
+  async function newRound() {
+    VI.loading = true; VI.picks = {}; VI.playing = null;
+    try { VI.round = A().live ? await API.virtuals.round() : demoRound(); }
+    catch (e) { VI.round = null; A().toast(A().apiErr(e, 'Could not load the round'), 'err'); }
+    VI.loading = false;
+    if (A().state.route === 'instant') renderInstant();
+  }
+  const viPicks = () => Object.entries(VI.picks).map(([i, o]) => ({ i: +i, o }));
+  function viCalc() {
+    const a = A(), picks = viPicks(), stake = VI.stake ?? a.C.defStake * 5;
+    const odds = picks.map(x => VI.round.matches[x.i].odds[x.o]);
+    const total = VI.type === 'single' ? stake * picks.length : stake;
+    const win = VI.type === 'single' ? odds.reduce((s, o) => s + stake * o, 0) : picks.length ? stake * odds.reduce((x, y) => x * y, 1) : 0;
+    return { picks, stake, odds, total, win, tOdds: odds.reduce((x, y) => x * y, 1) };
+  }
+  function renderInstant() {
+    const a = A(), el = root('instant');
+    if (!VI.round && !VI.loading) { newRound(); }
+    const head0 = head('Instant Football', `<a class="pg-txt" href="#/virtuals">Virtual League</a>${homeBtn}`);
+    if (!VI.round) { el.innerHTML = head0 + `<div class="pg-empty dark"><i class="spin big"></i><span>Setting up the next round…</span></div>`; return; }
+    const P = VI.playing, c = viCalc();
+    const rows = VI.round.matches.map(m => {
+      const res = P && P.results[m.i], pick = VI.picks[m.i];
+      const sc = res ? res.score.map((g, side) => res.goals.filter(x => x.side === side && x.min <= P.min).length) : null;
+      const done = P && P.min >= 90, out = res && done ? (res.score[0] > res.score[1] ? '1' : res.score[0] === res.score[1] ? 'X' : '2') : null;
+      return `<div class="vi-r ${pick && done ? (out === pick ? 'won' : 'lost') : ''}">
+        <div class="vi-t"><span>${esc(m.home)}</span><span>${esc(m.away)}</span></div>
+        ${sc ? `<div class="vi-sc"><b>${sc[0]}</b><b>${sc[1]}</b></div>` : ''}
+        <div class="vi-o">${['1', 'X', '2'].map(o => `<button class="jp-o ${pick === o ? 'on' : ''} ${out === o ? 'res' : ''}" data-pg="vipick" data-m="${m.i}" data-o="${o}" ${P ? 'disabled' : ''} aria-pressed="${pick === o}"><small>${o}</small>${m.odds[o].toFixed(2)}</button>`).join('')}</div></div>`;
+    }).join('');
+    const C = a.C;
+    const bar = P ? (P.min < 90 ? `<div class="vi-bar"><div class="vi-clock"><b>${P.min}'</b><span>Matches in play…</span></div></div>`
+      : `<div class="vi-bar done"><div class="vi-res ${P.payout > 0 ? 'win' : ''}"><b>${P.payout > 0 ? 'You won ' + a.money(P.payout) : 'No win this time'}</b><small>Stake ${a.money(P.stake)} · Ticket ${esc(P.ref)}</small></div><button class="au-btn" data-pg="vinext">Next Round</button></div>`)
+      : `<div class="vi-bar">
+          <div class="vi-type"><button data-pg="vitype" data-v="single" class="${VI.type === 'single' ? 'on' : ''}">Single</button><button data-pg="vitype" data-v="multiple" class="${VI.type === 'multiple' ? 'on' : ''}">Multiple</button></div>
+          <div class="vi-sum"><span>${c.picks.length} pick${c.picks.length === 1 ? '' : 's'}${VI.type === 'multiple' && c.picks.length ? ` · odds ${c.tOdds.toFixed(2)}` : ''}</span><span>Potential win <b>${a.money(c.win)}</b></span></div>
+          <div class="vi-stake"><label>${VI.type === 'single' ? 'Stake per pick' : 'Stake'} <span>${C.cur}</span><input id="viStake" inputmode="decimal" value="${c.stake}" aria-label="Stake"></label>
+            ${C.chips.map(v => `<button data-pg="vichip" data-v="${v}">+${v >= 1000 ? v / 1000 + 'k' : v}</button>`).join('')}</div>
+          <button class="au-btn" data-pg="vikick" ${c.picks.length && c.stake >= C.minStake ? '' : 'disabled'}>Kick Off · ${a.money(c.total)}</button></div>`;
+    el.innerHTML = `${head0}
+      <div class="vi-hero"><b>INSTANT FOOTBALL</b><span>Pick results · Kick off · Full time in 10 seconds</span></div>
+      <div class="vi-th"><span>Match</span><span>1</span><span>X</span><span>2</span></div>
+      <div class="vi-list">${rows}</div>${bar}`;
+  }
+  async function kickOff() {
+    const a = A(), u = a.state.user, c = viCalc();
+    if (!u) return a.openModal('loginModal');
+    if (c.total > u.balance) { a.toast('Insufficient balance – please deposit', 'err'); return a.go('deposit'); }
+    let r;
+    try {
+      if (a.live) { r = await API.virtuals.play({ roundId: VI.round.id, type: VI.type, stake: c.stake, picks: c.picks }); u.balance = r.balance; }
+      else {
+        const results = VI.round.matches.map(m => { const h = vSample(m.lh), w = vSample(m.la); return { i: m.i, score: [h, w], goals: [...Array(h).fill(0), ...Array(w).fill(1)].map(side => ({ side, min: 1 + Math.floor(Math.random() * 90) })) }; });
+        const won = c.picks.map(x => { const s = results[x.i].score; return (s[0] > s[1] ? '1' : s[0] === s[1] ? 'X' : '2') === x.o; });
+        const payout = Math.round((VI.type === 'single' ? c.picks.reduce((s, _x, k) => s + (won[k] ? c.stake * c.odds[k] : 0), 0) : won.every(Boolean) ? c.win : 0) * 100) / 100;
+        const ref = 'VI' + Date.now().toString(36).toUpperCase();
+        u.balance = a.r2(u.balance - c.total); a.addTx('Instant Football stake', -c.total, { ref, status: 'success' });
+        if (payout) { u.balance = a.r2(u.balance + payout); a.addTx('Instant Football win', payout, { ref, status: 'success' }); }
+        r = { ref, results, payout, stake: c.total, balance: u.balance };
+      }
+    } catch (e) { if (e.message === 'round_expired') { a.toast('That round expired – here is a new one', 'err'); return newRound(); } return a.toast(a.apiErr(e, 'Could not kick off'), 'err'); }
+    a.saveUser();
+    VI.playing = { ...r, min: 0 };
+    const t0 = Date.now(), dur = 10000;
+    const step = () => {
+      if (!VI.playing) return;
+      VI.playing.min = Math.min(90, Math.round((Date.now() - t0) / dur * 90));
+      if (a.state.route === 'instant') renderInstant();
+      if (VI.playing.min < 90) setTimeout(step, 400);
+      else { a.renderAuth(); if (r.payout > 0) { a.toast(`You won ${a.money(r.payout)}!`); window.Motion && Motion.confetti && Motion.confetti(); } }
+    };
+    step();
+  }
+  document.addEventListener('input', e => { if (e.target.id === 'viStake') { VI.stake = +e.target.value.replace(/[^\d.]/g, '') || 0; const c = viCalc(), b = $('[data-pg=vikick]'); if (b) { b.disabled = !(c.picks.length && c.stake >= A().C.minStake); b.textContent = `Kick Off · ${A().money(c.total)}`; } const w = $('.vi-sum b'); if (w) w.textContent = A().money(c.win); } });
+
+  /* =========================================================
      Events
      ========================================================= */
   const toSlip = legs => {
@@ -497,6 +591,11 @@
       case 'chfollowing': return a.toast(CH.follow && CH.follow.size ? `You follow ${[...CH.follow].join(', ')}` : 'Follow tipsters to see their codes first');
       case 'chadd': { const c = (CH.codes || []).find(x => x.code === v); if (!c) return; const n = toSlip(c.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} from ${c.code}` : 'These selections are already in your betslip'); }
       case 'chshare': { const c = (CH.codes || []).find(x => x.code === v); return share('LetBetAfrika booking code', `Booking code ${v} on LetBetAfrika – ${c.legs.length} folds, odds ${c.odds.toFixed(2)}. Load it in the app: ${location.origin}${location.pathname}#/codes`); }
+      case 'vipick': { const i = +t.dataset.m, o = t.dataset.o; if (VI.picks[i] === o) delete VI.picks[i]; else VI.picks[i] = o; return renderInstant(); }
+      case 'vitype': VI.type = v; return renderInstant();
+      case 'vichip': VI.stake = (VI.stake ?? A().C.defStake * 5) + +v; return renderInstant();
+      case 'vikick': return kickOff();
+      case 'vinext': return newRound();
       case 'copy': navigator.clipboard?.writeText(v).catch(() => {}); return a.toast('Copied');
       case 'rebet': { const b = a.state.bets.find(x => String(x.id) === v); if (!b) return; const n = toSlip(b.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} to your betslip` : 'Those matches are no longer open for betting', n ? 'ok' : 'err'); }
       case 'sharebet': { const b = a.state.bets.find(x => String(x.id) === v); if (!b) return; return share('My LetBetAfrika ticket', `My ${b.type} on LetBetAfrika – odds ${b.odds.toFixed(2)}, stake ${a.money(b.stake)}:\n` + b.legs.map(l => `• ${l.match}: ${l.label} @${l.odd.toFixed(2)}`).join('\n')); }
@@ -527,7 +626,7 @@
   /* ---------------- Router glue ---------------- */
   const RENDER = {
     live: (arg, keep) => renderLive(arg, keep), sports: () => renderSports(), list: (arg, keep) => renderList('list', arg, keep), league: (arg, keep) => renderList('league', arg, keep),
-    jackpot: arg => renderJackpot(arg), promos: arg => renderPromos(arg), promo: arg => renderPromo(arg), results: () => renderResults(), codes: () => renderCodes(), bet: arg => renderBet(arg),
+    jackpot: arg => renderJackpot(arg), promos: arg => renderPromos(arg), promo: arg => renderPromo(arg), results: () => renderResults(), codes: () => renderCodes(), bet: arg => renderBet(arg), instant: () => renderInstant(),
   };
   // pages that refresh with live odds keep their scroll; static ones only re-render on navigation
   const LIVE_REFRESH = new Set(['live', 'list', 'league', 'bet']);

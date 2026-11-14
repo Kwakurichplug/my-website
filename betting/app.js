@@ -1032,7 +1032,7 @@
     if (!ACCT[sec]) return go('me');
     if (LIVE && sec === 'tx' && state.user && Date.now() - (renderAcct._txAt || 0) > 4000) {
       renderAcct._txAt = Date.now();
-      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
+      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
     }
     if (LIVE && sec === 'bets' && state.user) liveBets().then(() => { if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML(); });
     $('#acTitle').textContent = ACCT[sec];
@@ -1281,7 +1281,7 @@
   }
 
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet', 'instant'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;

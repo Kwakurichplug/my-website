@@ -2085,3 +2085,49 @@ html[data-theme="dark"] .sp-tabs:not(.dark){background:#1d2127;border-color:#2c3
 html[data-theme="dark"] .sp-tabs:not(.dark) button{color:#c9cdd2}
 html[data-theme="dark"] .sp-tabs:not(.dark) button.on{color:#fff}
 html[data-theme="dark"] .sf-chips button:not(.on){color:#4cd07d;border-color:#2a6a42}
+
+/* =========================================================
+   v14 – Instant Football + virtuals switch
+   ========================================================= */
+.v-switch{display:flex;background:#1d2127;border-bottom:1px solid #2c3138}
+.v-switch a{flex:1;text-align:center;padding:12px 6px;color:#c3c7cd;font-size:15px;position:relative}
+.v-switch a.on{color:#fff;font-weight:700}
+.v-switch a.on::after{content:"";position:absolute;left:20%;right:20%;bottom:0;height:3px;background:#2ed16b}
+.v-switch em,.vi-hero em{font-style:normal;background:#33e06b;color:#0b2a14;font-size:10px;font-weight:700;padding:1px 4px;border-radius:2px;vertical-align:2px}
+@media (max-width:1023px){ body[data-page="instant"] .topbar{display:none} body[data-page="instant"] .slip-pill{display:none!important} }
+.vi-hero{display:flex;flex-direction:column;gap:2px;padding:16px 16px 14px;background:linear-gradient(120deg,#7a0d1e,#c61b3a 55%,#e85a2a);color:#fff}
+.vi-hero b{font-family:Kanit,Roboto,sans-serif;font-style:italic;font-weight:800;font-size:26px;letter-spacing:.5px}
+.vi-hero span{font-size:13px;opacity:.9}
+.vi-th{display:grid;grid-template-columns:1fr repeat(3,64px);gap:4px;padding:8px 12px;font-size:12.5px;color:#9aa0a8;background:#262a31}
+.vi-th span:not(:first-child){text-align:center}
+.vi-list{padding-bottom:210px}
+.vi-r{display:grid;grid-template-columns:1fr auto repeat(1,auto);align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #2c3138}
+.vi-r.won{background:linear-gradient(90deg,rgba(46,209,107,.16),transparent)}
+.vi-r.lost{background:linear-gradient(90deg,rgba(229,22,58,.14),transparent)}
+.vi-t{display:flex;flex-direction:column;font-size:14px;color:#eef0f2;min-width:0}
+.vi-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vi-sc{display:flex;flex-direction:column;align-items:center;font-size:15px;color:#ffc20e;min-width:18px}
+.vi-o{display:grid;grid-template-columns:repeat(3,64px);gap:4px}
+.vi-o .jp-o{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;height:42px}
+.vi-o .jp-o small{font-size:10px;color:#9aa0a8;font-weight:500}
+.vi-o .jp-o.on small{color:#d6f5e1}
+.vi-o .jp-o.res{box-shadow:inset 0 0 0 2px #ffc20e}
+.vi-o .jp-o:disabled{cursor:default}
+.vi-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:30;display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:#262a31;border-top:1px solid #353a43;color:#e6e8eb;max-width:100vw}
+@media (min-width:1024px){ .vi-bar{position:sticky;bottom:0} }
+.vi-type{display:grid;grid-template-columns:1fr 1fr;background:#1d2127;border-radius:3px;padding:2px}
+.vi-type button{padding:7px;color:#9aa0a8;font-weight:600;border-radius:2px}
+.vi-type button.on{background:#3a4049;color:#fff}
+.vi-sum{display:flex;justify-content:space-between;font-size:13px;color:#c3c7cd}
+.vi-sum b{color:#ffc20e}
+.vi-stake{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none}
+.vi-stake label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#9aa0a8;white-space:nowrap;flex:none}
+.vi-stake label span{color:#c3c7cd}
+.vi-stake input{width:84px;height:34px;background:#1d2127;color:#fff;border-color:#3a4049;font-weight:700}
+.vi-stake button{flex:none;height:30px;padding:0 9px;border:1px solid #3a4049;border-radius:3px;color:#c3c7cd;font-size:12.5px}
+.vi-clock{display:flex;align-items:center;gap:12px;padding:6px 0}
+.vi-clock b{font-size:30px;color:#2ed16b;min-width:60px;font-variant-numeric:tabular-nums}
+.vi-res{display:flex;flex-direction:column;gap:2px}
+.vi-res b{font-size:20px}
+.vi-res.win b{color:#ffc20e}
+.vi-res small{color:#9aa0a8}

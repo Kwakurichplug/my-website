@@ -65,6 +65,10 @@
       buy: (round, picks) => post('/jackpot/tickets', { round, picks }),
       tickets: () => get('/jackpot/tickets').then(r => r.tickets),
     },
+    virtuals: {
+      round: () => get('/virtuals/instant/round'),
+      play: d => post('/virtuals/instant/play', d),
+    },
     events: {
       leagues: () => get('/events/leagues').then(r => r.leagues),
       list: (params = {}) => get('/events?' + new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null)))).then(r => r.events),
