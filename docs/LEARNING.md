@@ -1,7 +1,7 @@
 # LetBetAfrika – Learning guide for the next developer
 
 What you need to know, **where to learn it**, and **where it lives in this code**. Work through §1 on day one,
-then read the section for whichever task in `HANDOVER.md` §6 you pick up.
+then read the section for whichever task in `HANDOVER.md` §7 you pick up.
 
 ---
 
@@ -12,7 +12,8 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 3. Open the reference on your phone: https://www.sportybet.com/ng/m/ – compare with ours screen by screen.
 4. Click through every page; place a bet; deposit; play Instant Football; switch to Ghana; toggle dark mode.
 5. Run `cd server && node --test test/grade.test.js test/games.test.js` and `node tools/qa/smoke.js`.
-6. Play every game in `#/games` (demo and live), and open *Provably fair* on Rocket Crash and press *Verify*.
+6. Play every game in `#/games` (demo and live) and open each game's *How to play* sheet (rules, pay table, RTP).
+   As admin, audit a finished Rocket Crash round with `GET /api/admin/games/crash/verify/:id`.
 
 ### Code tour (follow a bet end to end)
 - Odds button → `oddBtn()` in `betting/app.js` → betslip `renderSlip()` → `livePlaceBet()` → `API.bets.place()` (`betting/api.js`)
@@ -24,7 +25,8 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 ### Code tour (follow a game play)
 - *Roll* in `betting/arcade.js` `play()` → `API.games.play('dice', {stake, choice})` → `server/src/routes/games.js`
   `/:game/play` → one transaction: `debit()` stake → `GameLogic.play(game, rng)` with the CSPRNG → `move()` payout →
-  `game_bets` row → response → the dice animation runs → balance updated → `Pages.trophy()` for wins of 2x or more.
+  `game_bets` row → response → `Scenes.dice.play()` in `betting/scenes.js` rolls the 3D dice to the server's result →
+  balance updated → `Pages.trophy()` for wins of 2x or more.
 - Rocket Crash: `server/src/games/crash.js` `tick()` (leader only) creates rounds and pays auto cash-outs; players call
   `crash/bet`, `crash/cashout`; `betting/games.js` polls `crash/state` and animates from the server clock.
 
@@ -39,9 +41,10 @@ then read the section for whichever task in `HANDOVER.md` §6 you pick up.
 | Markets and settlement rules (1X2, DC, DNB, GG, O/U, CS, handicaps, void rules) | Any bookmaker's "Sports rules" page; SportyBet Help Centre | `gradeLeg()` in `server/src/lib/settle.js`, tests in `server/test/grade.test.js` |
 | Multiples, win boost, cashout pricing | SportyBet promotions pages ("Win Boost", "Cashout") | `bets.js`, `cashoutValue()` in `settle.js` |
 | RTP / house edge for casino games | Wizard of Odds game math pages | `betting/game-logic.js` (`rtp()` computes every table exactly: 94.4–97%), tests in `server/test/games.test.js` |
-| Provably fair crash games (commit–reveal, HMAC) | Search "bustabit provably fair"; Node crypto docs (createHash, createHmac); MDN "SubtleCrypto" for the in-browser check | `server/src/games/crash.js`, *Provably fair* panel in `betting/games.js`, `HANDOVER.md` §6 |
+| Crash games: pre-committed rounds (seed + hash, HMAC) | Search "crash game seed hash HMAC"; Node crypto docs (createHash, createHmac) | `server/src/games/crash.js`; admin audit `GET /api/admin/games/crash/verify/:id`; players never see seeds or hashes (`HANDOVER.md` §6) |
 | Hypergeometric odds (Keno), polynomial line counting (jackpot) | Wizard of Odds "Keno"; any combinatorics primer | `rtp('keno')` in `betting/game-logic.js`, `tiers()` in `server/src/games/jackpot.js` |
-| Leader election with Postgres advisory locks | PostgreSQL docs "Advisory Locks" (explicit locking chapter) | `server/src/lib/leader.js`, `server/src/games/index.js` |
+| Leader election with Postgres advisory locks | PostgreSQL docs "Advisory Locks" (explicit locking chapter) | `server/src/lib/leader.js`, `server/src/games/index.js`, `/health` → `schedulers` |
+| Welcome bonus wagering, referral rewards | Any operator's bonus T&Cs ("wagering requirement", "rollover") | `server/src/lib/bonus.js` (`creditDeposit`, `addTurnover`), `payReferral()` in `routes/bets.js`, `test/account-api.test.js` |
 
 **Golden rules:** money only moves through `wallet.js` inside a DB transaction; prices are always re-checked on the
 server; never trust the client for odds, results or game outcomes; every game result is decided after the stake is taken.
@@ -70,8 +73,9 @@ server; never trust the client for odds, results or game outcomes; every game re
 | node-postgres (pool, transactions) | https://node-postgres.com/ | `server/src/db/pool.js` |
 | zod validation | https://zod.dev/ | every route |
 | JWT auth, bcrypt | https://jwt.io/introduction, bcryptjs README | `server/src/lib/auth.js` |
-| Rate limiting, helmet | express-rate-limit, helmetjs.github.io | `server/src/index.js` |
-| HMAC / CSPRNG (`crypto.randomInt`, `createHmac`) | https://nodejs.org/api/crypto.html | `server/src/games/rng.js`, `routes/games.js` (Hi-Lo signed deals), `games/crash.js` |
+| Rate limiting, helmet | express-rate-limit, helmetjs.github.io | `guard()` in `routes/auth.js` (per phone + per IP), `playLimit` in `routes/games.js` (per player), helmet in `server/src/index.js` |
+| Email (SMTP via nodemailer, or Resend / SendGrid HTTP APIs); SPF, DKIM, DMARC | nodemailer.com, resend.com/docs, docs.sendgrid.com; Google "Email sender guidelines" | `server/src/emails/` + `server/EMAILS.md`; test with `POST /api/admin/email/test` |
+| HMAC / CSPRNG / AES-GCM (`crypto.randomInt`, `createHmac`, `createCipheriv`) | https://nodejs.org/api/crypto.html | `server/src/games/rng.js`, `routes/games.js` (Hi-Lo signed deals), `games/crash.js`, `routes/virtuals.js` (sealed Instant Football rounds) |
 
 Gotcha: jsonb re-sorts object keys – outcome order is restored on the client by `okRank()` in `app.js`.
 
@@ -81,10 +85,11 @@ Gotcha: jsonb re-sorts object keys – outcome order is restored on the client b
 
 | Topic | Learn | Where |
 |---|---|---|
-| Vanilla JS modules on `window`, hash router | MDN (developer.mozilla.org) – "Window: hashchange event" | `route()` in `app.js`; `Account` / `Pages` / `Arcade` / `Games` modules |
-| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v20 (v19 trophy, v20 games); dark via `tools/gen-dark.py` |
+| Vanilla JS modules on `window`, hash router | MDN (developer.mozilla.org) – "Window: hashchange event" | `route()` in `app.js`; `Account` / `Pages` / `Arcade` / `Games` / `Scenes` modules |
+| CSS: flex/grid, sticky, custom properties, `prefers-color-scheme` | MDN CSS guides; web.dev/learn/css | `betting/app.css` layers v5–v22b (v19 trophy, v22 game screens); dark via `tools/gen-dark.py` (its `SKIP` list keeps game art untouched) |
 | 3D product rendering (three.js PBR, lathe geometry, environment lighting) | threejs.org/manual ("Physically based rendering", "LatheGeometry") | `tools/trophy/` – how the trophy image is made |
-| Canvas / SVG animation for games | MDN "Canvas tutorial", "SVG transforms" | Rocket Crash in `games.js`, boards in `arcade.js` |
+| Game animation: CSS 3D transforms, Web Animations API, canvas (particles, physics, `destination-out` scratching), SVG | MDN "Using CSS transforms", "Web Animations API", "Canvas tutorial", "globalCompositeOperation" | `betting/scenes.js` (dice, wheel, reels, keno globe, scratch, cards, penalty), Rocket Crash `draw()` in `games.js` |
+| Game art pipeline (three.js renders, scene captures) | threejs.org/manual; Playwright screenshots | `tools/assets/` (rocket, football, lobby thumbnails), `tools/trophy/` |
 | Mobile UX of sportsbooks | Study SportyBet, Bet9ja, BetKing mobile sites side by side | `tools/qa/compare2.js` |
 | Accessibility (WCAG 2.2 AA) | https://www.w3.org/WAI/WCAG22/quickref/, axe-core | `tools/qa/axe_run.js` |
 | PWA basics | web.dev/learn/pwa | `betting/manifest.webmanifest` |
@@ -98,7 +103,7 @@ Design tokens and sizes: `betting/UI-HANDOVER.md` §3. Keep 12px side gutter, fl
 | Topic | Learn | Apply to |
 |---|---|---|
 | HTTP caching, ETag/304, gzip | MDN "HTTP caching" | cache `/api/events` per replica, rebuild every 2–5 s |
-| Stateless servers / horizontal scaling | Railway docs "Replicas", "Scaling" (docs.railway.com) | move in-memory Maps (Instant Football rounds) to Postgres or signed tokens |
+| Stateless servers / horizontal scaling | Railway docs "Replicas", "Scaling" (docs.railway.com) | already stateless: tokens for Instant Football / Hi-Lo, leader-only schedulers – raise `numReplicas` and test with two servers (`HANDOVER.md` §9) |
 | Postgres connection pooling | PgBouncer docs; Railway Postgres docs | pool size × replicas < max_connections |
 | Load testing | autocannon (github.com/mcollina/autocannon), k6 (grafana.com/docs/k6) | e.g. 2,000 req/s events, 50 bets/s; record p95 latency |
 | Server-Sent Events (optional instead of polling) | MDN "Using server-sent events" | live odds push |
@@ -117,12 +122,13 @@ Design tokens and sizes: `betting/UI-HANDOVER.md` §3. Keep 12px side gutter, fl
 
 | Need | Learn | Hook in code (search `PROVIDER:`) |
 |---|---|---|
-| Card/bank/USSD (NG) | Paystack docs (paystack.com/docs), Flutterwave docs (developer.flutterwave.com) | `routes/wallet.js` deposit; `account.js` deposit tabs |
+| Card/bank/USSD (NG) | Paystack docs (paystack.com/docs), Flutterwave docs (developer.flutterwave.com) | `routes/wallet.js` deposit; `account.js` deposit tabs; credit ONLY via `creditDeposit()` in `lib/bonus.js` |
 | Mobile money (GH) | MTN MoMo API (momodeveloper.mtn.com), Hubtel / Paystack Ghana | `account.js` `depMomo` |
 | Payouts / name enquiry | Paystack Transfers + Resolve Account | `account.js` `bankSheet` |
 | SMS OTP | Termii docs (developers.termii.com) | `server/src/lib/otp.js` (`SMS_PROVIDER`) |
 | KYC | Smile ID docs (docs.usesmileid.com) | `/auth/verify` |
-| Webhooks + idempotency | Stripe/Paystack webhook guides | new `routes/webhooks.js` |
+| Webhooks + idempotency | Stripe/Paystack webhook guides | new `routes/webhooks.js` – copy the pattern of `POST /api/admin/payments/:id/approve` (`FOR UPDATE`, only if `pending`, then `creditDeposit()`) |
+| Email delivery | see §4 (SMTP / Resend / SendGrid) | `EMAIL_PROVIDER` + `SMTP_*` Railway variables; `server/EMAILS.md` |
 
 ## 9. Regulation and responsible gambling
 
@@ -135,7 +141,7 @@ Design tokens and sizes: `betting/UI-HANDOVER.md` §3. Keep 12px side gutter, fl
 
 ## 10. How to work on this repo
 
-1. Branch from the latest branch in `HANDOVER.md` §7; small commits, imperative messages.
+1. Branch from the deploy branch in `HANDOVER.md` §8; small commits, imperative messages.
 2. Before each commit: `smoke.js`, the relevant e2e script, `align.js`; regenerate `dark.css` after CSS changes.
 3. For any UI change, take a side-by-side with `compare2.js` and look at it.
 4. For any money change, add a case to `server/test/payout.test.js`.

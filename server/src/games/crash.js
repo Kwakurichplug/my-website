@@ -1,8 +1,9 @@
 // Rocket Crash – shared rounds for every player, decided by the server.
-// Provably fair (commit–reveal): before betting opens the round publishes hash = sha256(seed);
-// after the crash the seed is revealed and anyone can check
+// Each round is fixed before betting opens: a random seed is drawn and hash = sha256(seed) is stored with it;
 //   point = crashPoint( first 52 bits of HMAC-SHA256(key = seed, "LetBetAfrika Rocket Crash") / 2^52 )
 // with crashPoint() from betting/game-logic.js (3% house edge, cap 200x).
+// Players only ever see round ids, phases and crash points. The seed/hash audit is admin-only:
+// GET /api/admin/games/crash/verify/:id (for disputes and regulator checks).
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { q, tx } from '../db/pool.js';
 import { move, debit } from '../lib/wallet.js';
@@ -118,17 +119,16 @@ export async function state() {
   if (round) {
     const phase = now < +round.starts_at ? 'betting' : now < +round.crash_at ? 'flying' : 'crashed';
     const [hist, bets] = await Promise.all([
-      q(`SELECT id, point, hash, seed FROM crash_rounds WHERE settled ORDER BY id DESC LIMIT 15`),
+      q(`SELECT id, point FROM crash_rounds WHERE settled ORDER BY id DESC LIMIT 15`),
       q(`SELECT g.id, g.stake, g.auto, g.mult, g.payout, g.status, u.country, u.phone FROM game_bets g JOIN users u ON u.id = g.user_id
          WHERE g.game='crash' AND g.round=$1 AND g.status <> 'void' ORDER BY g.stake DESC LIMIT 60`, [round.id]),
     ]);
     v = {
-      round: { id: Number(round.id), hash: round.hash, betFrom: +round.bet_from, startsAt: +round.starts_at, phase,
-        ...(phase === 'crashed' ? { point: Number(round.point), crashAt: +round.crash_at, seed: round.seed } : {}) },
-      history: hist.rows.map(h => ({ id: Number(h.id), point: Number(h.point), hash: h.hash, seed: h.seed })),
+      round: { id: Number(round.id), betFrom: +round.bet_from, startsAt: +round.starts_at, phase,
+        ...(phase === 'crashed' ? { point: Number(round.point), crashAt: +round.crash_at } : {}) },
+      history: hist.rows.map(h => ({ id: Number(h.id), point: Number(h.point) })),
       bets: bets.rows.map(b => ({ id: b.id, name: mask(b.country, b.phone), cc: b.country, stake: Number(b.stake), auto: b.auto == null ? null : Number(b.auto),
         out: b.status === 'cashed' ? Number(b.mult) : null, payout: Number(b.payout), status: b.status })),
-      fair: { formula: 'point = crashPoint(HMAC_SHA256(seed, "LetBetAfrika Rocket Crash")[0..13] / 2^52); hash = SHA256(seed)', k: CRASH.k },
     };
   }
   cache.v = v; cache.t = Date.now();
@@ -137,6 +137,6 @@ export async function state() {
 
 export async function verify(id) {
   const { rows } = await q('SELECT id, hash, seed, point, crash_at FROM crash_rounds WHERE id=$1', [id]);
-  const r = rows[0]; if (!r || Date.now() < +r.crash_at) throw err('not_finished', 404);   // the seed is public once the rocket has crashed
+  const r = rows[0]; if (!r || Date.now() < +r.crash_at) throw err('not_finished', 404);   // only once the rocket has crashed
   return { id: Number(r.id), hash: r.hash, seed: r.seed, point: Number(r.point), check: { hashOk: hashSeed(r.seed) === r.hash, point: pointFromSeed(r.seed) } };
 }

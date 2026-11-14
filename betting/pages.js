@@ -629,6 +629,7 @@
     if (t.dataset.tr === 'share') { const txt = $('#trophyOv')._share; if (navigator.share) navigator.share({ title: 'LetBetAfrika win', text: txt, url: location.origin }).catch(() => {}); else { navigator.clipboard?.writeText(txt + ' ' + location.origin).catch(() => {}); A().toast('Copied – paste it to show off your win'); } }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTrophy(); });
+  window.addEventListener('hashchange', () => { if (document.querySelector('#trophyOv.on')) closeTrophy(); });
 
   /* =========================================================
      Events

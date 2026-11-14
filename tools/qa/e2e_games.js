@@ -38,16 +38,16 @@ const near = (a, b) => Math.abs(a - b) < 0.011;
   for (const g of ['dice', 'spin', 'penalty', 'rush', 'keno', 'scratch', 'hilo']) {
     await p.goto(BASE + '/#/game/' + g); await p.waitForTimeout(1300);
     const before = await bal();
-    if (g === 'keno') await p.click('[data-ar=knquick]');
-    if (g === 'hilo') { await p.waitForSelector('[data-ar=hilo]:not([disabled])', { timeout: 8000 }); await p.click('[data-ar=hilo]:not([disabled])'); }
-    else await p.click('#arPlay');
-    if (g === 'scratch') { await p.waitForSelector('[data-ar=scall]', { timeout: 8000 }); await p.screenshot({ path: `${out}/g-scratch-card.png` }); await p.click('[data-ar=scall]'); }
-    await p.waitForFunction(() => (document.querySelector('#arMsg')?.textContent || '').trim().length > 0, null, { timeout: 15000 });
+    if (g === 'keno') await p.click('[data-gx=knquick]');
+    if (g === 'hilo') { await p.waitForSelector('[data-gx=hilo]:not([disabled])', { timeout: 8000 }); await p.click('[data-gx=hilo]:not([disabled])'); }
+    else await p.click('#gxGo');
+    if (g === 'scratch') { await p.waitForSelector('[data-gx=scall]', { timeout: 8000 }); await p.screenshot({ path: `${out}/g-scratch-card.png` }); await p.click('[data-gx=scall]'); }
+    await p.waitForFunction(() => document.querySelector('#gxResult')?.classList.contains('on'), null, { timeout: 15000 });
     await p.waitForTimeout(900);
     if (await p.$('.tr-ov.on')) { await p.screenshot({ path: `${out}/g-${g}-trophy.png` }); await p.keyboard.press('Escape'); await p.waitForTimeout(400); }
     await p.screenshot({ path: `${out}/g-${g}.png`, fullPage: true });
     const after = await bal(), last = (await api('/games/history?game=' + g, null, token)).plays[0];
-    check(last && near(after, before - last.stake + last.payout), `${g}: server balance ${before} → ${after} matches stake ${last?.stake} / payout ${last?.payout} (${(await p.textContent('#arMsg')).trim()})`);
+    check(last && near(after, before - last.stake + last.payout), `${g}: server balance ${before} → ${after} matches stake ${last?.stake} / payout ${last?.payout} (${(await p.textContent('#gxResult')).replace(/\s+/g, ' ').trim()})`);
   }
   // Hi-Lo deals are single use
   { const d = await api('/games/hilo/deal', {}, token); await api('/games/hilo/play', { stake: 100, choice: d.odds.higher ? 'higher' : 'lower', deal: d.deal }, token);

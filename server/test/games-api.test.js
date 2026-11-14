@@ -92,7 +92,7 @@ async function roundOver(id) {
   throw new Error('round did not end');
 }
 
-test('Rocket Crash: bet, cancel, re-bet, cash out, auto cash-out, provably fair', { timeout: 240000 }, async () => {
+test('Rocket Crash: bet, cancel, re-bet, cash out, auto cash-out, round audit', { timeout: 240000 }, async () => {
   let s = await bettingWindow(), b0 = await balance();
   const a = await api('/games/crash/bet', { stake: 500 }, T);
   assert.equal(a.round, s.round.id); assert.equal(await balance(), r2(b0 - 500));
@@ -105,8 +105,10 @@ test('Rocket Crash: bet, cancel, re-bet, cash out, auto cash-out, provably fair'
   try { cashed = await api('/games/crash/cashout', {}, T); } catch (e) { assert.equal(e.message, 'crashed', 'only a 1.00x bust can beat an instant cash-out'); }
   if (cashed) { assert.equal(cashed.payout, r2(500 * cashed.mult)); assert.equal(await balance(), r2(b0 - 500 + cashed.payout)); }
   const end = await roundOver(b.round);
-  const v = await api('/games/crash/verify/' + b.round);
-  assert.ok(v.check.hashOk && v.check.point === v.point, 'revealed seed matches the published hash and the crash point');
+  await fails(api('/admin/games/crash/verify/' + b.round, null, T2), 'admin_only');
+  const v = await api('/admin/games/crash/verify/' + b.round, null, T);
+  assert.ok(v.check.hashOk && v.check.point === v.point, 'admin audit: the stored seed matches its hash and the crash point');
+  assert.ok(!('hash' in end.round) && !('seed' in end.round) && !end.fair && end.history.every(h => Object.keys(h).join() === 'id,point'), 'players see no seeds, hashes or formulas');
   let listed = end.history.some(h => h.id === b.round);
   for (let i = 0; i < 20 && !listed; i++) { await sleep(200); listed = (await api('/games/crash/state')).history.some(h => h.id === b.round); }
   assert.ok(listed, 'the settled round appears in the public history');
@@ -115,7 +117,7 @@ test('Rocket Crash: bet, cancel, re-bet, cash out, auto cash-out, provably fair'
   s = await bettingWindow(); b0 = await balance();
   const c = await api('/games/crash/bet', { stake: 300, auto: 1.01 }, T);
   await roundOver(c.round); await sleep(600);
-  const play = (await api('/games/history?game=crash', null, T)).plays.find(p => p.id === c.id), pt = (await api('/games/crash/verify/' + c.round)).point;
+  const play = (await api('/games/history?game=crash', null, T)).plays.find(p => p.id === c.id), pt = (await api('/admin/games/crash/verify/' + c.round, null, T)).point;
   if (pt >= 1.01) { assert.equal(play.status, 'cashed'); assert.equal(play.payout, 303); assert.equal(await balance(), r2(b0 - 300 + 303)); }
   else { assert.equal(play.status, 'lost'); assert.equal(await balance(), r2(b0 - 300)); }
   await ledgerOk(T);

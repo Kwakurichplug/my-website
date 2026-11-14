@@ -32,7 +32,7 @@ const finish = async (e, home, away) => { e.used = true; await api(`/admin/event
 
 before(async () => {
   ADMIN = (await newUser({ admin: true })).token;
-  events = (await api('/events?status=scheduled&sport=football&limit=200')).events.filter(e => e.markets.some(m => m.key === '1x2' && !m.suspended));
+  events = (await api('/events?status=scheduled&sport=football&limit=200')).events.filter(e => new Date(e.kickoff) > Date.now() + 5 * 60e3 && e.markets.some(m => m.key === '1x2' && !m.suspended));
   assert.ok(events.length >= 10, 'need 10 open football fixtures, have ' + events.length);
 });
 after(() => db.end());

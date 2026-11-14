@@ -351,7 +351,7 @@
   function oddBtn(m, mk, ok, label, style, short) {
     const o = m.map[mk]?.[ok];
     if (!o) return `<span class="odd void"></span>`;
-    if (!o.o) return `<button class="odd ${style || ''} locked" disabled aria-label="${esc(o.l)} – suspended">${style === 'ob' ? `<span>${esc(short || o.l)}</span>` : ''}${LOCK}</button>`;
+    if (!o.o || (!m.live && !m.finished && m.kick <= Date.now())) return `<button class="odd ${style || ''} locked" disabled aria-label="${esc(o.l)} – suspended">${style === 'ob' ? `<span>${esc(short || o.l)}</span>` : ''}${LOCK}</button>`;
     if (style === 'tb' && !o) return '<span class="odd void"></span>';
     const cls = ['odd', style || '', isSel(m.id, mk, ok) ? 'sel' : '', m.flash[mk + '|' + ok] || ''].join(' ');
     const inner = style === 'ob'
@@ -1043,7 +1043,7 @@
   function renderGames() { window.Games && Games.renderLobby(C.name); }
 
   /* ---------------- Account sub-pages ---------------- */
-  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
+  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Email & Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
     // live: bonus progress and referral stats come from the server
@@ -1112,8 +1112,15 @@
           <label>Date of birth<input name="dob" type="date" required></label>
           <label>ID type<select name="idt">${(CC === 'GH' ? ['Ghana Card', 'Passport', "Driver's Licence", "Voter's ID"] : ['NIN', 'BVN', 'International Passport', "Driver's Licence", "Voter's Card"]).map(x => `<option>${x}</option>`).join('')}</select></label>
           <label>ID number<input name="idn" required></label>
+          <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(u.email || '')}" placeholder="We send your result here"></label>
           <button class="btn btn-accent block">Submit for verification</button></form>`,
-      security: () => `<form class="card-pad form" data-acform="security">
+      security: () => `<form class="card-pad form" data-acform="email">
+          <h4 class="sh">Email address</h4>
+          <p class="muted">For receipts, withdrawal updates and your verification result.</p>
+          <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email" value="${esc(u.email || '')}" placeholder="you@example.com"></label>
+          <button class="btn btn-accent block">${u.email ? 'Update email' : 'Save email'}</button></form>
+        <form class="card-pad form" data-acform="security">
+          <h4 class="sh">Change password</h4>
           <label>Current password<input type="password" name="cur" required></label>
           <label>New password<input type="password" name="pw1" minlength="6" required></label>
           <label>Confirm new password<input type="password" name="pw2" minlength="6" required></label>
@@ -1146,15 +1153,17 @@
     const k = f.dataset.acform, u = state.user;
     if (LIVE) {
       try {
-        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value }); toast('Documents submitted – we will email you when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
+        if (k === 'email') { state.user = mapUser(await API.auth.email(f.email.value.trim())); toast('Email saved'); return renderAcct('security'); }
+        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value, email: f.email.value.trim() }); toast('Documents submitted – we will email you when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
         if (k === 'security') { if (window.Account) return Account.changePassword(f); if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); await API.auth.password(f.cur.value, f.pw1.value); toast('Password updated'); f.reset(); }
         if (k === 'limits') { await API.auth.limits({ period: f.period.value, amount: +f.amt.value || 0, reminder: f.rem.value }); toast('Limits saved'); }
         await liveUser(); renderMe();
       } catch (err) { toast(apiErr(err), 'err'); }
       return;
     }
+    if (k === 'email') { if (!u) return openModal('loginModal'); u.email = f.email.value.trim().toLowerCase(); saveUser(); toast('Email saved'); return renderAcct('security'); }
     if (k === 'verify') {
-      u.verified = true; u.fullName = f.name.value.trim(); saveUser(); toast('Documents submitted – account verified');
+      u.verified = true; u.fullName = f.name.value.trim(); u.email = f.email.value.trim().toLowerCase(); saveUser(); toast('Documents submitted – account verified');
       if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; return go(r); }
       renderAcct('verify');
     }
@@ -1170,7 +1179,7 @@
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
   const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little' }[e.message] || fallback || 'Something went wrong');
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
@@ -1336,6 +1345,7 @@
   let firstRoute = true;
   function route() {
     const [r, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
+    if (r === 'league' && LEAGUES[+arg] && LEAGUES[+arg].sport === 'vfootball') return location.replace('#/virtuals');   // the Virtual League has its own screen
     const h = location.hash || '#/home';
     let dir = 'fade';
     if (navStack.length > 1 && navStack[navStack.length - 2] === h) { navStack.pop(); dir = 'back'; }

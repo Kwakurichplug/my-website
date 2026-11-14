@@ -2,7 +2,7 @@
 //   POST /api/games/:game/play   dice | spin | penalty | rush | keno | scratch | hilo
 //   POST /api/games/hilo/deal    first card for Hi-Lo (signed, single use, 10 min)
 //   GET  /api/games/history      the player's last plays
-//   Rocket Crash: GET crash/state · POST crash/bet · POST crash/cashout · POST crash/cancel · GET crash/verify/:id
+//   Rocket Crash: GET crash/state · POST crash/bet · POST crash/cashout · POST crash/cancel   (round audit: /api/admin/games/crash/verify/:id)
 import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -91,7 +91,6 @@ r.get('/history', requireUser, async (req, res, next) => {
 
 /* ---------- Rocket Crash ---------- */
 r.get('/crash/state', async (_req, res, next) => { try { res.set('cache-control', 'no-store'); res.json(await crash.state()); } catch (e) { next(e); } });
-r.get('/crash/verify/:id', async (req, res, next) => { try { res.json(await crash.verify(+req.params.id)); } catch (e) { next(e); } });
 r.post('/crash/bet', playLimit, requireUser, async (req, res, next) => {
   const p = z.object({ stake: z.number().positive().max(1e9), auto: z.number().min(1.01).max(200).nullable().optional() }).safeParse(req.body);
   if (!p.success) return fail(res, 400, 'invalid');

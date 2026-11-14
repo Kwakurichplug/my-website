@@ -42,7 +42,7 @@ const expect = (c, m) => { if (!c) { failures++; console.log('  ✗ FAIL:', m); 
   expect(/You won|No win/.test(res), 'result shown: ' + res.trim().slice(0, 40));
   const won = (await p.$$('.vi-r.won')).length, lost = (await p.$$('.vi-r.lost')).length;
   expect(won + lost === 3, `picked rows marked won/lost (${won}/${lost})`);
-  const payout = /You won/.test(res) ? +res.match(/₦([\d,.]+)/)[1].replace(/,/g, '') : 0;
+  const payout = /You won/.test(res) ? +res.match(/₦([\d,]+\.\d{2})/)[1].replace(/,/g, '') : 0;
   const bal1 = LIVE ? (await p.api('/wallet', null, token)).balance : await p.evaluate(() => JSON.parse(localStorage.getItem('lba_NG_user')).balance);
   expect(Math.abs(bal1 - (bal0 - 200 + payout)) < 0.01, `balance ${bal0} → ${bal1} matches stake 200 and payout ${payout}`);
   expect(won === 3 ? payout > 0 : payout === 0, 'multiple pays only when every pick wins');

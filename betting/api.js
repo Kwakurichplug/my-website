@@ -51,6 +51,7 @@
       logout: () => setToken(null),
       password: (current, password) => post('/auth/password', { current, password }),
       verify: d => post('/auth/verify', d),
+      email: email => post('/auth/email', { email }).then(r => r.user),
       limits: d => post('/auth/limits', d),
       referrals: () => get('/auth/referrals'),
     },
@@ -82,7 +83,6 @@
         bet: (stake, auto) => post('/games/crash/bet', { stake, auto: auto || null }),
         cashout: () => post('/games/crash/cashout', {}),
         cancel: () => post('/games/crash/cancel', {}),
-        verify: id => get('/games/crash/verify/' + id),
       },
     },
     events: {

@@ -14,12 +14,15 @@ Files
   app.js                  app logic, demo matches/odds, betslip, wallet, settlement
   icons.js                team crests, flags, sport icons (SVG)
   game-logic.js           game rules, pay tables and exact return to player (shared with the server)
-  games.js                games lobby artwork and Rocket Crash
-  arcade.js               instant games: Lucky Dice, Spin & Win, Penalty Kick, Number Rush,
-                          Keno, Scratch Cards, Hi-Lo
+  games.js                games lobby and Rocket Crash (canvas rocket, stars, explosion)
+  scenes.js               game scenes: 3D dice, prize wheel, slot reels, keno globe, scratch foil,
+                          playing cards, penalty stadium
+  arcade.js               instant games screen: Lucky Dice, Spin & Win, Penalty Kick, Number Rush,
+                          Keno, Scratch Cards, Hi-Lo (stage, casino chips, My plays, How to play)
   motion.js               splash screen and animations
   manifest.webmanifest    "Add to Home Screen" app settings
-  img/                    banners, logo ball, favicon and app icons
+  img/                    banners, logo ball, favicon, app icons, trophy, games/ (lobby thumbnails,
+                          rocket and football renders)
 
 Demo notes
   - Matches, odds, scores, accounts and money are simulated in the browser.
@@ -43,5 +46,11 @@ What's new
   - Every game is playable: Rocket Crash, Virtual League, Instant Football, Weekly Jackpot, Lucky Dice,
     Spin & Win, Penalty Kick, Number Rush, Keno, Scratch Cards and Hi-Lo. Opened as a file they run in
     demo mode with the same pay tables; served by the API they play for real money.
+  - Game screens look and move like real casino games: rolling dice, a ticking prize wheel,
+    spinning reels, a keno ball globe, scratch-off foil, flipping cards, a penalty in a stadium
+    and a Rocket Crash rocket that explodes. Stakes are set with casino chips.
+  - Match pages show a Market view (fair chances from the live prices); Code Hub lists real
+    booking codes; the 200% welcome bonus and Refer & Earn work automatically.
+  - Me > Email & Password: players add their email for receipts and updates.
   - When served by the API server everything above uses real accounts and money moves
     through the ledger; opened as a file it runs as a demo.

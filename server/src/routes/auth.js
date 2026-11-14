@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { getSetting } from '../lib/settings.js';
 import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
@@ -12,8 +13,17 @@ const base = { country: z.enum(['NG', 'GH']), phone: phoneSchema };
 
 const bad = (res, e) => res.status(400).json({ error: 'invalid', details: e.flatten?.().fieldErrors });
 
+// Guessing protection on the signed-out endpoints (codes, passwords). Tight per PHONE NUMBER, generous per IP: many
+// players share one mobile-carrier IP, so an IP cap must never block normal sign-ins. Signed-in routes are not capped
+// here (the app polls /auth/me). Each route has its own counters.
+const phoneKey = req => 'p:' + String(req.body?.country || '') + ':' + String(req.body?.phone || '').replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '');
+const guard = perPhone => [
+  rateLimit({ windowMs: 15 * 60e3, limit: 1000, keyGenerator: req => ipKeyGenerator(req.ip), standardHeaders: true, legacyHeaders: false, message: { error: 'too_many_requests' } }),
+  rateLimit({ windowMs: 15 * 60e3, limit: perPhone, keyGenerator: phoneKey, standardHeaders: true, legacyHeaders: false, message: { error: 'too_many_attempts' } }),
+];
+
 // Step 1 of register: send a code
-r.post('/otp', async (req, res, next) => {
+r.post('/otp', guard(6), async (req, res, next) => {
   const p = z.object({ ...base, purpose: z.enum(['register', 'reset']).default('register') }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
   const { country, phone, purpose } = p.data;
@@ -27,7 +37,7 @@ r.post('/otp', async (req, res, next) => {
 });
 
 // Step 2 of register: code + password → account
-r.post('/register', async (req, res, next) => {
+r.post('/register', guard(10), async (req, res, next) => {
   const p = z.object({ ...base, code: z.string().length(6), password: z.string().min(6).max(72), fullName: z.string().max(80).optional(), email: z.string().email().max(120).optional(), ref: z.string().max(20).optional() }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
   const { country, phone, code, password, fullName, email, ref } = p.data;
@@ -63,7 +73,7 @@ r.get('/referrals', requireUser, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-r.post('/login', async (req, res, next) => {
+r.post('/login', guard(10), async (req, res, next) => {
   const p = z.object({ ...base, password: z.string() }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
   const { country, phone, password } = p.data;
@@ -76,7 +86,7 @@ r.post('/login', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-r.post('/reset', async (req, res, next) => {
+r.post('/reset', guard(10), async (req, res, next) => {
   const p = z.object({ ...base, code: z.string().length(6), password: z.string().min(6).max(72) }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
   const { country, phone, code, password } = p.data;
@@ -101,14 +111,28 @@ r.post('/password', requireUser, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+const emailField = z.string().trim().toLowerCase().pipe(z.email().max(120));
+
+// Email for receipts, withdrawal updates and verification results (sign-up is by phone only).
+r.post('/email', requireUser, async (req, res, next) => {
+  const p = z.object({ email: emailField }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid_email' });
+  try {
+    const { rows } = await q('UPDATE users SET email=$2 WHERE id=$1 RETURNING *', [req.user.id, p.data.email]);
+    res.json({ user: publicUser(rows[0]) });
+  } catch (e) { next(e); }
+});
+
 r.post('/verify', requireUser, async (req, res, next) => {
   // KYC placeholder: stores the submission; a KYC provider (Smile ID etc.) will set verified=true later.
-  const p = z.object({ fullName: z.string().min(3).max(80), dob: z.string(), idType: z.string(), idNumber: z.string().min(5).max(30) }).safeParse(req.body);
+  const p = z.object({ fullName: z.string().min(3).max(80), dob: z.string(), idType: z.string(), idNumber: z.string().min(5).max(30), email: emailField.optional() }).safeParse(req.body);
   if (!p.success) return bad(res, p.error);
+  const { email, ...kyc } = p.data;
   try {
-    await q(`UPDATE users SET full_name=$2, limits = limits || jsonb_build_object('kyc', $3::jsonb) WHERE id=$1`, [req.user.id, p.data.fullName, JSON.stringify({ ...p.data, submittedAt: new Date().toISOString(), status: 'pending' })]);
+    await q(`UPDATE users SET full_name=$2, email=coalesce($4, email), limits = limits || jsonb_build_object('kyc', $3::jsonb) WHERE id=$1`,
+      [req.user.id, kyc.fullName, JSON.stringify({ ...kyc, submittedAt: new Date().toISOString(), status: 'pending' }), email || null]);
     res.json({ ok: true, status: 'pending' });
-    sendEmail('kycSubmitted', req.user);
+    sendEmail('kycSubmitted', { ...req.user, email: email || req.user.email, full_name: kyc.fullName });
   } catch (e) { next(e); }
 });
 

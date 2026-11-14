@@ -1,6 +1,6 @@
 /* =========================================================
-   LetBetAfrika – games lobby artwork + Rocket Crash
-   Artwork is drawn in SVG so it is crisp and ours to use.
+   LetBetAfrika – games lobby + Rocket Crash
+   Lobby tiles are screenshots of our own game scenes (tools/assets/thumbs.js).
    Rocket Crash runs two ways:
      live – shared rounds from the server (/api/games/crash/*), real bets
             from real players. Each round is committed before betting opens and can be
@@ -10,44 +10,7 @@
    ========================================================= */
 (() => {
   'use strict';
-  const T = (t, y = 128, size = 26, fill = '#fff', stroke = '#000') =>
-    `<text x="80" y="${y}" text-anchor="middle" font-family="Kanit,Arial Black,sans-serif" font-style="italic" font-weight="800" font-size="${size}" fill="${fill}" stroke="${stroke}" stroke-width="5" paint-order="stroke" letter-spacing="-.5">${t}</text>`;
-  const BG = (id, a, b) => `<defs><radialGradient id="${id}" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></radialGradient></defs><rect width="160" height="160" fill="url(#${id})"/>`;
-  const RAYS = c => `<g opacity=".18" fill="${c}">${Array.from({ length: 12 }, (_, i) => `<path d="M80 62L${80 + Math.cos(i / 6 * Math.PI) * 140} ${62 + Math.sin(i / 6 * Math.PI) * 140}L${80 + Math.cos((i + .45) / 6 * Math.PI) * 140} ${62 + Math.sin((i + .45) / 6 * Math.PI) * 140}z"/>`).join('')}</g>`;
-
-  const ART = {
-    crash: BG('gc', '#3a0d12', '#0d0406') + RAYS('#ff4d4d') +
-      `<path d="M10 120 Q70 110 120 40" fill="none" stroke="#ff3b3b" stroke-width="4" stroke-linecap="round"/>
-       <g transform="translate(112 44) rotate(40)"><path d="M0-26c10 6 14 18 14 30l-14 12-14-12c0-12 4-24 14-30z" fill="#f2f2f2"/><circle cy="-4" r="5" fill="#2b6cff" stroke="#fff" stroke-width="2"/><path d="M-14 4l-8 14 10-4M14 4l8 14-10-4" fill="#e5163a"/><path d="M-6 16l6 14 6-14" fill="#ffc20e"/></g>` + T('ROCKET', 122, 30, '#fff', '#8b0d16') + T('CRASH', 148, 24, '#ffc20e', '#5a0710'),
-    spin: BG('gs', '#3b1a6e', '#130726') +
-      `<g transform="translate(80 66)"><circle r="46" fill="#ffc20e"/>${Array.from({ length: 12 }, (_, i) => `<path d="M0 0L${Math.cos(i / 6 * Math.PI) * 42} ${Math.sin(i / 6 * Math.PI) * 42}A42 42 0 0 1 ${Math.cos((i + 1) / 6 * Math.PI) * 42} ${Math.sin((i + 1) / 6 * Math.PI) * 42}z" fill="${['#e5163a', '#0a7d3e', '#2b6cff', '#ff8a00'][i % 4]}"/>`).join('')}<circle r="9" fill="#fff" stroke="#ffc20e" stroke-width="3"/><path d="M-6-52h12l-6 12z" fill="#fff"/></g>` + T('SPIN & WIN', 140, 24, '#fff', '#2a0b52'),
-    penalty: BG('gp', '#1d8a4a', '#06381c') +
-      `<path d="M0 104h160v56H0z" fill="#127a3c"/><path d="M0 104h160" stroke="#fff" stroke-width="2" opacity=".6"/>
-       <rect x="28" y="30" width="104" height="58" fill="none" stroke="#fff" stroke-width="4"/><g stroke="#fff" opacity=".35">${Array.from({ length: 9 }, (_, i) => `<path d="M${38 + i * 11} 30v58"/>`).join('')}${Array.from({ length: 5 }, (_, i) => `<path d="M28 ${40 + i * 11}h104"/>`).join('')}</g>
-       <g transform="translate(108 52)"><circle r="13" fill="#fff"/><path d="M0-6l6 4-2 7h-8l-2-7z" fill="#1b1e25"/></g><path d="M70 118 Q90 80 104 58" stroke="#fff" stroke-dasharray="3 5" stroke-width="2" fill="none"/>` + T('PENALTY', 132, 28, '#fff', '#04351a') + T('KICK', 156, 22, '#ffc20e', '#04351a'),
-    dice: BG('gd', '#123b7a', '#050f24') +
-      `<g transform="translate(52 62) rotate(-14)"><rect x="-24" y="-24" width="48" height="48" rx="10" fill="#fff"/>${[[-12, -12], [12, 12], [0, 0], [12, -12], [-12, 12]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5" fill="#e5163a"/>`).join('')}</g>
-       <g transform="translate(106 66) rotate(16)"><rect x="-24" y="-24" width="48" height="48" rx="10" fill="#ffc20e"/>${[[-12, -12], [12, 12]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5" fill="#1b1e25"/>`).join('')}</g>` + T('LUCKY', 124, 28, '#fff', '#071a3d') + T('DICE', 150, 24, '#ffc20e', '#071a3d'),
-    keno: BG('gk', '#a54800', '#2e1200') +
-      `${[[40, 40, '#e5163a', 7], [80, 34, '#2b6cff', 23], [120, 42, '#0a7d3e', 41], [56, 78, '#ffc20e', 12], [100, 80, '#7b2d8e', 68]].map(([x, y, c, n]) => `<circle cx="${x}" cy="${y}" r="18" fill="${c}"/><circle cx="${x}" cy="${y}" r="10" fill="#fff"/><text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Arial" font-weight="900" font-size="11" fill="#1b1e25">${n}</text>`).join('')}` + T('KENO', 140, 34, '#fff', '#4a1d00'),
-    scratch: BG('gx', '#0b6b6e', '#032224') +
-      `<rect x="26" y="20" width="108" height="76" rx="8" fill="#ffc20e"/><rect x="34" y="28" width="92" height="60" rx="4" fill="#c9ccd2"/>
-       <path d="M40 40c20 10 40-6 60 4s20 8 22 10v30H40z" fill="#fff"/><text x="80" y="76" text-anchor="middle" font-family="Arial" font-weight="900" font-size="22" fill="#e5163a">x50</text>
-       <path d="M118 30l18-12 6 8-18 12z" fill="#e5e7ea"/>` + T('SCRATCH', 130, 26, '#fff', '#02393b') + T('CARDS', 154, 22, '#ffc20e', '#02393b'),
-    hilo: BG('gh', '#5a3020', '#140804') +
-      `<g transform="translate(60 62) rotate(-12)"><rect x="-26" y="-36" width="52" height="72" rx="6" fill="#fff"/><text x="-14" y="-16" font-family="Arial" font-weight="900" font-size="18" fill="#e5163a">A</text><path d="M0 2c-8-10-18 2-8 10l8 8 8-8c10-8 0-20-8-10z" fill="#e5163a"/></g>
-       <g transform="translate(102 62) rotate(12)"><rect x="-26" y="-36" width="52" height="72" rx="6" fill="#fff"/><text x="-14" y="-16" font-family="Arial" font-weight="900" font-size="18" fill="#1b1e25">K</text><path d="M0-8l8 12h-16z" fill="#1b1e25"/><path d="M0 22l8-12h-16z" fill="#1b1e25"/></g>` + T('HI-LO', 140, 32, '#ffc20e', '#2a0e04'),
-    rush: BG('gn', '#26323a', '#07090b') + RAYS('#ffc20e') +
-      `<text x="80" y="92" text-anchor="middle" font-family="Kanit,Arial Black" font-weight="800" font-style="italic" font-size="70" fill="#ffc20e" stroke="#7a4d00" stroke-width="4" paint-order="stroke">777</text>` + T('NUMBER RUSH', 140, 22, '#fff', '#000'),
-    virtual: BG('gv', '#0d5a32', '#03200f') +
-      `<rect x="30" y="22" width="100" height="64" rx="6" fill="#1b1e25" stroke="#ffc20e" stroke-width="3"/><path d="M42 74l18-22 14 12 22-26 22 30" fill="none" stroke="#32ce62" stroke-width="4"/><circle cx="96" cy="38" r="5" fill="#ffc20e"/>` + T('VIRTUAL', 126, 26, '#fff', '#02200e') + T('LEAGUE', 150, 22, '#ffc20e', '#02200e'),
-    instant: BG('gi', '#0a7d3e', '#02200e') +
-      `<rect x="22" y="22" width="116" height="70" rx="6" fill="#127a3c" stroke="#fff" stroke-width="2.5"/><path d="M80 22v70" stroke="#fff" stroke-width="2"/><circle cx="80" cy="57" r="13" fill="none" stroke="#fff" stroke-width="2"/>
-       <g transform="translate(112 44)"><circle r="11" fill="#fff"/><path d="M0-5l5 3.5-2 6h-6l-2-6z" fill="#1b1e25"/></g><path d="M40 98l10-12 10 12z" fill="#ffc20e"/>` + T('INSTANT', 126, 26, '#fff', '#02200e') + T('FOOTBALL', 150, 20, '#ffc20e', '#02200e'),
-    jackpot: BG('gj', '#7a4d00', '#1f1400') + RAYS('#ffe680') +
-      `<g transform="translate(80 58)"><path d="M-26-26h52v16a26 26 0 0 1-52 0z" fill="#ffc20e" stroke="#7a4d00" stroke-width="3"/><path d="M-26-20h-12a12 12 0 0 0 14 16M26-20h12a12 12 0 0 1-14 16" fill="none" stroke="#ffc20e" stroke-width="5"/><path d="M-6 16h12v12H-6zM-18 30h36v8h-36z" fill="#ffc20e"/></g>` + T('JACKPOT', 134, 30, '#ffc20e', '#3d2600'),
-  };
-
+  // Lobby tiles are captured from the real game scenes (tools/assets/thumbs.js → img/games/thumb-<id>.webp)
   const GAMES = [
     { id: 'crash', n: 'Rocket Crash', cat: 'crash', top: 1, href: '#/play', badge: 'LIVE' },
     { id: 'virtual', n: 'Virtual League', cat: 'sports', top: 2, href: '#/virtuals' },
@@ -61,7 +24,7 @@
     { id: 'hilo', n: 'Hi-Lo Cards', cat: 'instant' },
     { id: 'rush', n: 'Number Rush', cat: 'crash' },
   ];
-  const art = id => `<svg viewBox="0 0 160 160" class="g-art" aria-hidden="true">${ART[id]}</svg>`;
+  const art = id => `<img class="g-art" src="img/games/thumb-${id}.webp" alt="" width="300" height="300" loading="lazy" decoding="async">`;
   const card = (g, rank) => `<a class="gcard" href="${g.href || '#/game/' + g.id}" aria-label="${g.n}">
       ${art(g.id)}${rank ? `<span class="g-rank">${rank}</span>` : ''}${g.badge ? `<span class="g-live">${g.badge}</span>` : ''}</a>`;
   const row = (title, list, rank) => list.length ? `<div class="g-sec"><div class="g-h"><h3>${title}</h3>${rank ? '' : `<span class="g-all">${list.length} games</span>`}</div><div class="g-row">${list.map((g, i) => card(g, rank ? i + 1 : 0)).join('')}</div></div>` : '';
@@ -88,6 +51,7 @@
   const newPoint = () => GL.crashPoint(Math.random());
   const fmtX = x => Number(x).toFixed(2) + 'x';
   const $id = id => document.getElementById(id);
+  const $$q = sel => [...document.querySelectorAll(sel)];
   const onPage = () => $id('page-play')?.classList.contains('active');
 
   /* ----- live: shared server rounds ----- */
@@ -198,46 +162,92 @@
     }
   }
 
+  /* ----- scene: deep space, parallax stars, glowing curve, rendered LetBet rocket, flame, smoke, explosion ----- */
+  const ROCKET = new Image(); ROCKET.decoding = 'async'; ROCKET.src = 'img/games/rocket.webp';
+  const FX = { stars: null, parts: [], lastPhase: null, lastPos: null, boom: 0 };
+  const r01 = Math.random;
+  function starField(W, H) {
+    if (FX.stars && FX.stars.W === W && FX.stars.H === H) return FX.stars;
+    return (FX.stars = { W, H, layers: [0.012, 0.03, 0.065].map((sp, li) => ({ sp, pts: Array.from({ length: 22 + li * 12 }, () => ({ x: r01() * W, y: r01() * H, r: 0.35 + r01() * (0.5 + li * 0.45), a: 0.25 + r01() * 0.6, tw: r01() * 6 })) })) });
+  }
+  function niceStep(span, n) { const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+  function drawRocket(g, x, y, ang, scale, thrust, now) {
+    const w = 24 * scale, h = w * 363 / 160;
+    g.save(); g.translate(x, y); g.rotate(ang + Math.PI / 2);
+    // flame behind the nozzle
+    const fl = h * (0.32 + 0.22 * thrust) * (0.85 + 0.3 * Math.sin(now / 37) * Math.sin(now / 53));
+    const fg = g.createLinearGradient(0, h * 0.42, 0, h * 0.42 + fl); fg.addColorStop(0, 'rgba(255,255,230,.95)'); fg.addColorStop(0.3, 'rgba(255,200,60,.9)'); fg.addColorStop(0.7, 'rgba(255,90,20,.55)'); fg.addColorStop(1, 'rgba(255,60,20,0)');
+    g.fillStyle = fg; g.beginPath(); g.moveTo(-w * 0.2, h * 0.42); g.quadraticCurveTo(-w * 0.34, h * 0.42 + fl * 0.45, 0, h * 0.42 + fl); g.quadraticCurveTo(w * 0.34, h * 0.42 + fl * 0.45, w * 0.2, h * 0.42); g.closePath(); g.fill();
+    g.globalCompositeOperation = 'lighter'; const glow = g.createRadialGradient(0, h * 0.5, 0, 0, h * 0.5, w * 1.1); glow.addColorStop(0, 'rgba(255,170,40,.45)'); glow.addColorStop(1, 'rgba(255,120,20,0)');
+    g.fillStyle = glow; g.beginPath(); g.arc(0, h * 0.5, w * 1.1, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over';
+    if (ROCKET.complete && ROCKET.naturalWidth) g.drawImage(ROCKET, -w / 2, -h / 2, w, h);
+    g.restore();
+    return { nx: x - Math.cos(ang) * h * 0.5, ny: y - Math.sin(ang) * h * 0.5 };
+  }
   function draw() {
     const cv = $id('crCanvas'); if (!cv || !cv.offsetParent) return;
-    const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
-    if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
-    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-    g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
-    for (let x = 0; x < W; x += 40) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
-    for (let y = 0; y < H; y += 40) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
-    const multEl = $id('crMult'), msg = $id('crMsg');
-    if (CR.phase === 'conn' || CR.phase === 'wait') multEl.className = 'cr-mult';
-    if (CR.phase === 'conn') { multEl.textContent = ''; msg.innerHTML = '<b>Connecting to the next round…</b>'; msg.hidden = false; return; }
-    if (CR.phase === 'wait') {
-      const s = Math.max(0, (CR.waitUntil - Date.now()) / 1000);
-      multEl.textContent = ''; msg.innerHTML = `<b>Next round in ${s.toFixed(1)}s</b><i style="width:${100 - s / (GL.CRASH.waitMs / 1000) * 100}%"></i>`; msg.hidden = false;
-      return;
+    const k = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight, now = performance.now();
+    if (cv.width !== Math.round(W * k) || cv.height !== Math.round(H * k)) { cv.width = Math.round(W * k); cv.height = Math.round(H * k); }
+    const g = cv.getContext('2d'); g.setTransform(k, 0, 0, k, 0, 0); g.clearRect(0, 0, W, H);
+    const flying = CR.phase === 'fly', el = flying ? Date.now() - CR.t0 : CR.phase === 'crashed' ? Math.log(CR.point) / GL.CRASH.k : 0;
+    // sky, nebulae, planet
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#050918'); bg.addColorStop(0.55, '#0b0a24'); bg.addColorStop(1, '#170a22'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    for (const [nx, ny, nr, c] of [[0.2, 0.25, 0.5, '90,60,200'], [0.75, 0.15, 0.4, '20,140,90'], [0.55, 0.7, 0.45, '160,40,120']]) { const n = g.createRadialGradient(W * nx, H * ny, 0, W * nx, H * ny, W * nr); n.addColorStop(0, `rgba(${c},.16)`); n.addColorStop(1, `rgba(${c},0)`); g.fillStyle = n; g.fillRect(0, 0, W, H); }
+    const px = W * 0.95, py = H * 1.32, pr = W * 0.5;
+    const at = g.createRadialGradient(px, py, pr * 0.9, px, py, pr * 1.18); at.addColorStop(0, 'rgba(46,209,107,.35)'); at.addColorStop(1, 'rgba(46,209,107,0)'); g.fillStyle = at; g.beginPath(); g.arc(px, py, pr * 1.18, 0, 7); g.fill();
+    const pl = g.createRadialGradient(px - pr * 0.4, py - pr * 0.5, pr * 0.1, px, py, pr); pl.addColorStop(0, '#2f6f63'); pl.addColorStop(0.6, '#123a3a'); pl.addColorStop(1, '#061416'); g.fillStyle = pl; g.beginPath(); g.arc(px, py, pr, 0, 7); g.fill();
+    // stars – they stream past faster as the rocket speeds up
+    const sf = starField(W, H), speed = flying ? Math.min(6, 1 + el / 4000) : 0.25, drift = flying ? el * 0.06 : now * 0.004;
+    for (const L of sf.layers) for (const s of L.pts) {
+      const x = ((s.x - drift * L.sp * 20 * speed) % W + W) % W, y = (s.y + drift * L.sp * 6 * speed) % H;
+      g.globalAlpha = s.a * (0.75 + 0.25 * Math.sin(now / 600 + s.tw)); g.fillStyle = '#fff'; g.fillRect(x, y, s.r * (flying ? 1 + speed * 0.6 : 1), s.r); }
+    g.globalAlpha = 1;
+    const msg = $id('crMsg'), multEl = $id('crMult');
+    if (CR.phase === 'conn' || CR.phase === 'wait') {
+      // rocket waiting on the launch pad
+      const lx = 46, ly = H - 22;
+      g.fillStyle = '#2a2f39'; g.fillRect(lx - 26, ly + 6, 52, 6); g.fillStyle = '#ffc20e'; g.fillRect(lx - 26, ly + 5, 52, 2);
+      drawRocket(g, lx, ly - 22, -Math.PI / 2, 1, 0.15, now);
+      multEl.textContent = ''; multEl.className = 'cr-mult';
+      if (CR.phase === 'conn') msg.innerHTML = '<b>Connecting to the next round…</b>';
+      else { const sec = Math.max(0, (CR.waitUntil - Date.now()) / 1000); msg.innerHTML = `<small>NEXT ROUND IN</small><b>${sec.toFixed(1)}s</b><i style="width:${100 - sec / (GL.CRASH.waitMs / 1000) * 100}%"></i>`; }
+      msg.hidden = false; FX.lastPhase = CR.phase; FX.parts.length = 0; return;
     }
     msg.hidden = true;
-    const el = CR.phase === 'fly' ? Date.now() - CR.t0 : Math.log(CR.point) / GL.CRASH.k;
-    const maxT = Math.max(8000, el * 1.15), maxM = Math.max(2, rateMult(maxT) * 1.05);
-    const P = t => [24 + (t / maxT) * (W - 60), H - 24 - ((rateMult(t) - 1) / (maxM - 1)) * (H - 70)];
-    const grad = g.createLinearGradient(0, H, W, 0); grad.addColorStop(0, 'rgba(255,194,14,.05)'); grad.addColorStop(1, 'rgba(255,194,14,.35)');
-    g.beginPath(); g.moveTo(24, H - 24);
-    const steps = 60; for (let i = 0; i <= steps; i++) { const [x, y] = P(el * i / steps); g.lineTo(x, y); }
-    const [ex, ey] = P(el);
-    g.lineTo(ex, H - 24); g.closePath(); g.fillStyle = grad; g.fill();
-    g.beginPath(); for (let i = 0; i <= steps; i++) { const [x, y] = P(el * i / steps); i ? g.lineTo(x, y) : g.moveTo(x, y); }
-    g.strokeStyle = CR.phase === 'crashed' ? '#e5163a' : '#ffc20e'; g.lineWidth = 4; g.lineCap = 'round'; g.stroke();
-    const [px, py] = P(Math.max(0, el - 120)); const ang = Math.atan2(ey - py, ex - px);
-    g.save(); g.translate(ex, ey); g.rotate(ang + Math.PI / 2);
-    if (CR.phase === 'crashed') {
-      for (let i = 0; i < 10; i++) { g.fillStyle = ['#ff3b3b', '#ffc20e', '#fff'][i % 3]; g.beginPath(); g.arc(Math.cos(i) * 14 * Math.random(), Math.sin(i * 2) * 14 * Math.random(), 4 + Math.random() * 6, 0, 7); g.fill(); }
-    } else {
-      g.fillStyle = '#ff8a00'; g.beginPath(); g.moveTo(-6, 14); g.lineTo(0, 24 + Math.random() * 10); g.lineTo(6, 14); g.fill();
-      g.fillStyle = '#f2f2f2'; g.beginPath(); g.moveTo(0, -18); g.quadraticCurveTo(10, -6, 9, 14); g.lineTo(-9, 14); g.quadraticCurveTo(-10, -6, 0, -18); g.fill();
-      g.fillStyle = '#e5163a'; g.beginPath(); g.moveTo(-9, 6); g.lineTo(-16, 18); g.lineTo(-9, 14); g.fill(); g.beginPath(); g.moveTo(9, 6); g.lineTo(16, 18); g.lineTo(9, 14); g.fill();
-      g.fillStyle = '#2b6cff'; g.beginPath(); g.arc(0, -3, 4, 0, 7); g.fill();
+    // axes
+    const maxT = Math.max(8000, el * 1.15), rate = t => Math.pow(Math.E, GL.CRASH.k * t), maxM = Math.max(2, rate(maxT) * 1.05);
+    const L0 = 34, B0 = H - 22, P = t => [L0 + (t / maxT) * (W - L0 - 30), B0 - ((rate(t) - 1) / (maxM - 1)) * (B0 - 40)];
+    g.font = '600 10px Roboto, Arial, sans-serif'; g.fillStyle = 'rgba(255,255,255,.45)'; g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
+    const ms = niceStep(maxM - 1, 4); for (let m = 1; m <= maxM; m += ms) { const y = B0 - ((m - 1) / (maxM - 1)) * (B0 - 40); g.beginPath(); g.moveTo(L0, y); g.lineTo(W, y); g.stroke(); g.fillText((+m.toFixed(2)) + 'x', 4, y + 3); }
+    const ts = niceStep(maxT / 1000, 5); for (let s2 = 0; s2 <= maxT / 1000; s2 += ts) { const x = L0 + (s2 * 1000 / maxT) * (W - L0 - 30); g.fillText(Math.round(s2) + 's', x - 4, H - 6); }
+    // curve with glow
+    const [ex, ey] = P(el), steps = 70;
+    const fill = g.createLinearGradient(0, B0, 0, ey); fill.addColorStop(0, 'rgba(255,194,14,0)'); fill.addColorStop(1, CR.phase === 'crashed' ? 'rgba(229,22,58,.28)' : 'rgba(255,194,14,.3)');
+    g.beginPath(); g.moveTo(L0, B0); for (let i = 0; i <= steps; i++) { const [x, y] = P(el * i / steps); g.lineTo(x, y); } g.lineTo(ex, B0); g.closePath(); g.fillStyle = fill; g.fill();
+    const sg = g.createLinearGradient(L0, B0, ex, ey); sg.addColorStop(0, '#ffc20e'); sg.addColorStop(1, CR.phase === 'crashed' ? '#e5163a' : '#ff8a00');
+    g.save(); g.shadowColor = CR.phase === 'crashed' ? 'rgba(229,22,58,.8)' : 'rgba(255,194,14,.8)'; g.shadowBlur = 12; g.strokeStyle = sg; g.lineWidth = 4; g.lineCap = 'round';
+    g.beginPath(); for (let i = 0; i <= steps; i++) { const [x, y] = P(el * i / steps); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.restore();
+    const [qx, qy] = P(Math.max(0, el - 160)), ang = Math.atan2(ey - qy, ex - qx);
+    if (CR.phase === 'fly') {
+      const n = drawRocket(g, ex, ey, ang, 1, 1, now);
+      for (let i = 0; i < 2; i++) FX.parts.push({ x: n.nx, y: n.ny, vx: -Math.cos(ang) * 50 + (r01() - 0.5) * 30, vy: -Math.sin(ang) * 50 + (r01() - 0.5) * 30, life: 1, r: 2 + r01() * 3, smoke: true });
+      FX.lastPos = [ex, ey];
+    } else if (FX.lastPhase === 'fly' && FX.lastPos) {        // just crashed: explosion
+      const [bx, by] = FX.lastPos; FX.boom = now;
+      for (let i = 0; i < 52; i++) { const a = r01() * Math.PI * 2, v = 60 + r01() * 230; FX.parts.push({ x: bx, y: by, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 + r01() * 0.5, r: 1.5 + r01() * 3.5, c: ['#fff6c8', '#ffc20e', '#ff8a00', '#e5163a', '#9aa0aa'][i % 5] }); }
+      if (navigator.vibrate) try { navigator.vibrate(60); } catch {}
     }
-    g.restore();
-    multEl.textContent = fmtX(CR.mult);
-    multEl.className = 'cr-mult' + (CR.phase === 'crashed' ? ' dead' : '');
+    if (FX.boom && now - FX.boom < 450 && FX.lastPos) { const q = (now - FX.boom) / 450, [bx, by] = FX.lastPos; g.strokeStyle = `rgba(255,220,150,${1 - q})`; g.lineWidth = 3; g.beginPath(); g.arc(bx, by, 10 + q * 60, 0, 7); g.stroke();
+      const fl = g.createRadialGradient(bx, by, 0, bx, by, 40); fl.addColorStop(0, `rgba(255,240,200,${0.9 * (1 - q)})`); fl.addColorStop(1, 'rgba(255,160,40,0)'); g.fillStyle = fl; g.beginPath(); g.arc(bx, by, 40, 0, 7); g.fill(); }
+    // particles (smoke + explosion debris)
+    const dt = 1 / 60;
+    FX.parts = FX.parts.filter(p => (p.life -= dt * (p.smoke ? 1.1 : 0.9)) > 0);
+    for (const p of FX.parts) { p.x += p.vx * dt; p.y += p.vy * dt; if (!p.smoke) p.vy += 120 * dt;
+      g.globalAlpha = Math.max(0, p.life) * (p.smoke ? 0.32 : 1); g.fillStyle = p.smoke ? '#c9ccd2' : p.c; g.beginPath(); g.arc(p.x, p.y, p.smoke ? p.r * (2 - p.life) : p.r, 0, 7); g.fill(); }
+    g.globalAlpha = 1;
+    FX.lastPhase = CR.phase;
+    multEl.innerHTML = CR.phase === 'crashed' ? `<small>FLEW AWAY!</small>${fmtX(CR.mult)}` : fmtX(CR.mult);
+    multEl.className = 'cr-mult' + (CR.phase === 'crashed' ? ' dead' : CR.mult >= 2 ? ' cr-hot' : '');
   }
 
   const cur = cc => (cc === 'GH' ? 'GH₵' : '₦');
@@ -276,6 +286,8 @@
       rows = all.map(o => `<div class="cr-row${o.me ? ' me' : ''}${o.out ? ' out' : ''}${CR.phase === 'crashed' && !o.out ? ' lost' : ''}"><span>${o.name}</span><span>${api.money(o.stake)}</span><span>${o.out ? fmtX(o.out) : '–'}</span><b>${o.out ? api.money(o.stake * o.out) : ''}</b></div>`).join('');
     }
     $id('crCount').textContent = n;
+    const u = api.user(), bal = $id('crBal'), bt = u ? api.money(u.balance) : 'Log in'; if (bal && bal.textContent !== bt) bal.textContent = bt;
+    const sv = +$id('crStake').value; $$q('#crQuick .gx-chipbtn').forEach(b => b.classList.toggle('on', +b.dataset.crq === sv));
     if ($id('crBets').innerHTML !== rows) $id('crBets').innerHTML = rows;
   }
 
@@ -288,7 +300,7 @@
     CR.api = api;
     CR.hist = Array.from({ length: 10 }, newPoint);
     CR.phase = 'conn';
-    $id('crQuick').innerHTML = api.C.chips.map(v => `<button data-crq="${v}">${api.whole(v)}</button>`).join('');
+    $id('crQuick').innerHTML = api.C.chips.map((v, i) => `<button class="gx-chipbtn c${i + 1}" data-crq="${v}" aria-label="Stake ${api.whole(v)}"><i><b>${v >= 1000 ? v / 1000 + 'K' : v}</b></i></button>`).join('');
     $id('crStake').value = api.C.defStake;
     document.addEventListener('click', e => {
       const t = e.target.closest('[data-cr],[data-crq],#crBtn'); if (!t) return;

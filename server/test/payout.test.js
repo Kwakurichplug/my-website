@@ -28,7 +28,7 @@ before(async () => {
   token = r.token;
   await db.query(`UPDATE users SET role='admin' WHERE phone=$1 AND country='NG'`, [phone]);
   await api('/wallet/deposit', { amount: 100000, method: 'card' });
-  events = (await api('/events?status=scheduled&limit=100')).events.filter(e => e.markets.some(m => m.key === '1x2' && !m.suspended));
+  events = (await api('/events?status=scheduled&sport=football&limit=200')).events.filter(e => new Date(e.kickoff) > Date.now() + 5 * 60e3 && e.markets.some(m => m.key === '1x2' && !m.suspended));
   assert.ok(events.length >= 12, 'need 12 open fixtures, have ' + events.length);
 });
 after(() => db.end());

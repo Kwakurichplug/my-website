@@ -15,14 +15,14 @@ const out = process.argv[2] || '.', BASE = 'file://' + path.resolve(__dirname, '
   for (const g of ['dice', 'spin', 'penalty', 'rush', 'keno', 'scratch', 'hilo']) {
     await p.goto(BASE + '#/game/' + g); await p.waitForTimeout(700);
     const b0 = await bal();
-    if (g === 'keno') await p.click('[data-ar=knquick]');
-    if (g === 'hilo') await p.click('[data-ar=hilo]:not([disabled])'); else await p.click('#arPlay');
-    if (g === 'scratch') { await p.waitForSelector('[data-ar=scall]'); await p.click('[data-ar=scall]'); }
-    await p.waitForFunction(() => (document.querySelector('#arMsg')?.textContent || '').trim(), null, { timeout: 15000 });
+    if (g === 'keno') await p.click('[data-gx=knquick]');
+    if (g === 'hilo') await p.click('[data-gx=hilo]:not([disabled])'); else await p.click('#gxGo');
+    if (g === 'scratch') { await p.waitForSelector('[data-gx=scall]'); await p.click('[data-gx=scall]'); }
+    await p.waitForFunction(() => document.querySelector('#gxResult')?.classList.contains('on'), null, { timeout: 15000 });
     await p.waitForTimeout(900);
     if (await p.$('.tr-ov.on')) { await p.screenshot({ path: `${out}/demo-${g}-trophy.png` }); await p.keyboard.press('Escape'); }
-    const last = await p.evaluate(id => window.LBA_APP && document.querySelector('#arMsg').textContent, g), b1 = await bal();
-    const won = /You won/.test(last), amt = won ? +last.match(/₦([\d,.]+)/)[1].replace(/,/g, '') : 0;
+    const last = (await p.textContent('#gxResult')).replace(/\s+/g, ' '), b1 = await bal();
+    const won = /YOU WIN/.test(last), amt = won ? +last.match(/₦([\d,]+\.\d{2})/)[1].replace(/,/g, '') : 0;
     const ok = Math.abs(b1 - (b0 - 100 + amt)) < 0.01;
     if (!ok) bad++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${g}: ${b0} → ${b1} (${last.trim()})`);

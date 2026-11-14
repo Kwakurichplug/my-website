@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +16,7 @@ import admin from './routes/admin.js';
 import jackpot from './routes/jackpot.js';
 import virtuals from './routes/virtuals.js';
 import games from './routes/games.js';
-import { startGames } from './games/index.js';
+import { startGames, gamesStatus } from './games/index.js';
 import { startFeeds } from './feeds/index.js';
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -29,8 +28,8 @@ app.use(express.json({ limit: '64kb' }));
 app.use(pinoHttp({ logger: log, autoLogging: { ignore: r => r.url.startsWith('/img') || r.url === '/health' } }));
 app.use(attachUser);
 
-app.get('/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
-app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 60 }), auth);
+app.get('/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString(), schedulers: gamesStatus() }));
+app.use('/api/auth', auth);   // sign-in / sign-up / code / reset are rate-limited inside (per phone + per IP)
 app.use('/api/wallet', wallet);
 app.use('/api/bets', bets);
 app.use('/api/events', events);

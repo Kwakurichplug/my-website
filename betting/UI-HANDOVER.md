@@ -230,7 +230,7 @@ iPhone 13 size and placing it side-by-side (the environment allows
 | `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
 | `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
 
-Script order: `api.js → account.js → pages.js → motion.js → icons.js → game-logic.js → games.js → arcade.js → app.js`.
+Script order: `api.js → account.js → pages.js → motion.js → icons.js → game-logic.js → games.js → scenes.js → arcade.js → app.js`.
 `app.js` exposes `window.LBA_APP` (state, data, render helpers, `live` flag) for the two modules;
 the router hands a route to `Account.render` / `Pages.render` when they claim it.
 The old login/register/deposit modals are gone – `openModal('loginModal' | 'registerModal' | 'depositModal')` now navigates to the pages.
@@ -238,7 +238,7 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 ### Design notes
 
 - Inner pages use a 48px **brand-green header** (`.pg-head` / `.wl-head`) with back + actions, and hide the site top bar on phones, as the reference does. The reference's red is *their* brand – keep ours green.
-- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns, `v17` real flags/crest sizes, `v18` trophy overlay, `v19` 3D trophy image + dimmed overlay, `v20` instant games (`.ar-*`), Rocket Crash fairness panel, jackpot results.
+- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns, `v17` real flags/crest sizes, `v18` trophy overlay, `v19` 3D trophy image + dimmed overlay, `v20` jackpot results, `v21` match *Market view*, bonus progress, Refer & Earn stats, `v22` game shell + every game scene (`.gx-*`), `v22b` Rocket Crash (`.cr-*`).
 - Desktop (≥1024px) shows **Over/Under 2.5 beside 1X2** in every list (`exCols` / `exHead` in `app.js`).
 - Dark mode: toggle on the Me page, saved in `localStorage.lba_theme`, applied in `<head>` before first paint.
 - Offline banner appears when the connection drops.
@@ -247,11 +247,25 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   re-render steps in `tools/trophy/`): gold cup with the LB monogram + ball engraved in a laurel, green lacquer plinth with
   the LetBet|Afrika wordmark, light bursting out of the cup. Transparent WebP, pre-cached when the app is idle; the
   inline SVG trophy is only a fallback. Called for sports/virtual wins, Instant Football, and game wins of 2x or more.
-- **Game screens** (`v20`, `arcade.js`): full-screen on phones (own header with back + balance, site top bar and
-  betslip button hidden). Every game: board + animation, choice buttons, stake −/+ and chips, one big play button,
-  result line, *My plays* history, *How to play* with the pay table and the exact return to player. The balance on
-  screen changes only after the animation so the result is never spoiled. Wrapper class is `ar ar--<game>` (double
-  dash) – `ar-<name>` classes are the boards. The game pieces (dice, cards, reels) are excluded from `gen-dark.py`.
+- **Game screens** (`v22`, `arcade.js` + `scenes.js`): full-screen on phones (own header with back, *LetBet Originals*
+  title and balance; site top bar and betslip button hidden), centre column on desktop. Layout `gx gx--<game>`:
+  `gx-head` → `gx-hist` (your recent results) → `section.gx-stage` (`#gxScene` + `#gxResult` banner) → choices
+  (`gx-pick`, penalty) → `gx-bet` (casino chips `gx-chipbtn c1…c4` that set the stake, `−`/`+`, stake box, one big play
+  button `#gxGo`, or Higher/Lower for Hi-Lo) → *My plays* → `gx-sheet` *How to play* (rules in plain language, pay
+  table, return to player). Clicks are delegated with `data-gx="minus|plus|chip|choice|play|hilo|info|close|kn|knquick|knclear|scall"`.
+  The balance changes only after the animation so the result is never spoiled.
+- **Scenes** (`window.Scenes` in `scenes.js`, helpers in `window.SceneKit`): each game has `html(ctx)`, `mount(el, ctx)`
+  and `play(el, result, ctx)` → Promise that animates **to the server's result**. Dice = CSS 3D cubes (face map `SHOW`);
+  Spin & Win = SVG wheel with peg/flapper spring physics; Number Rush = reel strips (Web Animations + motion blur +
+  bounce); Keno = canvas globe with ball physics (drawn at 150 px, shown at 108 px); Scratch = canvas foil scratched
+  with `destination-out`; Hi-Lo = SVG cards with a 3D flip; Penalty = canvas stadium (360×240 logical, tap the goal to
+  aim). Game pieces are in `gen-dark.py`'s `SKIP` list so dark mode never repaints them.
+- **Rocket Crash** (`v22b`, `games.js`): canvas with parallax stars, the rocket sprite (`img/games/rocket.webp`) with
+  flame and glow, exhaust particles, a growing curve with tidy axes, and an explosion + *FLEW AWAY!* when it crashes;
+  history chips, casino-chip stakes, auto cash-out, and *All bets this round* (real players only, masked numbers).
+- **Lobby thumbnails** (`img/games/thumb-<id>.webp`, 300×300) are captured from the real scenes by
+  `tools/assets/thumbs.js` with a Kanit title band – re-run it after changing a scene.
+- **No technical internals on player screens**: no seeds, hashes, formulas, server or provider names – plain language only.
 
 ### Server endpoints added
 
@@ -260,9 +274,11 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 | `POST /api/wallet/transfer` | Transfer to Friend: moves money between two players in the same country through the ledger (`transfer_out` / `transfer_in`). |
 | `POST /api/jackpot/tickets`, `GET /api/jackpot/tickets` | Buys a 12-game jackpot ticket (multi-pick lines × line price, ledger type `jackpot`) and lists the player's tickets. |
 | `POST /api/games/:game/play`, `POST /api/games/hilo/deal`, `GET /api/games/history` | Instant games (dice, spin, penalty, rush, keno, scratch, hilo): stake taken, CSPRNG draw, payout, `game_bets` record – one transaction. Hi-Lo deals are HMAC-signed, player-bound and single use. |
-| `GET /api/games/crash/state`, `POST /api/games/crash/bet` / `cashout` / `cancel`, `GET /api/games/crash/verify/:id` | Rocket Crash shared rounds, provably fair (hash before, seed after). |
+| `GET /api/games/crash/state`, `POST /api/games/crash/bet` / `cashout` / `cancel` | Rocket Crash shared rounds. The state shows round ids, phases and crash points only; the seed/hash audit is admin-only (`GET /api/admin/games/crash/verify/:id`). |
 | `GET /api/jackpot/round`, `GET /api/jackpot/results` | The server's 12-game round and real settled results (tiers per country). |
-| `GET /api/virtuals/instant/round`, `POST /api/virtuals/instant/play` | Instant Football. The server prices the round, takes the stake, plays the round with a CSPRNG **after** the stake is taken, settles and pays. A round can be played once. |
+| `GET /api/virtuals/instant/round`, `POST /api/virtuals/instant/play` | Instant Football. The server prices the round (a sealed, tamper-proof token), takes the stake, plays the round with a CSPRNG **after** the stake is taken, settles and pays. A round can be played once. |
+| `POST /api/auth/email` | Saves the player's email (Me → *Email & Password*, also asked on *Verify ID*) for receipts and verification results. |
+| `GET /api/wallet/bonuses`, `GET /api/auth/referrals`, `GET /api/bets/codes` | Welcome bonus progress, Refer & Earn stats, real Code Hub feed. |
 
 Also fixed: live markets read from Postgres `jsonb` came back with re-sorted keys (Home/Away/Draw, Over/Under rows paired wrongly). `mapMarkets` now restores betting order.
 
@@ -283,4 +299,4 @@ Note: `localhost:<port>` is treated as "no server" by `api.js` – use `127.0.0.
 
 - Payment provider (Paystack/Flutterwave, MoMo collections), SMS provider, KYC provider – the UI flows are ready; see `PROVIDER:` comments.
 - Outright **betting** (prices are shown; placing needs server markets).
-- More games (Penalty Kick, Spin & Win, Lucky Dice) and an Aviator-style lobby entry.
+- Email delivery (set `EMAIL_PROVIDER=smtp` + `SMTP_*`, see `server/EMAILS.md`) and the admin portal screens (API ready).

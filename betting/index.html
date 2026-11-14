@@ -224,15 +224,19 @@
     <!-- ============ ROCKET CRASH ============ -->
     <section class="page" id="page-play">
       <div class="cr">
-        <div class="cr-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><b>Rocket Crash</b><span class="cr-hist" id="crHist"></span></div>
-        <div class="cr-stage"><canvas id="crCanvas"></canvas><div class="cr-mult" id="crMult">1.00x</div><div class="cr-msg" id="crMsg">Next round in 5s</div></div>
+        <div class="gx-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="gx-title"><small>LetBet Originals</small><b>Rocket Crash</b></div><span class="gx-bal" id="crBal"></span></div>
+        <div class="cr-hist" id="crHist" aria-label="Previous rounds"></div>
+        <div class="cr-stage"><canvas id="crCanvas" aria-label="Rocket Crash round"></canvas><div class="cr-mult" id="crMult"></div><div class="cr-msg" id="crMsg"></div></div>
         <div class="cr-panel">
-          <div class="cr-stake"><button data-cr="-">−</button><input id="crStake" type="number" inputmode="decimal"><button data-cr="+">+</button></div>
-          <div class="cr-quick" id="crQuick"></div>
-          <label class="cr-auto">Auto cash-out at <input id="crAuto" type="number" step="0.1" min="1.1" placeholder="off">x</label>
+          <div class="gx-chips cr-quick" id="crQuick"></div>
+          <div class="cr-ctl">
+            <div class="gx-stake cr-stake"><button data-cr="-" aria-label="Lower stake">−</button><label><small>STAKE</small><input id="crStake" type="number" inputmode="decimal" aria-label="Stake"></label><button data-cr="+" aria-label="Raise stake">+</button></div>
+            <label class="cr-auto"><small>AUTO CASH-OUT</small><span><input id="crAuto" type="number" step="0.1" min="1.1" placeholder="Off" aria-label="Auto cash-out multiplier">x</span></label>
+          </div>
           <button class="cr-btn" id="crBtn">Bet</button>
         </div>
-        <div class="cr-live"><div class="cr-live-h"><span>All bets</span><b id="crCount"></b></div><div id="crBets"></div></div>
+        <div class="cr-live"><div class="cr-live-h"><span>All bets this round</span><b id="crCount"></b></div><div class="cr-th"><span>Player</span><span>Bet</span><span>Cash-out</span><span>Win</span></div><div id="crBets"></div></div>
       </div>
     </section>
 
@@ -402,6 +406,7 @@
 <script src="icons.js"></script>
 <script src="game-logic.js"></script>
 <script src="games.js"></script>
+<script src="scenes.js"></script>
 <script src="arcade.js"></script>
 <script src="app.js"></script>
 </body>

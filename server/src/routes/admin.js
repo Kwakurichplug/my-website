@@ -6,9 +6,10 @@ import { requireAdmin } from '../lib/auth.js';
 import { move } from '../lib/wallet.js';
 import { getSetting, setSetting } from '../lib/settings.js';
 import { settleEvent } from '../lib/settle.js';
-import { sendEmail } from '../emails/index.js';
+import { sendEmail, deliver, emailProvider, render } from '../emails/index.js';
 import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
+import * as crash from '../games/crash.js';
 import { creditDeposit } from '../lib/bonus.js';
 
 const r = Router();
@@ -16,6 +17,17 @@ r.use(requireAdmin);
 
 // odds feed health: provider, credits left, today's allowance
 r.get('/feed', async (_req, res, next) => { try { res.json(await feedStatus()); } catch (e) { next(e); } });
+
+// email: send a test message through the configured provider (to check SMTP / API keys after setting them)
+r.post('/email/test', async (req, res) => {
+  const to = String((req.body && req.body.to) || req.user.email || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return res.status(400).json({ error: 'invalid_email' });
+  try {
+    const m = render('welcome', { user: { country: req.user.country, uid: req.user.uid, phone: req.user.phone, fullName: req.user.full_name, email: to } });
+    await deliver({ to, subject: '[Test] ' + m.subject, html: m.html, text: m.text });
+    res.json({ ok: true, provider: emailProvider(), to });
+  } catch (e) { res.status(502).json({ ok: false, provider: emailProvider(), error: e.message }); }
+});
 
 // games: today's turnover and payouts per game (house view)
 r.get('/games', async (_req, res, next) => {
@@ -25,6 +37,8 @@ r.get('/games', async (_req, res, next) => {
     res.json({ games: rows.map(g => ({ ...g, staked: Number(g.staked), paid: Number(g.paid), margin: Number(g.staked) ? 1 - Number(g.paid) / Number(g.staked) : null })) });
   } catch (e) { next(e); }
 });
+// Rocket Crash round audit (disputes / regulator): the stored seed, its hash and the crash point recomputed from the seed
+r.get('/games/crash/verify/:id', async (req, res, next) => { try { res.json(await crash.verify(+req.params.id)); } catch (e) { next(e); } });
 // jackpot: settle now (a given round once all its games are over; default = every closed round)
 r.post('/jackpot/settle', async (req, res, next) => {
   try {

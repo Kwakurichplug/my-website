@@ -5,13 +5,17 @@ import * as virtual from './virtual.js';
 import * as jackpot from './jackpot.js';
 import { expireBonuses } from '../lib/bonus.js';
 
+/** Heartbeats for /health: last successful run of each scheduler on this replica (only the leader runs them). */
+const STATUS = { leader: false, ok: {}, err: {} };
+export const gamesStatus = () => STATUS;
+
 export function startGames() {
   if (process.env.GAMES === 'off') return console.log('[games] schedulers off (GAMES=off)');
   const loop = (name, fn, ms) => {
     let busy = false;
     setInterval(async () => {
       if (busy) return; busy = true;
-      try { if (await isLeader()) await fn(); } catch (e) { console.error(`[games:${name}]`, e.message); } finally { busy = false; }
+      try { STATUS.leader = await isLeader(); if (STATUS.leader) { await fn(); STATUS.ok[name] = new Date().toISOString(); delete STATUS.err[name]; } } catch (e) { STATUS.err[name] = e.message; console.error(`[games:${name}]`, e.message); } finally { busy = false; }
     }, ms);
   };
   loop('crash', crash.tick, 200);

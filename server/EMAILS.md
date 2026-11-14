@@ -81,12 +81,25 @@ SMS covers the OTP flow.
 ## Configuration
 
 ```
-EMAIL_PROVIDER=console | resend | sendgrid
+EMAIL_PROVIDER=console | smtp | resend | sendgrid
 EMAIL_FROM="LetBetAfrika <no-reply@letbetafrika.com>"
+# smtp (nodemailer): port 587 = STARTTLS, 465 = TLS (or SMTP_SECURE=true)
+SMTP_HOST=smtp.your-provider.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+# or an HTTP API instead of SMTP
 RESEND_API_KEY= / SENDGRID_API_KEY=
 SITE_URL=https://letbetafrika.com
 SUPPORT_EMAIL=support@letbetafrika.com
 ```
+
+Set these as Railway variables (never in git), redeploy, then send a test from the admin API:
+`POST /api/admin/email/test {"to": "you@example.com"}` with an admin token → `{ok: true, provider: "smtp"}`, or
+`{ok: false, error}` with the SMTP server's message (wrong password, blocked port, unverified sender…).
+
+Who receives email: players add an address under **Me → Email & Password** or on **Verify ID**
+(`POST /api/auth/email`). Sign-up is phone-only, so players without an address get SMS/in-app only.
 
 For deliverability set up SPF, DKIM and DMARC on the sending domain, use a
 sub-domain such as `mail.letbetafrika.com`, and keep marketing mail on a

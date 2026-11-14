@@ -38,14 +38,20 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [ ] Betslip: singles, multiples, system bets, booking codes, odds-change handling, accept-odds toggle.
 - [ ] Cashout (full; partial as stretch), bet history with filters, bet detail, share ticket image.
 - [x] **All games playable for real money** (server-authoritative, see `HANDOVER.md` §6): Rocket Crash
-      (provably fair, in-page verification), Instant Football, Virtual League, Lucky Dice, Spin & Win, Penalty Kick,
+      (pre-committed rounds, admin-only audit), Instant Football, Virtual League, Lucky Dice, Spin & Win, Penalty Kick,
       Number Rush, Keno, Scratch Cards, Hi-Lo. Game history per player (*My plays*). RTP shown in each game's info.
       *(Done – keep it true: every new game needs a server route, a `games.test.js` RTP case and an e2e step.)*
+- [x] **Game screens look and move like real casino games** (3D dice, wheel with flapper, slot reels, keno globe,
+      scratch foil, flipping cards, penalty stadium, Rocket Crash with rocket and explosion; casino-chip stakes).
+      **No technical internals on any player screen** – no seeds, hashes, formulas, server or provider names; rules
+      are written in plain language.
 - [ ] **Trophy & celebration on every win** (bets, games, jackpot): trophy screen with our own 3D trophy, amount,
       confetti – **done**; still to do: sound toggle, "My Wins" list on Me, share image.
 - [x] Jackpot: real server rounds, real results, prize tiers graded and paid automatically.
-- [ ] Promotions: real terms, opt-in, bonus wallet with wagering tracking.
-- [ ] Notifications: in-app inbox + SMS/email for deposits, withdrawals, wins.
+- [x] Welcome bonus with wagering tracking (locked, progress shown, released or expired automatically) and Refer &
+      Earn paid automatically – `lib/bonus.js`, `test/account-api.test.js`. Still to do: opt-in campaigns per promotion.
+- [ ] Notifications: in-app inbox + SMS/email for deposits, withdrawals, wins. *(21 email templates and SMTP sending
+      are ready – players add an email under Me → Email & Password; set `EMAIL_PROVIDER=smtp` + `SMTP_*` to switch on.)*
 
 ## 4. Payments & accounts (go-live)
 
@@ -58,7 +64,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 ## 5. Security
 
 - [ ] OWASP Top 10 review; dependency audit (`npm audit`) clean.
-- [ ] Rate limits on auth, bets, games, wallet; brute-force lockout; CAPTCHA on repeated failures.
+- [ ] Rate limits on auth, bets, games, wallet; brute-force lockout; CAPTCHA on repeated failures. *(Done: sign-in,
+      sign-up, code and reset per phone number + per IP; games per player. Still to do: bets/wallet caps, CAPTCHA.)*
 - [ ] JWT secret rotation plan; HTTPS only; secure headers (helmet) with a real Content-Security-Policy.
 - [ ] Admin panel behind role + 2FA; audit log of every admin action and manual balance change.
 - [x] Game outcomes only from CSPRNG / committed seeds; no client-trusted values anywhere (stake taken before the draw;
@@ -69,7 +76,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [ ] Cached, pre-gzipped event feed with ETag; p95 API latency < 200 ms under load.
 - [ ] Load test report committed (`docs/LOADTEST.md`): 10k virtual users, 2,000+ req/s on events, 50+ bets/s,
       error rate < 0.1%.
-- [ ] Multiple Railway replicas; no in-memory state; DB pool sized; indexes verified with `EXPLAIN`.
+- [ ] Multiple Railway replicas; no in-memory state *(done – verified with two servers on one database)*; DB pool
+      sized; indexes verified with `EXPLAIN`.
 - [ ] Lighthouse mobile: Performance ≥ 90, Accessibility ≥ 95, Best Practices ≥ 95, SEO ≥ 90.
 - [ ] Images optimised (crests ≤ 40 KB, banners WebP), fonts preloaded, JS < 300 KB.
 
@@ -79,7 +87,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 - [ ] Error tracking (Sentry or similar), uptime monitor, alerting on feed failures and low odds-API credits.
 - [ ] Daily database backups with a tested restore.
 - [ ] Admin dashboard: users, payments, bets, risk/liability per event, manual settlement, odds-feed health
-      (`GET /api/admin/feed`).
+      (`GET /api/admin/feed`), game turnover (`GET /api/admin/games`), crash round audit, email test. The API is ready
+      (`HANDOVER.md` §7 step 3); the portal screens are next.
 - [ ] Runbooks for: feed down, payment provider down, wrong settlement (resettle), suspicious account.
 
 ## 8. Legal & compliance (operator's lawyer signs off)
@@ -93,7 +102,8 @@ Live site: https://api-production-2673beb3.up.railway.app (Railway project `letb
 ## 9. QA sign-off before each release
 
 - [ ] `node --test server/test/*.test.js` green (unit: grading + game maths; integration: payouts + every game's money flow).
-- [ ] `tools/qa/smoke.js`, all `e2e_*.js` (incl. `e2e_games.js`, `e2e_games_demo.js`), `align.js`, `axe_run.js` green in demo and live mode.
+- [ ] `tools/qa/smoke.js`, all `e2e_*.js` (incl. `e2e_games.js`, `e2e_games_demo.js`, `e2e_instant.js`), `align.js`, `axe_run.js` green in demo and live mode.
+- [ ] `/health` on production shows every scheduler (`crash`, `virtual`, `jackpot`, `bonuses`) with a recent time and no `err`.
 - [ ] Manual pass on a real Android phone (low-end) and an iPhone, on 3G throttling.
 - [ ] Side-by-side review vs SportyBet for every changed screen.
 - [ ] Release notes in the PR; rollback plan (Railway "Redeploy previous").
