@@ -174,3 +174,23 @@ CREATE TABLE IF NOT EXISTS team_logos (
 );
 CREATE INDEX IF NOT EXISTS events_league_status_idx ON events (league_id, status);
 CREATE INDEX IF NOT EXISTS bet_legs_event_open_idx ON bet_legs (event_id) WHERE result IS NULL;
+
+-- Casino-style games (instant games + Rocket Crash). Money moves through transactions; this is the game record.
+CREATE TABLE IF NOT EXISTS game_bets (
+  id         text PRIMARY KEY,                -- also the ledger ref; for Hi-Lo the deal nonce (replay-proof)
+  user_id    uuid NOT NULL REFERENCES users(id),
+  game       text NOT NULL,
+  round      bigint,                          -- crash round number
+  stake      numeric(14,2) NOT NULL CHECK (stake > 0),
+  choice     jsonb,
+  result     jsonb,
+  auto       numeric(10,2),                   -- crash auto cash-out
+  mult       numeric(10,2),
+  payout     numeric(14,2) NOT NULL DEFAULT 0,
+  status     text NOT NULL DEFAULT 'open' CHECK (status IN ('open','won','lost','cashed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  settled_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS game_bets_user_idx ON game_bets (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS game_bets_round_idx ON game_bets (game, round) WHERE status = 'open';
+CREATE UNIQUE INDEX IF NOT EXISTS game_bets_one_per_round ON game_bets (game, round, user_id) WHERE round IS NOT NULL;
