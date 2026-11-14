@@ -411,3 +411,13 @@ input:focus, textarea:focus {
 .icon {
   font-size: 2rem;
 }
+
+/* ----------------------------------
+   FORM FEEDBACK & MOBILE NAV
+---------------------------------- */
+#form-response.success { color: #1a7f37; font-weight: 600; }
+#form-response.error { color: #c62828; font-weight: 600; }
+button.btn-primary { border: none; cursor: pointer; font-size: 1rem; font-family: inherit; }
+button.btn-primary:disabled { opacity: 0.6; cursor: wait; }
+.nav-toggle { cursor: pointer; }
+.header-inner { position: relative; }
