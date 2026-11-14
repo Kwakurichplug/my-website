@@ -47,9 +47,7 @@
     document.querySelectorAll('input[name=phone]').forEach(el => { el.placeholder = C.ph; });
     document.querySelectorAll('.cc-opt').forEach(el => el.classList.toggle('on', el.dataset.cc === CC));
     document.getElementById('stakeChips').innerHTML = C.chips.map(v => `<button data-add="${v}">+${short(v)}</button>`).join('');
-    document.getElementById('depChips').innerHTML = C.dep.map(v => `<button type="button" data-amt="${v}">${whole(v)}</button>`).join('');
     const st = document.getElementById('bsStake'); st.min = C.minStake; if (!st.value) st.value = C.defStake;
-    const da = document.getElementById('depAmt'); da.min = C.minStake; da.value = C.depDef;
     document.documentElement.lang = 'en-' + CC;
   }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -749,7 +747,8 @@
     const single = state.slipType === 'single';
     const stake = single ? state.slip.reduce((a, s) => a + (+s.stake || 0), 0) : +$('#bsStake').value;
     if (single ? state.slip.some(s => (+s.stake || 0) < C.minStake) : stake < C.minStake) return toast('Minimum stake is ' + whole(C.minStake), 'err');
-    if (stake > state.user.balance) { openModal('depositModal'); return toast('Insufficient balance – please deposit', 'err'); }
+    if (LIVE) return livePlaceBet();
+    if (stake > state.user.balance) { go('deposit'); return toast('Insufficient balance – please deposit', 'err'); }
     state.user.balance -= stake; addTx('Bet placed', -stake);
     const legs = state.slip.map(({ mid, mk, ok, odd, label, mname, match }) => ({ mid, mk, ok, odd, label, mname, match }));
     if (single) {
@@ -765,6 +764,7 @@
 
   function bookCode() {
     if (state.slip.some(s => s.susp)) return toast('Remove suspended selections first', 'err');
+    if (LIVE) { API.bets.book(state.slip.map(s => ({ eventId: s.mid, market: s.mk, outcome: s.ok }))).then(code => { navigator.clipboard?.writeText(code).catch(() => {}); toast(`Booking code ${code} copied – share it with friends`); }).catch(e => toast(apiErr(e), 'err')); return; }
     const code = 'LB' + Math.random().toString(36).slice(2, 6).toUpperCase();
     const codes = store.get('codes', {}); codes[code] = state.slip.map(({ mid, mk, ok }) => ({ mid, mk, ok })); store.set('codes', codes);
     navigator.clipboard?.writeText(code).catch(() => {});
@@ -785,10 +785,10 @@
     if (!u) return `<div class="empty">Log in to see your bets.<br><button class="btn btn-accent sm mt" data-open="loginModal">Log in</button></div>`;
     return tabs + (!list.length ? `<div class="empty">No ${state.betsTab} bets yet.<br><a class="btn btn-ghost sm mt" href="#/home">Browse matches</a></div>`
       : list.map(b => {
-        const co = b.status === 'open' ? cashoutValue(b) : null;
+        const co = b.status === 'open' ? (LIVE ? b.cashout : cashoutValue(b)) : null;
         return `<div class="bet-card">
           <div class="bh"><span><b>${b.type}</b><br><small>${new Date(b.at).toLocaleString()} · ${b.id}</small></span><span class="status ${b.status}">${b.status === 'cashout' ? 'CASHED OUT' : b.status.toUpperCase()}</span></div>
-          ${b.legs.map(l => { const r = legResult(l), m = byId(l.mid); return `<a class="bl" href="${m && m.finished ? '#/results' : '#/match/' + l.mid}"><span>${esc(l.match)}${m && m.finished ? ` <small class="ftag">FT ${m.ft[0]}-${m.ft[1]}</small>` : ''}<br><small class="muted">${esc(l.mname)}: <b>${esc(l.label)}</b></small></span><b class="lr ${r || ''}">${l.odd.toFixed(2)}</b></a>`; }).join('')}
+          ${b.legs.map(l => { const r = LIVE ? l.result : legResult(l), m = byId(l.mid); return `<a class="bl" href="${m && m.finished ? '#/results' : '#/match/' + l.mid}"><span>${esc(l.match)}${m && m.finished ? ` <small class="ftag">FT ${m.ft[0]}-${m.ft[1]}</small>` : ''}<br><small class="muted">${esc(l.mname)}: <b>${esc(l.label)}</b></small></span><b class="lr ${r || ''}">${l.odd.toFixed(2)}</b></a>`; }).join('')}
           <div class="bf"><span>Stake ${naira(b.stake)}<br><small class="muted">Odds ${b.odds.toFixed(2)}${b.boost ? ` · +${b.boost}% boost` : ''}</small></span><span class="${b.status === 'lost' ? 'lostc' : 'accent'}">${b.status === 'cashout' ? 'Returned ' + naira(b.paid) : b.status === 'won' ? 'Paid ' + naira(b.paid) : b.status === 'void' ? 'Refunded ' + naira(b.paid) : b.status === 'lost' ? 'Lost' : 'To win ' + naira(b.win)}</span></div>
           ${b.status === 'open' ? `<button class="btn ${co ? 'btn-gold' : 'btn-ghost'} block mt" data-cashout="${b.id}" ${co ? '' : 'disabled'}>${co ? 'Cashout ' + naira(co) : 'Cashout unavailable'}</button>` : ''}
         </div>`;
@@ -872,6 +872,7 @@
   }
   // when live football gets thin, the next scheduled match kicks off
   function kickOffs() {
+    if (LIVE) return;
     const liveFb = MATCHES.filter(m => m.live && m.sport === 'football').length;
     if (liveFb >= 8) return;
     const next = MATCHES.filter(m => m.sport === 'football' && !m.live && !m.finished).sort((a, b) => a.kick - b.kick)[0];
@@ -919,6 +920,7 @@
     return w ? 'won' : 'lost';
   }
   function settleBets() {
+    if (LIVE) return;
     let changed = false;
     state.bets.filter(b => b.status === 'open').forEach(b => {
       const rs = b.legs.map(legResult);
@@ -1024,6 +1026,11 @@
   const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Change Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
+    if (LIVE && sec === 'tx' && state.user && Date.now() - (renderAcct._txAt || 0) > 4000) {
+      renderAcct._txAt = Date.now();
+      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', adjustment: 'Adjustment' }[t.type] || t.type, amt: t.amount, bal: t.balance })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
+    }
+    if (LIVE && sec === 'bets' && state.user) liveBets().then(() => { if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML(); });
     $('#acTitle').textContent = ACCT[sec];
     const u = state.user;
     const needLogin = !['help', 'limits', 'how', 'bets'].includes(sec) && !u;
@@ -1092,17 +1099,294 @@
     };
     $('#acBody').innerHTML = H[sec]();
   }
-  document.addEventListener('submit', e => {
+  document.addEventListener('submit', async e => {
     const f = e.target.closest('[data-acform]'); if (!f) return;
     e.preventDefault();
     const k = f.dataset.acform, u = state.user;
+    if (LIVE) {
+      try {
+        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value }); toast('Documents submitted – we will email you when verified'); }
+        if (k === 'security') { if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); await API.auth.password(f.cur.value, f.pw1.value); toast('Password updated'); f.reset(); }
+        if (k === 'limits') { await API.auth.limits({ period: f.period.value, amount: +f.amt.value || 0, reminder: f.rem.value }); toast('Limits saved'); }
+        await liveUser(); renderMe();
+      } catch (err) { toast(apiErr(err), 'err'); }
+      return;
+    }
     if (k === 'verify') { u.verified = true; u.fullName = f.name.value; saveUser(); toast('Documents submitted – account verified'); renderAcct('verify'); }
     if (k === 'security') { if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); toast('Password updated'); f.reset(); }
     if (k === 'limits') { if (!u) return openModal('loginModal'); u.limits = { period: f.period.value, amt: +f.amt.value || 0, rem: f.rem.value }; saveUser(); toast('Limits saved'); }
   });
 
+
+  /* ---------------- Live backend bridge ----------------
+     When api.js can reach the server, data, auth, wallet and bets come from it
+     and the in-browser simulation below is switched off.                       */
+  let LIVE = false;
+  const SERVER_LEAGUES = {};
+  const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
+  const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country });
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw' }[e.message] || fallback || 'Something went wrong');
+
+  function leagueIdx(l, sport) {
+    if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
+    let idx = LEAGUES.findIndex(x => x.sport === sport && x.name === l.name && x.country === l.country);
+    if (idx < 0) {
+      idx = LEAGUES.length;
+      LEAGUES.push({ sport, name: l.name, country: l.country, idx, full: `${l.country} · ${l.name}`, top: !!l.top, teams: [], flag: FLAG_OF[l.country] ? LBA.flag(FLAG_OF[l.country]) : (l.flag && l.flag !== 'world' ? LBA.flag(l.flag) : LBA.sport(sport)) });
+    }
+    SERVER_LEAGUES[l.id] = idx; return idx;
+  }
+  function mapMarkets(m, markets) {
+    if (!markets) return;
+    const old = m.map || {};
+    const mk = markets.map(x => ({ key: x.key, name: x.name, group: x.group, cols: x.cols, outs: Object.entries(x.outcomes).map(([k, o]) => ({ k, l: o.l, o: x.suspended ? null : o.o })) }));
+    const have = new Set(mk.map(x => x.key));
+    (m.mk || []).forEach(x => { if (!have.has(x.key)) mk.push(x); });   // list payloads are partial; keep detail markets
+    const map = {}; mk.forEach(x => { map[x.key] = {}; x.outs.forEach(o => { if (o.k) map[x.key][o.k] = o; }); });
+    m.flash = {};
+    for (const k in map) for (const o in map[k]) { const a = old[k]?.[o]?.o, b = map[k][o].o; if (a && b && a !== b) m.flash[k + '|' + o] = b > a ? 'up' : 'down'; }
+    m.mk = mk; m.map = map;
+  }
+  function mapEvent(e) {
+    let m = byId(e.id);
+    if (!m) { m = { id: e.id, ev: [], flash: {}, st: { poss: [50, 50], shots: [0, 0], sot: [0, 0], corners: [0, 0], yc: [0, 0], att: [0, 0] }, lh: 1.3, la: 1.1, lc: 10, mu: 0, tf: 1, mk: [], map: {} }; MATCHES.push(m); }
+    const prevScore = m.score ? [...m.score] : null;
+    m.sport = e.sport; m.lg = leagueIdx(e.league, e.sport); m.home = e.home; m.away = e.away;
+    m.kick = new Date(e.kickoff).getTime(); m.live = e.status === 'live'; m.finished = e.status === 'finished' || e.status === 'cancelled';
+    m.minute = e.minute || 0; m.score = e.score || [0, 0]; m.two = e.sport !== 'football'; m.hot = !!e.hot;
+    m.prog = m.two && m.live ? Math.min(0.98, m.minute / 48) : 0;
+    const st = e.stats || {};
+    if (st.corners) m.st.corners = st.corners;
+    if (st.goals) m.ev = st.goals.map(g => ({ min: g.min, side: g.side, type: 'goal' }));
+    if (m.finished) { m.ft = m.score; if (e.ht) m.ht = e.ht; if (!m.endAt) { m.endAt = Date.now(); if (!RESULTS.includes(m)) RESULTS.unshift(m); } }
+    const logos = {}; if (e.homeLogo) logos[e.home] = e.homeLogo; if (e.awayLogo) logos[e.away] = e.awayLogo; if (Object.keys(logos).length) LBA.setLogos(logos);
+    if (prevScore && m.live && (m.score[0] > prevScore[0] || m.score[1] > prevScore[1])) { m.goalAt = Date.now(); m.goalSide = m.score[0] > prevScore[0] ? 0 : 1; notifyGoal(m); }
+    mapMarkets(m, e.markets);
+    return m;
+  }
+  const mapBet = b => ({ id: b.id, at: new Date(b.placedAt).getTime(), type: b.type === 'multiple' ? `Multiple · ${b.legs.length} legs` : 'Single',
+    legs: b.legs.map(l => ({ mid: l.eventId, mk: l.market, ok: l.outcome, odd: +l.odd, label: l.label, mname: l.marketName, match: l.match, result: l.result })),
+    stake: +b.stake, odds: +b.odds, boost: b.boost, win: +b.potential, status: b.status, paid: b.paid == null ? null : +b.paid, cashout: b.cashout });
+  async function liveBets() {
+    if (!LIVE || !state.user) return;
+    try { const [open, settled] = await Promise.all([API.bets.list('open'), API.bets.list('settled')]); state.bets = [...open, ...settled].map(mapBet); } catch { /* keep what we have */ }
+  }
+  async function liveUser() {
+    if (!API.token) { state.user = null; return; }
+    try { state.user = mapUser(await API.auth.me()); if (state.user.country && state.user.country !== CC) { try { localStorage.setItem('lba_country', state.user.country); } catch {} location.reload(); } }
+    catch (e) { if (e.status === 401) state.user = null; }
+  }
+  let refreshing = false;
+  async function liveRefresh() {
+    if (!LIVE || refreshing) return; refreshing = true;
+    try {
+      const evs = await API.events.list({ limit: 400 });
+      const seen = new Set(evs.map(e => e.id));
+      evs.forEach(mapEvent);
+      MATCHES.forEach(m => { if (!m.virtual && !seen.has(m.id) && !m.finished && m.kick < Date.now() + 36e5) { m.live = false; m.finished = true; m.ft = m.score; } });
+      if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) mapEvent(e); }
+      if (state.user && ['me', 'acct'].includes(state.route)) { await liveUser(); await liveBets(); }
+      syncSlipOdds(); updateLiveBadges();
+      const y = window.scrollY;
+      if (state.route === 'home') renderHome();
+      else if (['live', 'match', 'league', 'results', 'me', 'acct'].includes(state.route)) renderCurrent(false);
+      window.scrollTo(0, y); renderSlip(); renderAuth();
+    } catch (e) { if (!e.offline) console.warn('[live]', e); }
+    finally { refreshing = false; }
+  }
+  async function liveInit() {
+    if (!window.API || !API.enabled) return false;
+    if (!(await API.ping())) return false;
+    LIVE = true; document.documentElement.dataset.live = '1';
+    MATCHES.length = 0; RESULTS.length = 0;
+    await liveUser();
+    try { const evs = await API.events.list({ limit: 400 }); evs.forEach(mapEvent); } catch {}
+    try { (await API.events.results()).forEach(mapEvent); } catch {}
+    await liveBets();
+    setInterval(liveRefresh, 5000);
+    return true;
+  }
+  async function livePlaceBet() {
+    const single = state.slipType === 'single';
+    if (state.slip.some(s => byId(s.mid)?.virtual)) return toast('Virtuals are not open for real bets yet', 'err');
+    const selections = state.slip.map(s => ({ eventId: s.mid, market: s.mk, outcome: s.ok, odd: s.odd }));
+    const body = { type: single ? 'single' : 'multiple', selections, acceptChanges: $('#bsAccept')?.checked !== false };
+    if (single) body.stakes = state.slip.map(s => +s.stake || 0); else body.stake = +$('#bsStake').value;
+    $('#bsPlace').disabled = true;
+    try {
+      const r = await API.bets.place(body);
+      state.user.balance = r.balance; saveUser();
+      state.slip = []; state.slipType = 'multi'; saveSlip();
+      toast(r.bets.length > 1 ? `${r.bets.length} bets placed` : `Bet placed · ticket ${r.bets[0].id}`);
+      closeSlip(); await liveBets(); renderAfterSlipChange(); renderAuth();
+    } catch (e) {
+      if (e.message === 'login_required') openModal('loginModal');
+      else if (e.message === 'insufficient_funds') go('deposit');
+      else if (e.message === 'odds_changed' || e.message === 'selection_unavailable') { await liveRefresh(); }
+      toast(apiErr(e, 'Bet could not be placed'), 'err');
+    } finally { $('#bsPlace').disabled = false; }
+  }
+
+
+  /* ---------------- Deposit & withdraw pages ---------------- */
+  const PAY_METHODS = {
+    NG: [
+      { key: 'card', id: 'card', name: 'Debit card', sub: 'Visa, Mastercard, Verve · instant', badge: 'CARD', c: '#1a1f71' },
+      { key: 'bank', id: 'bank_transfer', name: 'Bank transfer', sub: 'Transfer to your personal account · 1–5 min', badge: 'BANK', c: '#0a7d3e' },
+      { key: 'ussd', id: 'ussd', name: 'USSD', sub: 'Dial a code from any phone · instant', badge: '*737#', c: '#1b1e25' },
+      { key: 'opay', id: 'opay', name: 'OPay', sub: 'Pay from your OPay wallet · instant', badge: 'OPay', c: '#1dc07a' },
+      { key: 'palmpay', id: 'palmpay', name: 'PalmPay', sub: 'Pay from your PalmPay wallet · instant', badge: 'Palm', c: '#6b2fd6' },
+    ],
+    GH: [
+      { key: 'mtn', id: 'mobile_money', name: 'MTN Mobile Money', sub: 'Approve the prompt on your phone · instant', badge: 'MoMo', c: '#ffcc00', ink: '#1b1e25' },
+      { key: 'telecel', id: 'mobile_money', name: 'Telecel Cash', sub: 'Approve the prompt on your phone · instant', badge: 'T-Cash', c: '#e60000' },
+      { key: 'at', id: 'mobile_money', name: 'AT Money', sub: 'Approve the prompt on your phone · instant', badge: 'AT', c: '#0033a0' },
+      { key: 'card', id: 'card', name: 'Debit card', sub: 'Visa, Mastercard · instant', badge: 'CARD', c: '#1a1f71' },
+    ],
+  };
+  const BANKS = { NG: ['Access Bank', 'First Bank', 'GTBank', 'Kuda', 'Moniepoint', 'OPay', 'PalmPay', 'UBA', 'Zenith Bank'], GH: ['Absa', 'Ecobank', 'Fidelity', 'GCB Bank', 'Stanbic', 'Zenith Bank'] };
+  const pay = { amt: C.depDef, method: PAY_METHODS[CC][0].key, step: 'form', last: null, busy: false };
+  const wd = Object.assign({ amt: 0, method: CC === 'GH' ? 'momo' : 'bank', bank: BANKS[CC][0], acct: '', name: '', net: 'MTN', phone: '', step: 'form', last: null, busy: false }, store.get('payout', {}));
+  const pmBadge = m => `<span class="pm-badge" style="background:${m.c};color:${m.ink || '#fff'}">${m.badge}</span>`;
+  const chipRow = (vals, cur, attr) => `<div class="pay-chips">${vals.map(v => `<button type="button" data-${attr}="${v}" class="${+cur === v ? 'on' : ''}">${whole(v)}</button>`).join('')}</div>`;
+  const secure = `<div class="pay-secure"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Payments are encrypted and processed by licensed providers</div>`;
+  const loginCard = what => `<div class="pay-login">Log in to ${what}.<br><button class="btn btn-accent sm mt" data-open="loginModal">Log in</button> <button class="btn btn-ghost sm mt" data-open="registerModal">Join Now</button></div>`;
+  const doneSteps = (labels, cur) => `<div class="pay-steps">${labels.map((l, i) => `<div class="${i <= cur ? 'done' : ''} ${i === cur ? 'now' : ''}"><i></i>${l}</div>`).join('')}</div>`;
+
+  function renderDeposit() {
+    const el = $('#depBody'), u = state.user;
+    if (!u) { el.innerHTML = loginCard('deposit'); return; }
+    const methods = PAY_METHODS[CC], m = methods.find(x => x.key === pay.method) || methods[0];
+    if (pay.step === 'done' && pay.last) {
+      const L = pay.last, ok = L.status === 'success';
+      el.innerHTML = `<div class="pay-done"><div class="ok ${ok ? '' : 'pend'}"><svg viewBox="0 0 24 24">${ok ? '<path d="M5 12l5 5L20 7"/>' : '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'}</svg></div>
+          <h2>${ok ? 'Deposit successful' : 'Deposit pending'}</h2><div class="amt">${money(L.amt)}</div>
+          <p>${ok ? `New balance ${money(u.balance)}` : 'Complete the payment with your provider. Your balance updates automatically.'}</p>
+          ${doneSteps(['Requested', 'Confirmed', 'Credited'], ok ? 2 : 1)}</div>
+        <div class="pay-sum"><div class="row"><span>Method</span><b>${L.method.name}</b></div><div class="row"><span>Reference</span><b>${esc(L.ref)}</b></div><div class="row"><span>Date</span><b>${new Date(L.at).toLocaleString()}</b></div><div class="row"><span>Status</span><b style="color:${ok ? 'var(--brand)' : '#b07c00'}">${ok ? 'Successful' : 'Pending'}</b></div></div>
+        <div class="pay-actions"><a class="btn btn-ghost" href="#/acct/tx">View transactions</a><a class="btn btn-accent" href="#/home">Start betting</a></div>`;
+      return;
+    }
+    const amt = +pay.amt || 0, valid = amt >= C.minStake;
+    const bankBox = m.key === 'bank' ? `<div class="bank-box"><div class="row"><span>Bank</span><b>Wema Bank</b></div><div class="row"><span>Account number</span><b>88${String(u.uid).padStart(8, '0')}</b></div><div class="row"><span>Account name</span><b>LETBET-${esc((u.fullName || 'CUSTOMER').toUpperCase().split(' ')[0])}</b></div><p class="pay-note">Transfer exactly ${money(amt)} to this account. It is yours alone and credits in 1–5 minutes.</p></div>` : '';
+    el.innerHTML = `<div class="pay-bal"><span>Available balance</span><b>${money(u.balance)}</b></div>
+      <div class="pay-sec"><div class="pay-h">Amount <small>Min ${whole(C.minStake)}</small></div>
+        <div class="pay-amt"><i>${C.cur}</i><input id="payAmt" type="number" inputmode="decimal" min="${C.minStake}" value="${pay.amt}" placeholder="0"></div>
+        ${chipRow(C.dep, pay.amt, 'pamt')}
+        ${!valid && pay.amt !== '' ? `<div class="pay-note err">Minimum deposit is ${whole(C.minStake)}</div>` : `<div class="pay-note">No deposit fees. Bonus eligible on your first deposit.</div>`}</div>
+      <div class="pay-sec"><div class="pay-h">Pay with</div>
+        ${methods.map(x => `<button type="button" class="pm ${x.key === m.key ? 'on' : ''}" data-pm="${x.key}">${pmBadge(x)}<span><b>${x.name}</b><small>${x.sub}</small></span><i class="pm-radio"></i></button>`).join('')}
+        ${bankBox}</div>
+      <div class="pay-sum"><div class="row"><span>Deposit</span><b>${money(amt)}</b></div><div class="row"><span>Fee</span><b>${money(0)}</b></div><div class="row total"><span>You receive</span><b>${money(amt)}</b></div>
+        <button class="pay-cta" id="payGo" ${valid && !pay.busy ? '' : 'disabled'}>${pay.busy ? 'Processing…' : m.key === 'bank' ? 'I have made the transfer' : `Deposit ${money(amt)}`}</button>${secure}</div>`;
+  }
+
+  async function doDeposit() {
+    const u = state.user; if (!u) return openModal('loginModal');
+    const amt = +pay.amt, m = PAY_METHODS[CC].find(x => x.key === pay.method);
+    if (!(amt >= C.minStake)) return toast('Minimum deposit is ' + whole(C.minStake), 'err');
+    const lim = u.limits?.deposit?.amount; if (lim && amt > lim) return toast(`This is above your deposit limit of ${whole(lim)}`, 'err');
+    pay.busy = true; renderDeposit();
+    try {
+      let ref, status = 'success';
+      if (LIVE) { const r = await API.wallet.deposit(amt, m.id); u.balance = r.balance; ref = r.paymentId.slice(0, 8).toUpperCase(); status = r.status; }
+      else { await new Promise(r => setTimeout(r, 700)); u.balance += amt; addTx('Deposit', amt); ref = 'D' + Date.now().toString(36).toUpperCase(); }
+      saveUser(); pay.last = { amt, method: m, ref, status, at: Date.now() }; pay.step = 'done';
+      renderAuth(); if (window.Motion && status === 'success') Motion.confetti();
+    } catch (e) { toast(apiErr(e, 'Deposit failed'), 'err'); }
+    finally { pay.busy = false; renderDeposit(); window.scrollTo(0, 0); }
+  }
+
+  function renderWithdraw() {
+    const el = $('#wdBody'), u = state.user;
+    if (!u) { el.innerHTML = loginCard('withdraw'); return; }
+    if (wd.step === 'done' && wd.last) {
+      const L = wd.last;
+      el.innerHTML = `<div class="pay-done"><div class="ok pend"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <h2>Withdrawal requested</h2><div class="amt">${money(L.amt)}</div><p>to ${esc(L.to)}. Most payouts arrive within minutes, up to 24 hours.</p>
+          ${doneSteps(['Requested', 'Processing', 'Paid'], 1)}</div>
+        <div class="pay-sum"><div class="row"><span>Reference</span><b>${esc(L.ref)}</b></div><div class="row"><span>Date</span><b>${new Date(L.at).toLocaleString()}</b></div><div class="row"><span>Balance now</span><b>${money(u.balance)}</b></div></div>
+        <div class="pay-actions"><a class="btn btn-ghost" href="#/acct/tx">View transactions</a><a class="btn btn-accent" href="#/me">Back to wallet</a></div>`;
+      return;
+    }
+    const amt = +wd.amt || 0, valid = amt >= C.minStake && amt <= u.balance;
+    const gh = CC === 'GH';
+    const methods = gh ? [{ key: 'momo', name: 'Mobile money', sub: 'MTN, Telecel, AT · instant', badge: 'MoMo', c: '#ffcc00', ink: '#1b1e25' }, { key: 'bank', name: 'Bank account', sub: 'Any Ghanaian bank · same day', badge: 'BANK', c: '#0a7d3e' }]
+      : [{ key: 'bank', name: 'Bank account', sub: 'Any Nigerian bank · minutes', badge: 'BANK', c: '#0a7d3e' }, { key: 'momo', name: 'OPay / PalmPay wallet', sub: 'Instant', badge: 'WALLET', c: '#1dc07a' }];
+    const fields = wd.method === 'bank'
+      ? `<div class="pm-fields"><label>Bank<select data-wdf="bank">${BANKS[CC].map(b => `<option ${b === wd.bank ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
+         <label>Account number<input data-wdf="acct" inputmode="numeric" maxlength="13" value="${esc(wd.acct)}" placeholder="${gh ? '13 digits' : '10 digits'}"></label>
+         <label>Account name<input data-wdf="name" value="${esc(wd.name)}" placeholder="Name on the account"></label></div>`
+      : `<div class="pm-fields"><label>Network / wallet<select data-wdf="net">${(gh ? ['MTN', 'Telecel', 'AT'] : ['OPay', 'PalmPay']).map(n => `<option ${n === wd.net ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+         <label>Phone number<input data-wdf="phone" inputmode="tel" value="${esc(wd.phone)}" placeholder="${C.ph}"></label></div>`;
+    const detailsOk = wd.method === 'bank' ? wd.acct.replace(/\D/g, '').length >= 10 && wd.name.trim().length > 2 : wd.phone.replace(/\D/g, '').length >= 9;
+    el.innerHTML = `<div class="pay-bal"><span>Available to withdraw</span><b>${money(u.balance)}</b></div>
+      ${u.verified ? '' : `<div class="pay-sec" style="margin-top:0;border-top:0"><div class="pay-note" style="margin:0">Identity not verified yet. You can request now; payouts are released once your ID is checked. <a href="#/acct/verify" style="color:var(--brand);font-weight:600">Verify ID</a></div></div>`}
+      <div class="pay-sec"><div class="pay-h">Amount <small>Min ${whole(C.minStake)}</small></div>
+        <div class="pay-amt"><i>${C.cur}</i><input id="wdAmt" type="number" inputmode="decimal" min="${C.minStake}" value="${wd.amt || ''}" placeholder="0"><button type="button" data-wdmax>Max</button></div>
+        ${chipRow(C.dep, wd.amt, 'wamt')}
+        ${amt > u.balance ? '<div class="pay-note err">That is more than your balance</div>' : amt && amt < C.minStake ? `<div class="pay-note err">Minimum withdrawal is ${whole(C.minStake)}</div>` : '<div class="pay-note">No fees on your first withdrawal each day.</div>'}</div>
+      <div class="pay-sec"><div class="pay-h">Send to</div>
+        ${methods.map(x => `<button type="button" class="pm ${x.key === wd.method ? 'on' : ''}" data-wdm="${x.key}">${pmBadge(x)}<span><b>${x.name}</b><small>${x.sub}</small></span><i class="pm-radio"></i></button>`).join('')}
+        ${fields}</div>
+      <div class="pay-sum"><div class="row"><span>Withdraw</span><b>${money(amt)}</b></div><div class="row"><span>Fee</span><b>${money(0)}</b></div><div class="row total"><span>You receive</span><b>${money(amt)}</b></div>
+        <button class="pay-cta" id="wdGo" ${valid && detailsOk && !wd.busy ? '' : 'disabled'}>${wd.busy ? 'Processing…' : `Withdraw ${money(amt)}`}</button>${secure}</div>`;
+  }
+
+  async function doWithdraw() {
+    const u = state.user; if (!u) return openModal('loginModal');
+    const amt = +wd.amt;
+    if (!(amt >= C.minStake)) return toast('Minimum withdrawal is ' + whole(C.minStake), 'err');
+    if (amt > u.balance) return toast('Insufficient balance', 'err');
+    const to = wd.method === 'bank' ? `${wd.bank} · ${wd.acct} · ${wd.name}` : `${wd.net} · ${wd.phone}`;
+    store.set('payout', { method: wd.method, bank: wd.bank, acct: wd.acct, name: wd.name, net: wd.net, phone: wd.phone });
+    wd.busy = true; renderWithdraw();
+    try {
+      let ref;
+      if (LIVE) { const r = await API.wallet.withdraw(amt, wd.method === 'bank' ? 'bank_transfer' : 'mobile_money', { account: to, bank: wd.bank, acct: wd.acct, name: wd.name, net: wd.net, phone: wd.phone }); u.balance = r.balance; ref = r.paymentId.slice(0, 8).toUpperCase(); }
+      else { await new Promise(r => setTimeout(r, 700)); u.balance -= amt; addTx('Withdrawal', -amt); ref = 'W' + Date.now().toString(36).toUpperCase(); }
+      saveUser(); wd.last = { amt, to, ref, at: Date.now() }; wd.step = 'done'; wd.amt = 0; renderAuth();
+    } catch (e) { toast(apiErr(e, 'Withdrawal failed'), 'err'); }
+    finally { wd.busy = false; renderWithdraw(); window.scrollTo(0, 0); }
+  }
+
+  /* ---------------- Legal pages ---------------- */
+  const LEGAL = {
+    terms: { title: 'Terms & Conditions', updated: '14 November 2026', sections: [
+      ['1. About these terms', 'These terms govern your use of LetBetAfrika (the "Service"), operated by LetBetAfrika Limited ("we", "us"). By opening an account or placing a bet you accept them. If you do not agree, do not use the Service.'],
+      ['2. Eligibility', 'You must be 18 or older, resident in Nigeria or Ghana, and legally allowed to gamble where you are. We may ask for proof of identity, age and address at any time and may suspend an account until it is provided.'],
+      ['3. Your account', 'One account per person. Keep your password private; you are responsible for activity on your account. Tell us immediately if you think someone else has access. We may close duplicate accounts and void their bets.'],
+      ['4. Deposits and withdrawals', 'Deposits are credited when confirmed by the payment provider. Withdrawals are paid to an account in your own name and may require identity verification. We may hold a payout while we check for fraud or bonus abuse. Minimum and maximum amounts are shown in the app.'],
+      ['5. Placing bets', 'A bet is accepted only when it appears in your bet history. Odds can change before acceptance; if "Accept odds changes" is on, the bet is placed at the new price. Obvious pricing errors (palpable errors) may be voided. Maximum payout per ticket is shown in the app.'],
+      ['6. Settlement', 'Football markets settle on the result at the end of regular time including stoppage time, unless the market says otherwise. Postponed or abandoned events not completed within 48 hours are void. Cashout values are offered at our discretion and may be withdrawn at any time.'],
+      ['7. Bonuses', 'Each promotion has its own rules shown with the offer. Bonus funds may carry wagering requirements and may be removed if misused. We may withhold bonus winnings where we reasonably believe the rules were broken.'],
+      ['8. Responsible gambling', 'You can set deposit limits, session reminders and take a break from your account at any time under Responsible gambling. Lower limits apply immediately; higher limits apply after 24 hours. Self-exclusion cannot be reversed early.'],
+      ['9. Prohibited use', 'You may not use the Service for money laundering, match-fixing, arbitrage through bonus abuse, or with automated tools. We report suspicious activity to the relevant authorities.'],
+      ['10. Liability', 'The Service is provided as is. We are not liable for losses caused by events outside our control, including network failures, or for indirect losses. Nothing limits liability that cannot be limited by law.'],
+      ['11. Complaints and disputes', 'Contact support first; we aim to resolve complaints within 72 hours. Unresolved disputes may be referred to the licensing authority in your country.'],
+      ['12. Changes', 'We may update these terms. The date at the top shows the latest version. Continued use after a change means you accept it.'],
+    ] },
+    privacy: { title: 'Privacy Policy', updated: '14 November 2026', sections: [
+      ['What we collect', 'Phone number, name, date of birth, email (optional), identity documents you send for verification, payment details needed to move money, your bets and transactions, device and usage data, and your approximate location.'],
+      ['Why we use it', 'To run your account and pay you; to verify age and identity as the law requires; to detect fraud and problem gambling; to send receipts and important account notices; and, if you opt in, promotions. Our legal bases are contract, legal obligation and legitimate interest.'],
+      ['Who we share it with', 'Payment providers, SMS and email providers, identity-verification partners, the sports data supplier (match and odds data only), our hosting providers, and regulators or law enforcement where required. We never sell your data.'],
+      ['How long we keep it', 'Account and transaction records are kept for at least 5 years after your account closes, as gambling and anti-money-laundering rules require. Marketing preferences are kept until you change them.'],
+      ['Your rights', 'You can ask for a copy of your data, correct it, or ask us to delete what we are not required to keep. You can withdraw marketing consent at any time. Write to privacy@letbetafrika.com.'],
+      ['Security', 'Data is encrypted in transit and at rest. Access is limited to staff who need it. Passwords are stored hashed and are never visible to us.'],
+      ['Cookies and storage', 'The app stores your country, login token and preferences on your device. We use analytics to understand how the app is used; no advertising trackers are placed without consent.'],
+      ['Children', 'The Service is for adults only. We delete accounts found to belong to anyone under 18.'],
+      ['Contact', 'LetBetAfrika Limited · privacy@letbetafrika.com · support@letbetafrika.com'],
+    ] },
+  };
+  function renderLegal(kind) {
+    const L = LEGAL[kind] || LEGAL.terms;
+    $('#legalTitle').textContent = L.title;
+    $('#legalBody').innerHTML = `<h2>${L.title}</h2><div class="upd">Last updated ${L.updated}</div>` + L.sections.map(([h, t]) => `<h3>${h}</h3><p>${t}</p>`).join('') +
+      `<p style="margin-top:24px"><a href="#/legal/${kind === 'terms' ? 'privacy' : 'terms'}">Read our ${kind === 'terms' ? 'Privacy Policy' : 'Terms & Conditions'} →</a></p>`;
+  }
+
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;
@@ -1115,9 +1399,10 @@
     let page = PAGES.includes(r) ? r : 'home';
     if (r === 'sport' && sportOf(arg)) { state.sport = arg; page = 'home'; }
     if (page === 'match' && state.arg !== arg) { state.mdTab = 'markets'; state.mdGroup = 'All'; }
+    const prevRoute = state.route;
     state.route = page; state.arg = arg;
     $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
-    const navKey = page === 'match' || page === 'league' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' ? 'games' : page;
+    const navKey = page === 'match' || page === 'league' || page === 'legal' ? null : page === 'acct' ? (arg === 'bets' ? 'bets' : 'me') : page === 'play' ? 'games' : ['deposit', 'withdraw'].includes(page) ? 'me' : page;
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
     closeDrawer(); closeSlip(); closeSearch(); closeModals();
     document.body.dataset.page = page;
@@ -1131,6 +1416,9 @@
     if (page === 'games') renderGames();
     if (page === 'results') renderResults();
     if (page === 'acct') renderAcct(arg);
+    if (page === 'deposit') { if (prevRoute !== 'deposit') pay.step = 'form'; renderDeposit(); }
+    if (page === 'withdraw') { if (prevRoute !== 'withdraw') wd.step = 'form'; renderWithdraw(); }
+    if (page === 'legal') renderLegal(arg);
     if (page === 'match') renderMatch(+arg);
     else window.scrollTo(0, 0);
     const sec = $('#page-' + page);
@@ -1161,6 +1449,9 @@
     if (state.route === 'me') renderMe();
     if (state.route === 'results') renderResults();
     if (state.route === 'virtuals') renderVirtuals();
+    if (state.route === 'deposit') renderDeposit();
+    if (state.route === 'withdraw') renderWithdraw();
+    if (state.route === 'acct') renderAcct(state.arg);
     if (keepScroll) window.scrollTo(0, y);
   }
   function renderAfterSlipChange() { renderCurrent(true); renderSlip(); }
@@ -1187,12 +1478,7 @@
     }
     if (d.open) {
       e.preventDefault();
-      if (d.open === 'depositModal') {
-        if (!state.user) return openModal('loginModal');
-        const w = d.mode === 'withdraw';
-        $('#depTitle').textContent = w ? 'Withdraw' : 'Deposit'; $('#depBtn').textContent = w ? 'Withdraw' : 'Deposit';
-        $('#depositForm').dataset.mode = w ? 'withdraw' : 'deposit';
-      }
+      if (d.open === 'depositModal') { closeDrawer(); closeSlip(); closeModals(); return go(d.mode === 'withdraw' ? 'withdraw' : 'deposit'); }
       closeDrawer(); closeSlip(); return openModal(d.open);
     }
     if (d.switch) { e.preventDefault(); return openModal(d.switch); }
@@ -1203,13 +1489,20 @@
       state.sport = d.sport; return state.route === 'home' ? renderHome() : go('home');
     }
     if (d.day) { state.day = d.day; return renderHome(); }
+    if (d.pamt) { pay.amt = +d.pamt; renderDeposit(); return; }
+    if (d.pm) { pay.method = d.pm; renderDeposit(); return; }
+    if (t.id === 'payGo') return doDeposit();
+    if (d.wamt) { wd.amt = Math.min(+d.wamt, state.user?.balance ?? +d.wamt); renderWithdraw(); return; }
+    if ('wdmax' in d) { wd.amt = Math.floor((state.user?.balance || 0) * 100) / 100; renderWithdraw(); return; }
+    if (d.wdm) { wd.method = d.wdm; renderWithdraw(); return; }
+    if (t.id === 'wdGo') return doWithdraw();
     if (d.hlg) { state.hotLg = +d.hlg; return renderHome(); }
     if (d.hls) { state.hls = d.hls; return renderLiveStrip(); }
     if (d.cat) { state.list = d.cat; state.sport = 'football'; renderHome(); return $('.sports-block').scrollIntoView({ behavior: 'smooth' }); }
     if (d.res) { state.resSport = d.res; return renderResults(); }
     if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
     if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
-    if (d.break) { if (!state.user) return openModal('loginModal'); return toast(`Self-exclusion request for ${d.break} received`); }
+    if (d.break) { if (!state.user) return openModal('loginModal'); if (LIVE) { const days = { '24 hours': 1, '7 days': 7, '30 days': 30, '6 months': 182 }[d.break] || 1; API.auth.limits({ selfExclude: new Date(Date.now() + days * 864e5).toISOString() }).then(() => toast(`Your break has started (${d.break})`)).catch(e => toast(apiErr(e), 'err')); return; } return toast(`Self-exclusion request for ${d.break} received`); }
     if (d.soon) { e.preventDefault(); return toast(`${d.soon} is coming soon`); }
     if ('chat' in d) return toast('Live chat will connect to your support desk');
     if (d.list) { state.list = d.list; return renderHome(); }
@@ -1227,6 +1520,7 @@
     if (d.q) { $('#searchInput').value = d.q; return renderSearch(d.q); }
     if (d.jp) { state.jp[d.jp] === d.o ? delete state.jp[d.jp] : state.jp[d.jp] = d.o; return renderJackpot(); }
     if (d.cashout) {
+      if (LIVE) { API.bets.cashout(d.cashout).then(async r => { state.user.balance = r.balance; saveUser(); toast(`Cashed out ${naira(r.paid)}`); await liveBets(); renderMe(); renderAuth(); }).catch(e => toast(apiErr(e, 'Cashout unavailable'), 'err')); return; }
       const b = state.bets.find(x => x.id === d.cashout), v = b && cashoutValue(b);
       if (!v) return;
       b.status = 'cashout'; b.paid = v; state.user.balance += v; addTx('Cashout', v); saveBets(); saveUser();
@@ -1258,12 +1552,12 @@
       case 'jpClear': state.jp = {}; renderJackpot(); break;
       case 'jpSubmit':
         if (!state.user) { openModal('loginModal'); break; }
-        if (state.user.balance < C.ticket) { openModal('depositModal'); toast('Insufficient balance', 'err'); break; }
+        if (state.user.balance < C.ticket) { go('deposit'); toast('Insufficient balance', 'err'); break; }
         state.user.balance -= C.ticket; addTx('Jackpot ticket', -C.ticket); saveUser(); state.jp = {}; renderJackpot(); renderAuth();
         toast('Jackpot ticket submitted. Good luck!'); break;
     }
   });
-  $('#logoutBtn').addEventListener('click', () => { state.user = null; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
+  $('#logoutBtn').addEventListener('click', () => { if (LIVE) API.auth.logout(); state.user = null; state.bets = []; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
   $('#scrim').addEventListener('click', () => { closeSlip(); closeDrawer(); });
   $$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModals(); closeSlip(); closeDrawer(); closeSearch(); } });
@@ -1278,32 +1572,56 @@
     $('#bsPay').textContent = `About to pay ${fmtN(tot)}`;
   });
   $('#sportSearch').addEventListener('input', e => renderAZ(e.target.value));
+  document.addEventListener('input', e => {
+    if (e.target.id === 'payAmt') { pay.amt = e.target.value; const ok = +pay.amt >= C.minStake; $('#payGo').disabled = !ok || pay.busy; $('#payGo').textContent = pay.method === 'bank' ? 'I have made the transfer' : `Deposit ${money(+pay.amt || 0)}`; $$('.pay-sum .row b').forEach((b, i) => { if (i !== 1) b.textContent = money(+pay.amt || 0); }); $$('[data-pamt]').forEach(b => b.classList.toggle('on', +b.dataset.pamt === +pay.amt)); }
+    if (e.target.id === 'wdAmt') { wd.amt = e.target.value; renderWithdraw(); const i = $('#wdAmt'); i.focus(); i.setSelectionRange?.(i.value.length, i.value.length); }
+    if (e.target.dataset.wdf) { wd[e.target.dataset.wdf] = e.target.value; const ok = (+wd.amt >= C.minStake && +wd.amt <= (state.user?.balance || 0)) && (wd.method === 'bank' ? wd.acct.replace(/\D/g, '').length >= 10 && wd.name.trim().length > 2 : wd.phone.replace(/\D/g, '').length >= 9); $('#wdGo').disabled = !ok || wd.busy; }
+  });
+  document.addEventListener('change', e => { if (e.target.dataset.wdf) { wd[e.target.dataset.wdf] = e.target.value; } });
   $('#gSearch').addEventListener('input', renderGames);
   $('#gCat').addEventListener('change', renderGames);
   $('#searchInput').addEventListener('input', e => renderSearch(e.target.value));
 
-  $$('form[data-auth]').forEach(f => f.addEventListener('submit', e => {
+  $$('form[data-auth]').forEach(f => f.addEventListener('submit', async e => {
     e.preventDefault();
     const phone = f.phone.value.replace(/\D/g, '').replace(/^0/, '');
     if (phone.length < C.digits) return toast('Enter a valid mobile number', 'err');
     const reg = f.dataset.auth === 'register';
+    if (LIVE) {
+      const btn = f.querySelector('button.btn'); btn.disabled = true;
+      try {
+        if (!reg) { state.user = mapUser(await API.auth.login(CC, phone, f.pw.value)); }
+        else {
+          const otpRow = f.querySelector('.otp-row');
+          if (otpRow.hidden) { const r = await API.auth.otp(CC, phone, 'register'); otpRow.hidden = false; f.code.focus(); toast(r.devCode ? `Test code: ${r.devCode}` : 'We sent a 6-digit code by SMS'); return; }
+          if (!/^\d{6}$/.test(f.code.value)) return toast('Enter the 6-digit code', 'err');
+          state.user = mapUser(await API.auth.register({ country: CC, phone, code: f.code.value, password: f.pw.value, email: f.email.value || undefined }));
+          otpRow.hidden = true; f.reset();
+        }
+        saveUser(); closeModals(); await liveBets(); renderAuth(); renderCurrent(true);
+        toast(reg ? 'Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back');
+      } catch (err) { toast(apiErr(err, 'Could not sign in'), 'err'); }
+      finally { btn.disabled = false; }
+      return;
+    }
     const prev = store.get('user', null);
     state.user = !reg && prev && prev.phone === phone ? prev : { phone, balance: reg ? 0 : C.demo, uid: Math.floor(1e7 + Math.random() * 9e7) };
     saveUser(); closeModals(); renderAuth(); renderCurrent(true);
     toast(reg ? 'Welcome to LetBetAfrika! Deposit now to claim your 200% bonus.' : 'Welcome back! Demo balance ' + whole(C.demo));
   }));
-  $('#depositForm').addEventListener('submit', e => {
+  $('#codeForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const amt = +$('#depAmt').value, w = e.target.dataset.mode === 'withdraw';
-    if (amt < C.minStake) return toast('Minimum amount is ' + whole(C.minStake), 'err');
-    if (w && amt > state.user.balance) return toast('Insufficient balance', 'err');
-    state.user.balance += w ? -amt : amt; addTx(w ? 'Withdrawal' : 'Deposit', w ? -amt : amt); saveUser();
-    closeModals(); renderAuth(); renderCurrent(true);
-    toast(w ? `Withdrawal of ${naira(amt)} requested` : `${naira(amt)} deposited`);
-  });
-  $('#codeForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const code = $('#codeInput').value.trim().toUpperCase(), sels = store.get('codes', {})[code];
+    const code = $('#codeInput').value.trim().toUpperCase();
+    if (LIVE) {
+      try {
+        const list = await API.bets.load(code);
+        if (!list.length) return toast('Booking code not found or expired', 'err');
+        state.slip = list.map(s => ({ mid: s.eventId, mk: s.market, ok: s.outcome, odd: s.odd, label: s.label, mname: s.marketName, match: s.match, live: s.live, stake: C.defStake }));
+        saveSlip(); closeModals(); await liveRefresh(); renderAfterSlipChange(); openSlip(); toast(`Loaded ${state.slip.length} selection(s)`);
+      } catch (err) { toast(apiErr(err, 'Booking code not found'), 'err'); }
+      return;
+    }
+    const sels = store.get('codes', {})[code];
     if (!sels) return toast('Booking code not found', 'err');
     state.slip = [];
     sels.forEach(({ mid, mk, ok }) => {
@@ -1316,6 +1634,7 @@
 
   /* ---------------- Live simulation ---------------- */
   function simTick() {
+    if (LIVE) return;
     const R = Math.random;
     MATCHES.filter(m => m.live).forEach(m => {
       if (!m.two) {
@@ -1366,11 +1685,14 @@
     debit: (v, why) => { state.user.balance -= v; addTx(why, -v); saveUser(); renderAuth(); },
     credit: (v, why) => { if (!state.user) return; state.user.balance += v; addTx(why, v); saveUser(); renderAuth(); },
   });
-  syncSlipOdds();
-  seedResults(); vNewRound();
-  renderRails(); renderAuth(); renderSlip(); updateLiveBadges();
-  window.addEventListener('hashchange', route);
-  route();
+  (async () => {
+    const live = await liveInit().catch(() => false);
+    if (!live) seedResults();
+    syncSlipOdds(); vNewRound();
+    renderRails(); renderAuth(); renderSlip(); updateLiveBadges();
+    window.addEventListener('hashchange', route);
+    route();
+  })();
   setInterval(() => {
     tickCountdown(); vTick();
     const sec = Math.floor(Date.now() / 1000);

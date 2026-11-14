@@ -270,6 +270,24 @@
       <div id="resList" class="res-list"></div>
     </section>
 
+    <!-- ============ DEPOSIT ============ -->
+    <section class="page" id="page-deposit">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Deposit</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
+      <div id="depBody" class="pay"></div>
+    </section>
+
+    <!-- ============ WITHDRAW ============ -->
+    <section class="page" id="page-withdraw">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Withdraw</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
+      <div id="wdBody" class="pay"></div>
+    </section>
+
+    <!-- ============ LEGAL ============ -->
+    <section class="page" id="page-legal">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1 id="legalTitle"></h1></div></div>
+      <article class="legal" id="legalBody"></article>
+    </section>
+
     <!-- ============ ACCOUNT SUB-PAGES ============ -->
     <section class="page" id="page-acct">
       <div class="sub-head">
@@ -286,7 +304,7 @@
         <p class="foot-tag">Africa's home of sports betting</p>
         <p class="foot-h">Payment methods</p>
         <div class="pay-row" id="payRow"></div>
-        <div class="foot-links"><a href="#/acct/how">How to Play</a><a href="#/acct/help">Help</a><a href="#/acct/limits">Responsible Gambling</a><a href="#">Terms</a><a href="#">Privacy</a></div>
+        <div class="foot-links"><a href="#/acct/how">How to Play</a><a href="#/acct/help">Help</a><a href="#/acct/limits">Responsible Gambling</a><a href="#/legal/terms">Terms</a><a href="#/legal/privacy">Privacy</a></div>
         <button class="cc-foot" data-open-cc><span class="cc-flag"></span> <span class="cc-name"></span> · Change</button>
         <p class="foot-lic" id="footLic"></p>
       </div>
@@ -385,21 +403,14 @@
     <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
     <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
     <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
-    <label class="check"><input type="checkbox" required> I am 18+ and accept the Terms &amp; Conditions</label>
+    <label>Email <span class="muted">(for receipts, optional)</span><input type="email" name="email" placeholder="you@example.com"></label>
+    <label class="otp-row" hidden>SMS code<input name="code" inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="6-digit code we sent you"></label>
+    <label class="check"><input type="checkbox" required> I am 18+ and accept the <a href="#/legal/terms">Terms &amp; Conditions</a></label>
     <button class="btn btn-accent block">Register</button>
     <p class="muted center">Have an account? <a href="#" data-switch="loginModal">Login</a></p>
   </form>
 </div>
-<div class="modal" id="depositModal">
-  <form class="modal-card" id="depositForm">
-    <button type="button" class="modal-x" data-close>×</button>
-    <h2 id="depTitle">Deposit</h2>
-    <div class="chips wide" id="depChips"></div>
-    <label><span>Amount (<span data-t="cur"></span>)</span><input id="depAmt" type="number" required inputmode="decimal"></label>
-    <label>Method<select><option>Card</option><option>Bank Transfer</option><option>USSD</option><option>Mobile Money</option></select></label>
-    <button class="btn btn-accent block" id="depBtn">Deposit</button>
-  </form>
-</div>
+
 <div class="modal" id="codeModal">
   <form class="modal-card" id="codeForm">
     <button type="button" class="modal-x" data-close>×</button>
@@ -408,7 +419,6 @@
     <button class="btn btn-accent block">Load</button>
   </form>
 </div>
-
 <div class="modal" id="countryModal">
   <div class="modal-card">
     <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
@@ -420,6 +430,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="api.js"></script>
 <script src="motion.js"></script>
 <script src="icons.js"></script>
 <script src="games.js"></script>
