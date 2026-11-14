@@ -34,5 +34,6 @@ What's new
   - Live, Sports, Jackpot, Promotions, Results rebuilt on the reference layout;
     Code Hub (booking-code feed), bet ticket details, Instant Football.
   - Dark Mode on the Me page.
+  - YOU WON trophy celebration when a bet or Instant Football round wins (Details / Show Off).
   - When served by the API server everything above uses real accounts and money moves
     through the ledger; opened as a file it runs as a demo.

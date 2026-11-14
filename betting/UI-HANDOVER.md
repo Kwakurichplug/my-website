@@ -238,10 +238,12 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 ### Design notes
 
 - Inner pages use a 48px **brand-green header** (`.pg-head` / `.wl-head`) with back + actions, and hide the site top bar on phones, as the reference does. The reference's red is *their* brand – keep ours green.
-- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns.
+- CSS layers added: `v11` account pages, `v12` reference pages, `v13` Me header/theme toggle, `v14` Instant Football, `v15` contrast, `v16` desktop O/U columns, `v17` real flags/crest sizes, `v18` trophy.
 - Desktop (≥1024px) shows **Over/Under 2.5 beside 1X2** in every list (`exCols` / `exHead` in `app.js`).
 - Dark mode: toggle on the Me page, saved in `localStorage.lba_theme`, applied in `<head>` before first paint.
 - Offline banner appears when the connection drops.
+- **Trophy** (`v18`): `Pages.trophy({ amount, source, ref, href })` shows the YOU WON screen. Uses `img/trophy.webp`
+  (realistic, generated in Canva) with the inline SVG trophy as fallback. Call it for every kind of win.
 
 ### Server endpoints added
 

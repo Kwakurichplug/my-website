@@ -3,7 +3,8 @@
 > **The standard:** this is a paid, commercial-grade product. Every task must meet `docs/QUALITY-BAR.md`
 > (Definition of Done) – official, professional, nothing fake, money always correct.
 >
-> **Live site:** https://api-production-2673beb3.up.railway.app (Railway `letbetafrika` → `api`, deploys from branch `claude/bold-mccarthy-71siq8`).
+> **Live site:** https://api-production-2673beb3.up.railway.app (Railway project `letbetafrika` → service `api`, source branch `claude/bold-mccarthy-71siq8`).
+> **Deploys are NOT automatic on push** – trigger them as described in §7.
 >
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
 > then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
@@ -25,13 +26,14 @@ Rule of thumb for every decision: *does it look and behave like a top African sp
 | `betting/index.html` | All page markup. |
 | `betting/app.js` | Core: data model, router, betslip, home, match page, account sub-pages, live-API bridge. Exposes `window.LBA_APP`. |
 | `betting/account.js` | Sign up (SMS code), login, reset password, deposit, withdraw (per country). |
-| `betting/pages.js` | Live, Sports filter, lists, league, Jackpot, Promotions, Results, Code Hub, bet detail, Instant Football. |
+| `betting/pages.js` | Live, Sports filter, lists, league, Jackpot, Promotions, Results, Code Hub, bet detail, Instant Football, **YOU WON trophy** (`Pages.trophy()`), offline banner. |
 | `betting/game-logic.js` | **Shared game rules + pay tables** (browser and server). See §6. |
 | `betting/games.js` | Games lobby art + Rocket Crash UI (currently client-side – see §6). |
 | `betting/icons.js` | Flags (real flag-icons SVGs), crests (real logos when known, drawn fallback), sport icons. |
-| `betting/app.css` | Styles in versioned layers `v5…v17` – append new work at the end. |
+| `betting/app.css` | Styles in versioned layers `v5…v18` (v18 = trophy) – append new work at the end. |
 | `betting/dark.css` | **Generated** dark theme – run `python3 betting/tools/gen-dark.py` after any CSS change. |
 | `betting/img/flags/` | flag-icons (MIT) – 270 country flags. |
+| `betting/img/trophy.webp` | Realistic gold trophy for the win screen (generated in Canva; the SVG trophy in `pages.js` is the fallback). |
 | `betting/UI-HANDOVER.md` | Detailed front-end guide (design tokens, screens, conventions). |
 | `server/` | Node 20+ Express API + Postgres. `npm start` in repo root runs it and serves `betting/`. |
 | `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware). |
@@ -77,6 +79,10 @@ plus for real data:
   bets single/multiple with win boost, cashout, booking codes, jackpot tickets, Instant Football (server-authoritative).
   Payout tests pass (exact to the cent, void legs, refunds, cashout, no double pay, ledger = balance).
   Fixed: cashout over-paid on multiples with a void leg.
+- **YOU WON trophy** (`Pages.trophy({ amount, source, ref, href })`): full-screen celebration with a realistic gold
+  trophy, light rays, sparkles, counting amount, confetti, *Details* and *Show Off* (native share). Fires when a bet
+  settles as won (demo settlement and live polling – once per ticket, stored in `localStorage.lba_trophies`) and on
+  Instant Football wins.
 
 ## 5. The Odds API – important facts
 
@@ -106,8 +112,10 @@ plus for real data:
    - TODO **Virtual League server-side**: fixtures every 2 min (`ext_id vl:<round>:<i>`, sport `vfootball`), seeded
      results at kick-off, settled by the normal bet engine; remove the "Virtuals are not open for real bets" block in
      `livePlaceBet`; make `renderVirtuals` read server events in live mode; exclude `vfootball` from `/events/results` default.
-2. **Trophy after wins**: when a bet changes open → won (detect in `liveBets()` diff) or any game pays, show a trophy
-   modal (trophy SVG + amount + confetti via `Motion.confetti()`), and a "Wins" badge on Me. Same in demo mode.
+2. **Trophy after wins** – DONE for sports bets and Instant Football (`Pages.trophy()`, see §4). Remaining:
+   call `Pages.trophy()` for Rocket Crash cash-outs, jackpot prizes and every new game win; add a "My Wins" list and
+   badge on the Me page; optional win sound with a mute toggle; generate a "Show Off" share image (canvas → PNG with
+   amount, trophy and booking code) instead of plain text.
 3. **Crests from team websites (owner request)**: research each club's official site for its crest, store the URL
    (or a licensed copy) in `team_logos` / the `PIN` map in `server/src/lib/logos.js`. Club crests are trademarks –
    the operator must confirm usage rights. Cover all clubs in enabled leagues; keep thumbnails ~40 KB.
@@ -124,9 +132,19 @@ plus for real data:
 
 ## 7. Deploy
 
-Railway project `letbetafrika`, service `api` now deploys from **`claude/bold-mccarthy-71siq8`** (root `/`, `npm start`,
-healthcheck `/health`) – every push to that branch goes live. `ODDS_PROVIDER=oddsapi` and `ODDS_API_KEY` are set in
-Railway variables. Recommended: create a `staging` environment in Railway and only push to production after QA.
+Railway project `letbetafrika` (workspace "My Projects"), environment `production`, service `api`
+(source: GitHub `kwakurichplug/my-website`, branch **`claude/bold-mccarthy-71siq8`**, root `/`, builder Railpack,
+start `npm start`, healthcheck `/health`). Postgres is the `Postgres` service in the same project.
+
+**Pushing does NOT deploy automatically** (the GitHub trigger did not fire for this branch). To deploy:
+- Railway dashboard → `api` → *Deployments* → *Deploy latest commit*; or
+- reconnect the source to the branch (dashboard *Settings → Source*, or the Railway MCP `connect-service-source`),
+  which builds the branch head; or the CLI `railway up` from the repo root.
+Then check *Deployments* shows the new commit hash and open `/health`.
+
+`ODDS_PROVIDER=oddsapi` and `ODDS_API_KEY` are set in Railway variables. Recommended: fix the GitHub trigger
+(Railway *Settings → Source → Branch / Wait for CI*), create a `staging` environment, and only promote to
+production after QA. To return to the `backend` branch, merge this branch into it first, then switch the source.
 
 ## 8. Testing
 

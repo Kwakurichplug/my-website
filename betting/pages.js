@@ -575,7 +575,7 @@
     const code = a.C.cur === '₦' ? 'NGN' : 'GHS';
     el.innerHTML = `<button class="tr-x" data-tr="close" aria-label="Close">×</button>
       <div class="tr-top"><h2>YOU WON</h2><b class="tr-amt">${code} <span id="trAmt">0.00</span></b></div>
-      <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div>${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
+      <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div><img class="tr-img" src="img/trophy-720.webp" srcset="img/trophy-720.webp 720w, img/trophy.webp 1080w" sizes="(min-width: 500px) 340px, 78vw" alt="Gold trophy" decoding="async" onerror="this.parentNode.classList.add('noimg')">${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
       <p class="tr-src">From ${esc(source)}${ref ? ` / Ticket ID ${esc(ref)}` : ''}</p>
       <div class="tr-btns">${href ? `<a class="tr-btn ghost" href="${href}" data-tr="close">Details</a>` : `<button class="tr-btn ghost" data-tr="close">Close</button>`}<button class="tr-btn" data-tr="share">Show Off</button></div>`;
     el._share = `I just won ${a.money(amount)} on LetBetAfrika${source ? ' (' + source + ')' : ''}! 🏆`;
