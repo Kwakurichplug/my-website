@@ -351,7 +351,7 @@
   function oddBtn(m, mk, ok, label, style, short) {
     const o = m.map[mk]?.[ok];
     if (!o) return `<span class="odd void"></span>`;
-    if (!o.o) return `<button class="odd ${style || ''} locked" disabled>${style === 'ob' ? `<span>${esc(short || o.l)}</span>` : ''}${LOCK}</button>`;
+    if (!o.o) return `<button class="odd ${style || ''} locked" disabled aria-label="${esc(o.l)} – suspended">${style === 'ob' ? `<span>${esc(short || o.l)}</span>` : ''}${LOCK}</button>`;
     if (style === 'tb' && !o) return '<span class="odd void"></span>';
     const cls = ['odd', style || '', isSel(m.id, mk, ok) ? 'sel' : '', m.flash[mk + '|' + ok] || ''].join(' ');
     const inner = style === 'ob'

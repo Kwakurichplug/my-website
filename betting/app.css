@@ -2131,3 +2131,26 @@ html[data-theme="dark"] .sf-chips button:not(.on){color:#4cd07d;border-color:#2a
 .vi-res b{font-size:20px}
 .vi-res.win b{color:#ffc20e}
 .vi-res small{color:#9aa0a8}
+
+/* =========================================================
+   v15 – contrast (WCAG AA 4.5:1) – a touch darker green and greys on light
+   surfaces, a touch lighter greys on dark ones
+   ========================================================= */
+:root{--g:#0a7f32;--g-ink:#086428;--muted:#6b717a;--mute:#6b717a}
+.ev-meta,.ev-teams small,.day-sep .cols,.league-head .cols,.sf-row em,.pg-foot-note,.wl-rules,.wl-small,.wl-hint,.au-sub,.au-alt,.au-lic,.au-resend,.ch-user small,.ch-when,.rs-row small,.out-row small,.bd-leg>div small,.bd-leg>div em,.pr-detail small{color:#6b717a}
+.sp-tabs i{background:#0a7f32}
+.day-sep.dark,.day-sep.dark .cols,.live-block .ev-teams small,.live-block .ev-meta,.lv-tool label,.lv-lg em,.jp-bar>div small,.vi-th,.vi-sum,.jp-cd small,.bd-top small{color:#b4b9c0}
+.pg-tabs>*:not(.on){color:#5f656d}
+.pg-tabs.dark>*:not(.on){color:#c3c7cd}
+.txt-tabs .active,.mkt-tabs button.active{color:#0a7f32}
+.sec-head.dark .txt-tabs .active{color:#36d26e}
+.live-block .ev-meta .ev-lg,.live-block .ev-meta>span,.pg-dark .ev-meta span:not(.lv-clock):not(.lv-half):not(.hot){color:#b4b9c0}
+.sports-block .filter-bar button:not(.active),.pg-empty span,.ch-code span,.me-list .muted,.me-list em.muted,#meVer,.wl-demo{color:#5f656d}
+.wl-demo b{background:#5f656d}
+.pg-head h1 small{color:#f0f7f3;opacity:1}
+.mh-id,.pg-empty.dark span{color:#b4b9c0}
+.ch-legs small i{color:#6b717a}
+#logoutBtn button span{color:#d01334}
+.net-bar{position:fixed;left:0;right:0;top:0;z-index:200;background:#3a3f48;color:#fff;text-align:center;font-size:13px;padding:7px 12px calc(7px);transform:translateY(-100%);transition:transform .25s}
+.net-bar.on{transform:none}
+.net-bar.ok{background:var(--brand)}

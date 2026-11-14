@@ -639,5 +639,14 @@
   }
   // jackpot header turns solid once the hero scrolls away (as on the reference)
   window.addEventListener('scroll', () => { const h = $('#page-jackpot.active .pg-head.dark'); if (h) h.classList.toggle('solid', window.scrollY > 120); }, { passive: true });
+  // offline banner – odds and balances can't update without a connection
+  const net = () => {
+    let b = $('#netBar');
+    if (!b) { b = document.createElement('div'); b.id = 'netBar'; b.className = 'net-bar'; b.setAttribute('role', 'status'); document.body.appendChild(b); }
+    b.textContent = navigator.onLine ? 'Back online' : 'You are offline – odds and balances may be out of date';
+    b.className = 'net-bar on' + (navigator.onLine ? ' ok' : '');
+    clearTimeout(b._t); if (navigator.onLine) b._t = setTimeout(() => b.classList.remove('on'), 2500);
+  };
+  window.addEventListener('offline', net); window.addEventListener('online', net);
   window.Pages = { handles: p => p in RENDER, render, tick };
 })();

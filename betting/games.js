@@ -64,7 +64,7 @@
     if (q || cat !== 'all') { el.innerHTML = f.length ? `<div class="g-grid">${f.map(g => card(g)).join('')}</div>` : '<div class="g-empty">No games found</div>'; return; }
     el.innerHTML =
       row(`Top Games in ${country}`, GAMES.filter(g => g.top).sort((a, b) => a.top - b.top), true) +
-      `<div class="g-sec"><div class="g-h"><h3>Game Studios</h3></div><div class="g-row prov">${['LetBet Originals', 'Virtual Sports', 'Instant Win'].map(p => `<span class="g-prov"><b>${p.split(' ')[0]}</b>${p.split(' ').slice(1).join(' ')}</span>`).join('')}</div></div>` +
+      `<div class="g-sec"><div class="g-h"><h3>Game Studios</h3></div><div class="g-row prov" tabindex="0" role="region" aria-label="Game studios">${['LetBet Originals', 'Virtual Sports', 'Instant Win'].map(p => `<span class="g-prov"><b>${p.split(' ')[0]}</b>${p.split(' ').slice(1).join(' ')}</span>`).join('')}</div></div>` +
       row('Crash Games', GAMES.filter(g => g.cat === 'crash')) +
       row('Instant Win', GAMES.filter(g => g.cat === 'instant')) +
       row('Sports Games', GAMES.filter(g => g.cat === 'sports'));
