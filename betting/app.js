@@ -1450,6 +1450,15 @@
         toast('Jackpot ticket submitted. Good luck!'); break;
     }
   });
+  // Dark mode (Me page toggle, like the reference). The saved choice is applied in <head> before first paint.
+  const setTheme = dark => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    try { localStorage.setItem('lba_theme', dark ? 'dark' : 'light'); } catch {}
+    const b = $('#themeBtn'); if (b) { b.setAttribute('aria-pressed', dark); b.querySelector('span').textContent = dark ? 'Light Mode' : 'Dark Mode'; }
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#121418' : '#0a7d3e');
+  };
+  setTheme(document.documentElement.dataset.theme === 'dark');
+  $('#themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme !== 'dark'));
   $('#logoutBtn').addEventListener('click', () => { window.Account && Account.persist(state.user); if (LIVE) API.auth.logout(); state.user = null; state.bets = []; store.del('user'); renderAuth(); renderMe(); toast('Logged out'); });
   $('#scrim').addEventListener('click', () => { closeSlip(); closeDrawer(); });
   $$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));

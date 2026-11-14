@@ -2071,3 +2071,17 @@ body[data-page="sports"] .slip-pill,body[data-page="jackpot"] .slip-pill,body[da
 .sf-row small{font-size:12px;margin-left:2px}
 @media (min-width:1024px){ #page-jackpot .pg-head.dark{position:relative} }
 .jp-hero{margin-top:-48px;padding-top:48px}
+
+/* =========================================================
+   v13 – Me page header like the reference + theme toggle
+   ========================================================= */
+.me-top{display:flex;align-items:center;flex-wrap:wrap}
+.me-top .me-user{flex:1;min-width:0}
+.me-theme{display:flex;align-items:center;gap:6px;color:#fff;font-size:14px;margin-left:auto;padding:6px 0}
+.me-theme svg{width:20px;height:20px}
+.me-sub{order:3;width:100%}
+@media (max-width:1023px){ body[data-page="me"] .topbar{display:none} }
+html[data-theme="dark"] .sp-tabs:not(.dark){background:#1d2127;border-color:#2c3138}
+html[data-theme="dark"] .sp-tabs:not(.dark) button{color:#c9cdd2}
+html[data-theme="dark"] .sp-tabs:not(.dark) button.on{color:#fff}
+html[data-theme="dark"] .sf-chips button:not(.on){color:#4cd07d;border-color:#2a6a42}
