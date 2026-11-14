@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en" class="splashing">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0a7d3e" />
+  <title>LetBetAfrika Sportsbook</title>
+  <meta name="description" content="LetBetAfrika – live sports betting, best odds, instant payouts." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Kanit:ital,wght@1,800&display=swap" rel="stylesheet">
+  <link rel="icon" href="img/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LetBetAfrika">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta property="og:title" content="LetBetAfrika Sportsbook">
+  <meta property="og:description" content="Live sports betting, virtuals and jackpots for Nigeria and Ghana.">
+  <meta property="og:image" content="img/icon-512.png">
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<!-- ============ SPLASH ============ -->
+<div id="splash" aria-hidden="true">
+  <div class="sp-bg"></div>
+  <div class="sp-stripes"></div>
+  <svg class="sp-pitch" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
+    <rect x="30" y="40" width="340" height="720" rx="2"/>
+    <path d="M30 400h340"/>
+    <circle cx="200" cy="400" r="62"/>
+    <circle cx="200" cy="400" r="3" class="dot"/>
+    <rect x="110" y="40" width="180" height="96"/>
+    <rect x="155" y="40" width="90" height="36"/>
+    <rect x="110" y="664" width="180" height="96"/>
+    <rect x="155" y="724" width="90" height="36"/>
+    <path d="M160 136a50 50 0 0 0 80 0M160 664a50 50 0 0 1 80 0"/>
+  </svg>
+  <div class="sp-light l"></div><div class="sp-light r"></div>
+  <div class="sp-glow"></div>
+  <div class="sp-mark">
+    <div class="sp-word"><span class="w1">LetBet</span><span class="w2">Afrika</span></div>
+    <img class="sp-ball" src="img/ball.png" alt="">
+  </div>
+  <p class="sp-tag">Bet smart &middot; Win big</p>
+  <div class="sp-bar"><i></i></div>
+  <small class="sp-lic"><b>18+</b> Play responsibly</small>
+</div>
+
+<!-- ============ HEADER ============ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="icon-btn" id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <a class="logo" href="#/home">
+      <span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt="">
+    </a>
+    <button class="cc-top" data-open-cc aria-label="Change country"><span class="cc-flag"></span><span class="cc-code"></span></button>
+    <button class="icon-btn search-btn" id="searchBtn" aria-label="Search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    </button>
+    <div class="top-actions" id="authArea"></div>
+  </div>
+  <nav class="desk-nav">
+    <a href="#/home" data-route="home">Home</a>
+    <a href="#/live" data-route="live">Live <span class="live-dot"></span></a>
+    <a href="#/sports" data-route="sports">A–Z Sports</a>
+    <a href="#/virtuals" data-route="virtuals">Virtuals</a>
+    <a href="#/jackpot" data-route="jackpot">Jackpot</a>
+    <a href="#/games" data-route="games">Games</a>
+    <a href="#/results" data-route="results">Results</a>
+    <a href="#/promos" data-route="promos">Promotions</a>
+    <a href="#/me" data-route="me">My Bets</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="left-rail">
+    <h4>Top Leagues</h4>
+    <ul id="leagueRail"></ul>
+    <h4>Sports</h4>
+    <ul id="sportRail"></ul>
+  </aside>
+
+  <main id="main">
+    <!-- ============ HOME ============ -->
+    <section class="page" id="page-home">
+      <div class="tiles" id="tiles"></div>
+      <div class="icon-row">
+        <a href="#/sports"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8"/></svg><span>All Sports</span></a>
+        <a href="#/live"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4M10 11l5 2.5-5 2.5z"/></svg><span>Live</span></a>
+        <a href="#" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg><span>Load Code</span></a>
+        <a href="#/virtuals"><svg viewBox="0 0 24 24"><path d="M4 6l4 12 4-9 4 9 4-12"/></svg><span>Virtuals</span></a>
+        <a href="#/jackpot"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg><span>Jackpot</span></a>
+        <a href="#" id="moreBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01" stroke-width="2.6"/></svg><span>More</span></a>
+      </div>
+      <div class="cat-cards" id="catCards"></div>
+
+      <div class="hot">
+        <div class="sec-head"><h2>Hot</h2><div class="txt-tabs" id="hotTabs"></div></div>
+        <div class="lg-pills" id="leagueChips"></div>
+        <div class="feat" id="featured"></div>
+      </div>
+
+      <div class="live-block">
+        <div class="sec-head dark"><h2>Live</h2><div class="txt-tabs" id="homeLiveTabs"></div></div>
+        <div class="mkt-tabs dark" id="homeLiveMkt"></div>
+        <div id="liveStrip"></div>
+        <a class="more-link dark" href="#/live">View all live events <span id="liveCountHome"></span> ›</a>
+      </div>
+
+      <div class="sports-block">
+        <div class="sec-head"><h2>Sports</h2><div class="txt-tabs" id="sportTabs"></div></div>
+        <div class="mkt-tabs" id="marketTabs"></div>
+        <div class="filter-bar" id="filterBar"></div>
+        <div id="matchList"></div>
+        <div id="leagueAcc"></div>
+      </div>
+    </section>
+
+    <!-- ============ LIVE ============ -->
+    <section class="page" id="page-live">
+      <div class="page-title"><h1><span class="live-dot"></span> Live Betting</h1><span class="muted" id="liveCount"></span></div>
+      <div class="sport-tabs" id="liveSportTabs"></div>
+      <div id="liveList" class="match-list"></div>
+    </section>
+
+    <!-- ============ LEAGUE ============ -->
+    <section class="page" id="page-league">
+      <div class="sub-head">
+        <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div><small class="muted" id="lgSport"></small><h1 id="lgTitle"></h1></div>
+      </div>
+      <div class="market-tabs" id="lgMarketTabs"></div>
+      <div id="lgList" class="match-list"></div>
+    </section>
+
+    <!-- ============ MATCH DETAIL ============ -->
+    <section class="page" id="page-match">
+      <div class="sub-head">
+        <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="sh-mid"><small class="muted" id="mdSport"></small><h1 id="mdLeague"></h1></div>
+        <button class="icon-btn fav" id="mdFav" aria-label="Favourite"><svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg></button>
+      </div>
+      <div class="md-hero" id="mdHero"></div>
+      <div class="md-tabs" id="mdTabs">
+        <button class="active" data-mdtab="markets">Markets</button>
+        <button data-mdtab="stats">Statistics</button>
+        <button data-mdtab="info">Form &amp; H2H</button>
+      </div>
+      <div id="mdMarketsWrap">
+        <div class="group-chips" id="mdGroups"></div>
+        <div id="mdMarkets"></div>
+      </div>
+      <div id="mdStats" class="md-panel" hidden></div>
+      <div id="mdInfo" class="md-panel" hidden></div>
+    </section>
+
+    <!-- ============ A–Z ============ -->
+    <section class="page" id="page-sports">
+      <div class="page-title"><h1>A–Z Sports</h1></div>
+      <div class="search"><input id="sportSearch" placeholder="Search sports or leagues…"></div>
+      <div class="az-list" id="azList"></div>
+    </section>
+
+    <!-- ============ JACKPOT ============ -->
+    <section class="page" id="page-jackpot">
+      <div class="jackpot-hero">
+        <small>THIS WEEK'S JACKPOT</small>
+        <h1 data-t="jackpot"></h1>
+        <p>Pick 1, X or 2 for all 12 games. <span data-t="ticket"></span> per ticket.</p>
+        <div class="countdown" id="countdown"></div>
+      </div>
+      <div class="jp-tools"><button class="btn btn-ghost sm" id="jpAuto">Auto-pick</button><button class="btn btn-ghost sm" id="jpClear">Clear</button></div>
+      <div id="jackpotList" class="jp-list"></div>
+      <div class="jp-foot">
+        <span id="jpPicked">0/12 picked</span>
+        <button class="btn btn-accent" id="jpSubmit" disabled>Submit <span data-t="ticket"></span></button>
+      </div>
+    </section>
+
+    <!-- ============ PROMOS ============ -->
+    <section class="page" id="page-promos">
+      <div class="page-title"><h1>Promotions</h1></div>
+      <div class="promo-grid">
+        <article class="promo"><span class="ph" data-img="b1"></span><span class="tag">NEW USERS</span><h3>200% Welcome Bonus</h3><p>Triple your first deposit up to <span data-t="bonusMax"></span>.</p><button class="btn btn-dark sm" data-open="registerModal">Join Now</button></article>
+        <article class="promo"><span class="ph" data-img="b2"></span><span class="tag">MULTIPLES</span><h3>Acca Win Boost</h3><p>Up to 1000% extra winnings on 3+ selections.</p></article>
+        <article class="promo"><span class="ph" data-img="b3"></span><span class="tag">WEEKLY</span><h3><span data-t="jackpotShort"></span> Jackpot</h3><p>Predict 12 matches and win big.</p><a class="btn btn-dark sm" href="#/jackpot">Play</a></article>
+        <article class="promo"><span class="tag">ALL USERS</span><h3>Cashout</h3><p>Take your winnings before the final whistle.</p></article>
+        <article class="promo"><span class="tag">REFERRAL</span><h3>Refer a Friend</h3><p>Get <span data-t="referral"></span> for every friend who joins and bets.</p></article>
+        <article class="promo"><span class="tag">LIVE</span><h3>Live Odds Boost</h3><p>Daily boosted odds on top live matches.</p></article>
+      </div>
+    </section>
+
+    <!-- ============ ME ============ -->
+    <section class="page" id="page-me">
+      <div class="me-dark">
+        <div class="me-top">
+          <a href="#" class="me-user" id="meUserLink"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><circle cx="12" cy="9.5" r="3.6" fill="#1b1e25" stroke="none"/><path d="M5.6 18.6c1.4-2.6 3.6-3.9 6.4-3.9s5 1.3 6.4 3.9" fill="#1b1e25" stroke="none"/></svg><span id="meName">Login to View</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
+          <span class="me-sub" id="meSub"></span>
+        </div>
+        <div class="me-bal"><span>Total Balance</span><b id="meBal">--</b></div>
+        <div class="me-actions">
+          <button class="me-dep" data-open="depositModal"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Deposit</button>
+          <button class="me-wd" data-open="depositModal" data-mode="withdraw"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="1.5"/><path d="M9 9h6M12 7v8M9.5 13.5c.4.8 1.4 1.3 2.5 1.3"/></svg>Withdraw</button>
+        </div>
+        <a class="me-loyal" href="#/promos"><b>LetBet Rewards</b><span id="meLoyal">Log in to join</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a>
+        <div class="me-quick">
+          <a href="#/acct/bets"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Bet History</span><em id="meOpenCnt"></em></a>
+          <a href="#/acct/tx"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/><path d="M12 8v8M10 10.5c0-1 .9-1.5 2-1.5s2 .5 2 1.5-1 1.3-2 1.5-2 .5-2 1.5.9 1.5 2 1.5 2-.5 2-1.5"/></svg><span>Transaction Records</span></a>
+          <a href="#/acct/bonus"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg><span>Bonuses &amp; Gifts</span></a>
+        </div>
+      </div>
+      <ul class="me-list">
+        <li><a href="#/acct/refer"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M17 8v6M14 11h6"/></svg><span>Refer &amp; Earn</span><em class="new">NEW</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Messages</span><em class="dot" id="meMsgDot"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span><em class="muted" id="meVer"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Change Password</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/limits"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg><span>Responsible Gambling</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/help"><svg viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 16 0"/><rect x="2.5" y="13" width="4" height="6" rx="1.5"/><rect x="17.5" y="13" width="4" height="6" rx="1.5"/><path d="M19.5 19c0 1.5-2 2.5-5 2.5"/></svg><span>Customer Service</span><em class="muted">Online 24/7</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><a href="#/acct/how"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg><span>How to Play</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li><button data-open-cc><span class="cc-flag"></span><span>Country &amp; Currency</span><em class="muted cc-name"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button></li>
+        <li id="logoutBtn" hidden><button><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg><span>Log out</span></button></li>
+      </ul>
+    </section>
+
+    <!-- ============ VIRTUALS ============ -->
+    <section class="page" id="page-virtuals">
+      <div class="v-head">
+        <div><small>LETBET VIRTUAL LEAGUE</small><h1>Round <span id="vRound"></span></h1><p>New round every 2 minutes · results in seconds</p></div>
+        <div class="v-clock"><small>Kick-off in</small><b id="vClock">--:--</b></div>
+      </div>
+      <div class="v-bar"><i id="vBar"></i></div>
+      <div class="market-tabs" id="vMarketTabs"></div>
+      <div id="vList" class="match-list"></div>
+      <div class="section-head"><h2>Last round · <span id="vLastRound"></span></h2><a href="#/results" class="see-all">All results ›</a></div>
+      <div id="vResults" class="res-list"></div>
+    </section>
+
+    <!-- ============ GAMES ============ -->
+    <section class="page" id="page-games">
+      <div class="gl">
+        <div class="gl-top"><label class="gl-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="gSearch" placeholder="Search games"></label>
+          <select id="gCat"><option value="all">All games</option><option value="crash">Crash</option><option value="instant">Instant win</option><option value="sports">Sports games</option></select></div>
+        <div id="gLobby"></div>
+      </div>
+    </section>
+
+    <!-- ============ ROCKET CRASH ============ -->
+    <section class="page" id="page-play">
+      <div class="cr">
+        <div class="cr-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><b>Rocket Crash</b><span class="cr-hist" id="crHist"></span></div>
+        <div class="cr-stage"><canvas id="crCanvas"></canvas><div class="cr-mult" id="crMult">1.00x</div><div class="cr-msg" id="crMsg">Next round in 5s</div></div>
+        <div class="cr-panel">
+          <div class="cr-stake"><button data-cr="-">−</button><input id="crStake" type="number" inputmode="decimal"><button data-cr="+">+</button></div>
+          <div class="cr-quick" id="crQuick"></div>
+          <label class="cr-auto">Auto cash-out at <input id="crAuto" type="number" step="0.1" min="1.1" placeholder="off">x</label>
+          <button class="cr-btn" id="crBtn">Bet</button>
+        </div>
+        <div class="cr-live"><div class="cr-live-h"><span>All bets</span><b id="crCount"></b></div><div id="crBets"></div></div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="page" id="page-results">
+      <div class="page-title"><h1>Results</h1><span class="muted" id="resCount"></span></div>
+      <div class="market-tabs" id="resTabs"></div>
+      <div id="resList" class="res-list"></div>
+    </section>
+
+    <!-- ============ DEPOSIT ============ -->
+    <section class="page" id="page-deposit">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Deposit</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
+      <div id="depBody" class="pay"></div>
+    </section>
+
+    <!-- ============ WITHDRAW ============ -->
+    <section class="page" id="page-withdraw">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1>Withdraw</h1></div><a class="sh-link" href="#/acct/tx">History</a></div>
+      <div id="wdBody" class="pay"></div>
+    </section>
+
+    <!-- ============ LEGAL ============ -->
+    <section class="page" id="page-legal">
+      <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1 id="legalTitle"></h1></div></div>
+      <article class="legal" id="legalBody"></article>
+    </section>
+
+    <!-- ============ ACCOUNT SUB-PAGES ============ -->
+    <section class="page" id="page-acct">
+      <div class="sub-head">
+        <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="sh-mid"><h1 id="acTitle"></h1></div>
+      </div>
+      <div id="acBody"></div>
+    </section>
+
+    <footer class="site-foot">
+      <div class="foot-strip"><span class="age">18+</span><span>© <span id="yr"></span> LetBetAfrika. All rights reserved.</span></div>
+      <div class="foot-dark">
+        <div class="foot-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+        <p class="foot-tag">Africa's home of sports betting</p>
+        <p class="foot-h">Payment methods</p>
+        <div class="pay-row" id="payRow"></div>
+        <div class="foot-links"><a href="#/acct/how">How to Play</a><a href="#/acct/help">Help</a><a href="#/acct/limits">Responsible Gambling</a><a href="#/legal/terms">Terms</a><a href="#/legal/privacy">Privacy</a></div>
+        <button class="cc-foot" data-open-cc><span class="cc-flag"></span> <span class="cc-name"></span> · Change</button>
+        <p class="foot-lic" id="footLic"></p>
+      </div>
+    </footer>
+  </main>
+
+  <!-- ============ BETSLIP ============ -->
+  <aside class="betslip" id="betslip">
+    <div class="bs-head">
+      <span class="bs-cnt" id="bsCount">0</span>
+      <span class="bs-title">Betslip</span>
+      <button class="bs-x" id="bsClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+    <div class="bs-tools"><button class="bs-tool" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg>Load Code</button><button class="bs-tool" id="bsClear"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 7l1 13h6l1-13M10 11l4 5M14 11l-4 5"/></svg></button></div>
+    <div class="bs-tabs">
+      <button data-bstype="single">Single</button>
+      <button class="active" data-bstype="multi">Multiple</button>
+      <button data-bstype="system" disabled>System</button>
+    </div>
+    <div class="bs-body" id="bsBody"></div>
+    <div class="bs-foot" id="bsFoot">
+      <div class="bs-stake-row">
+        <span id="bsStakeLbl">Stake</span>
+        <label class="bs-stake"><i data-t="curCode"></i><input id="bsStake" type="number" inputmode="decimal"></label>
+      </div>
+      <div class="chips" id="stakeChips"></div>
+      <div class="row"><span>Total Odds</span><b id="bsOdds">0.00</b></div>
+      <div class="row"><span>Total Stake</span><b id="bsTotStake">0.00</b></div>
+      <div class="boost-bar" id="boostBar"><div class="bb-track"><i id="bbFill"></i></div><span id="bbText"></span></div>
+      <div class="row boost"><span>Win Boost <b id="bsBoost" class="gold">0%</b></span><label class="accept"><input type="checkbox" id="bsAccept" checked> Accept odds changes</label></div>
+      <div class="bs-win"><span>Potential Win</span><b id="bsWin">0.00</b></div>
+    </div>
+    <div class="bs-bar" id="bsBar">
+      <button class="bs-book" id="bsBook">Book Bet</button>
+      <button class="bs-place" id="bsPlace"><b>Place Bet</b><small id="bsPay"></small></button>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<button class="slip-pill" id="slipPill" aria-label="Open betslip"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><b id="pillCount">0</b><em id="pillOdds" hidden></em></button>
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav class="bottom-nav">
+  <a href="#/home" data-route="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#/sports" data-route="sports"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>AZ Menu</a>
+  <a href="#/games" data-route="games" class="nav-games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
+  <a href="#/acct/bets" data-route="bets"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/><path d="M12 8v8M10 10.5c0-1 .9-1.5 2-1.5s2 .5 2 1.5-1 1.3-2 1.5-2 .5-2 1.5.9 1.5 2 1.5 2-.5 2-1.5"/></svg>Open Bets<i class="nav-badge" id="navOpen"></i></a>
+  <a href="#/me" data-route="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me</a>
+</nav>
+
+<!-- Side drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+  <button class="cc-row" data-open-cc><span class="cc-flag"></span><span class="cc-name"></span><span class="cc-chg">Change</span></button>
+  <a href="#/home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#/live"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4M10 11l5 2.5-5 2.5z"/></svg>Live Betting</a>
+  <a href="#/sports"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>A–Z Sports</a>
+  <a href="#/virtuals"><svg viewBox="0 0 24 24"><path d="M4 6l4 12 4-9 4 9 4-12"/></svg>Virtual Football</a>
+  <a href="#/jackpot"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>Jackpot</a>
+  <a href="#/games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
+  <a href="#/results"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Results</a>
+  <a href="#/promos"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg>Promotions</a>
+  <a href="#/me"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>My Bets</a>
+  <a href="#" data-open="depositModal"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Deposit</a>
+  <a href="#" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg>Load Booking Code</a>
+  <div class="drawer-foot"><b class="age">18+</b> Bet responsibly</div>
+</div>
+
+<!-- Search overlay -->
+<div class="search-ov" id="searchOv">
+  <div class="so-head">
+    <button class="icon-btn" id="searchClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <input id="searchInput" placeholder="Search teams, leagues…" autocomplete="off">
+  </div>
+  <div id="searchRes" class="so-res"></div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="modal" id="loginModal">
+  <form class="modal-card" data-auth="login">
+    <button type="button" class="modal-x" data-close>×</button>
+    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+    <h2>Welcome back</h2>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
+    <label>Password<input required type="password" name="pw" placeholder="••••••••"></label>
+    <button class="btn btn-accent block">Login</button>
+    <p class="muted center">No account? <a href="#" data-switch="registerModal">Join Now</a></p>
+  </form>
+</div>
+<div class="modal" id="registerModal">
+  <form class="modal-card" data-auth="register">
+    <button type="button" class="modal-x" data-close>×</button>
+    <div class="modal-logo"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""></div>
+    <h2>Create account</h2>
+    <p class="muted">Get a 200% welcome bonus on your first deposit.</p>
+    <label>Mobile Number<div class="phone"><button type="button" class="dial" data-open-cc>+234</button><input required name="phone" inputmode="tel"></div></label>
+    <label>Password<input required type="password" minlength="6" name="pw" placeholder="Min. 6 characters"></label>
+    <label>Email <span class="muted">(for receipts, optional)</span><input type="email" name="email" placeholder="you@example.com"></label>
+    <label class="otp-row" hidden>SMS code<input name="code" inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="6-digit code we sent you"></label>
+    <label class="check"><input type="checkbox" required> I am 18+ and accept the <a href="#/legal/terms">Terms &amp; Conditions</a></label>
+    <button class="btn btn-accent block">Register</button>
+    <p class="muted center">Have an account? <a href="#" data-switch="loginModal">Login</a></p>
+  </form>
+</div>
+
+<div class="modal" id="codeModal">
+  <form class="modal-card" id="codeForm">
+    <button type="button" class="modal-x" data-close>×</button>
+    <h2>Load Booking Code</h2>
+    <label>Booking Code<input id="codeInput" required placeholder="e.g. LB7K2Q" style="text-transform:uppercase"></label>
+    <button class="btn btn-accent block">Load</button>
+  </form>
+</div>
+<div class="modal" id="countryModal">
+  <div class="modal-card">
+    <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
+    <h2>Choose your country</h2>
+    <button class="cc-opt" data-cc="NG"><span class="f" data-flagc="ng"></span><span><b>Nigeria</b><small>Naira (₦) · +234</small></span></button>
+    <button class="cc-opt" data-cc="GH"><span class="f" data-flagc="gh"></span><span><b>Ghana</b><small>Cedis (GH₵) · +233</small></span></button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="api.js"></script>
+<script src="motion.js"></script>
+<script src="icons.js"></script>
+<script src="games.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
