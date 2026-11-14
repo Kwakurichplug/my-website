@@ -98,3 +98,16 @@ test('an email-only player can deposit and play', async () => {
   const tx = await api('/wallet/transactions', null, token);
   assert.ok(tx.transactions.some(t => t.type === 'deposit'));
 });
+
+test('send money to a friend by email; deposits keep their method details', async () => {
+  const a = await emailUser(mail('h')), bEmail = mail('i'), b = await emailUser(bEmail), gh = mail('j'); await emailUser(gh, 'GH');
+  await api('/wallet/deposit', { amount: 3000, method: 'mobile_money', details: { phone: '241234567', network: 'mtn' } }, a.token);
+  const { rows } = await db.query(`SELECT details FROM payments WHERE user_id=$1 AND kind='deposit'`, [a.user.id]);
+  assert.equal(rows[0].details.network, 'mtn', 'deposit details stored for the payment partner');
+  const t = await api('/wallet/transfer', { email: bEmail.toUpperCase(), amount: 500, note: 'lunch' }, a.token);
+  assert.equal(t.balance, 2500);
+  assert.equal((await api('/wallet', null, b.token)).balance, 500, 'friend found by email received it');
+  await fails(api('/wallet/transfer', { email: a.user.email, amount: 100 }, a.token), 'self_transfer');
+  await fails(api('/wallet/transfer', { email: gh, amount: 100 }, a.token), 'no_account');   // other country = other currency
+  await fails(api('/wallet/transfer', { email: mail('nobody2'), amount: 100 }, a.token), 'no_account');
+});

@@ -32,16 +32,20 @@ const log = (...a) => console.log('•', ...a);
   log('Live');
   await go('live');
   const groups = await p.$$('.lv-lg');
-  expect(groups.length > 0, 'live page lists leagues');
-  await groups[0].click(); await p.waitForTimeout(150);
-  expect(await p.$eval('.lv-grp', e => e.classList.contains('shut')), 'league group collapses');
-  await p.click('.lv-lg >> nth=0'); await p.waitForTimeout(150);
-  await p.click('[data-pg=lvall]'); await p.waitForTimeout(200);
-  expect(await p.$$eval('.lv-grp', l => l.every(e => e.classList.contains('shut'))), 'Collapse All collapses every league');
-  expect((await p.textContent('[data-pg=lvall]')).includes('Expand All'), 'button then offers Expand All');
-  await p.click('[data-pg=lvall]'); await p.waitForTimeout(200);
-  await p.selectOption('[data-pg=lvsort]', 'time'); await p.waitForTimeout(200);
-  expect((await p.$$('.lv-lg')).length === 0 && (await p.$$('#page-live .ev')).length > 0, 'sort by match time shows a flat list');
+  if (!groups.length) {   // the feed has no match in play right now: the page must say so (not look broken)
+    expect(/No live events right now/.test(await p.textContent('#page-live')), 'no match in play: clear empty state with a link to upcoming matches');
+  } else {
+    expect(groups.length > 0, 'live page lists leagues');
+    await groups[0].click(); await p.waitForTimeout(150);
+    expect(await p.$eval('.lv-grp', e => e.classList.contains('shut')), 'league group collapses');
+    await p.click('.lv-lg >> nth=0'); await p.waitForTimeout(150);
+    await p.click('[data-pg=lvall]'); await p.waitForTimeout(200);
+    expect(await p.$$eval('.lv-grp', l => l.every(e => e.classList.contains('shut'))), 'Collapse All collapses every league');
+    expect((await p.textContent('[data-pg=lvall]')).includes('Expand All'), 'button then offers Expand All');
+    await p.click('[data-pg=lvall]'); await p.waitForTimeout(200);
+    await p.selectOption('[data-pg=lvsort]', 'time'); await p.waitForTimeout(200);
+    expect((await p.$$('.lv-lg')).length === 0 && (await p.$$('#page-live .ev')).length > 0, 'sort by match time shows a flat list');
+  }
 
   log('Sports filter → list');
   await go('sports');

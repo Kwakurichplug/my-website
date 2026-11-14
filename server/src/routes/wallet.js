@@ -25,11 +25,19 @@ r.get('/transactions', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Deposit. Until a payment provider is wired (Paystack/Flutterwave), PAYMENTS_MODE=demo credits instantly.
+// Deposit. PAYMENTS_MODE=demo credits at once (pre-launch testing).
+// PROVIDER: with a payment provider (Paystack / Flutterwave / MoMo), create the charge here and answer
+//   { status: 'pending', paymentId, balance, next } where next is ONE of
+//     { url }             – hosted checkout (cards: card details are never typed on our pages), the app redirects;
+//     { message, rows }   – what to do now: bank-transfer account (rows: Bank, Account number, Account name),
+//                           USSD code, or "approve the prompt on 024…" for mobile money; the app shows them.
+//   The provider's webhook then credits the deposit with creditDeposit() (lib/bonus.js) – see HANDOVER.md §7.
+// `details` carries what the method needs: { phone, network } for mobile money, { bank } for USSD.
 r.post('/deposit', async (req, res, next) => {
-  const p = z.object({ amount: z.number().positive(), method: z.enum(METHODS).default('card') }).safeParse(req.body);
+  const p = z.object({ amount: z.number().positive(), method: z.enum(METHODS).default('card'),
+    details: z.object({ phone: z.string().max(15).optional(), network: z.string().max(20).optional(), bank: z.string().max(60).optional() }).optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
-  const { amount, method } = p.data;
+  const { amount, method } = p.data, details = p.data.details || {};
   if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
   const lim = req.user.limits?.deposit?.amount;
   try {
@@ -39,8 +47,8 @@ r.post('/deposit', async (req, res, next) => {
     }
     const demo = (process.env.PAYMENTS_MODE || 'demo') === 'demo';
     const out = await tx(async c => {
-      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status) VALUES ($1,'deposit',$2,$3,$4,$5) RETURNING id`,
-        [req.user.id, amount, method, demo ? 'demo' : 'pending', demo ? 'success' : 'pending']);
+      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,$4,$5,$6) RETURNING id`,
+        [req.user.id, amount, method, demo ? 'demo' : 'pending', demo ? 'success' : 'pending', details]);
       const pid = rows[0].id;
       const balance = demo ? await creditDeposit(c, req.user, amount, pid, { method }) : Number(req.user.balance);
       return { paymentId: pid, balance, status: demo ? 'success' : 'pending' };
@@ -75,24 +83,29 @@ r.post('/withdraw', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Send money to another player in the same country. Instant, free, both sides go through the ledger.
+// Send money to another player in the same country (same currency), found by mobile number or email.
+// Instant, free, both sides go through the ledger.
 r.post('/transfer', async (req, res, next) => {
   const p = z.object({
-    phone: z.string().transform(s => s.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '')).refine(s => s.length >= 9 && s.length <= 10, 'bad_phone'),
+    phone: z.string().transform(s => s.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '')).refine(s => s.length >= 9 && s.length <= 10, 'bad_phone').optional(),
+    email: z.string().trim().toLowerCase().pipe(z.email().max(120)).optional(),
     amount: z.number().positive(),
     note: z.string().max(40).optional(),
-  }).safeParse(req.body);
+  }).refine(d => !!d.phone !== !!d.email).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
-  const { phone, amount, note } = p.data;
+  const { phone, email, amount, note } = p.data;
   if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
-  if (phone === req.user.phone) return res.status(400).json({ error: 'self_transfer' });
   try {
-    const { rows } = await q('SELECT id, phone FROM users WHERE country=$1 AND phone=$2 AND status=$3', [req.user.country, phone, 'active']);
+    const { rows } = email
+      ? await q('SELECT id, phone, email FROM users WHERE country=$1 AND lower(email)=$2 AND status=$3', [req.user.country, email, 'active'])
+      : await q('SELECT id, phone, email FROM users WHERE country=$1 AND phone=$2 AND status=$3', [req.user.country, phone, 'active']);
+    if (rows[0] && rows[0].id === req.user.id) return res.status(400).json({ error: 'self_transfer' });
     if (!rows[0]) return res.status(404).json({ error: 'no_account' });
     const ref = 'TF' + Date.now().toString(36).toUpperCase();
+    const to = phone || email, from = req.user.phone || req.user.email;
     const balance = await tx(async c => {
-      const b = await debit(c, req.user.id, 'transfer_out', amount, ref, { to: phone, note });
-      await move(c, rows[0].id, 'transfer_in', amount, ref, { from: req.user.phone, note });
+      const b = await debit(c, req.user.id, 'transfer_out', amount, ref, { to, note });
+      await move(c, rows[0].id, 'transfer_in', amount, ref, { from, note });
       return b;
     });
     res.json({ ok: true, ref, balance });

@@ -33,24 +33,16 @@
   ];
   const PAY = {
     NG: {
-      curCode: 'NGN', depMin: 100, depMax: 9999999, wdMin: 100, wdMax: 9999999, chips: [100, 500, 1000, 5000, 10000],
+      curCode: 'NGN', depMin: 100, depMax: 9999999, wdMin: 100, wdMax: 9999999, chips: [500, 1000, 2000, 5000, 10000],
       acctLen: [10, 10], banks: NG_BANKS,
-      dep: [
-        { id: 'card', name: 'Card', api: 'card' },
-        { id: 'transfer', name: 'Bank Transfer', api: 'bank_transfer' },
-        { id: 'opay', name: 'OPay', api: 'opay', color: '#1dcf9f' },
-        { id: 'palmpay', name: 'PalmPay', api: 'palmpay', color: '#6c2bd9' },
-        { id: 'ussd', name: 'USSD', api: 'ussd' },
-        { id: 'others', name: 'Others' },
-      ],
-      wd: [{ id: 'bank', name: 'Bank' }, { id: 'friend', name: 'Transfer to Friend' }],
-      others: ['Kuda', 'GTBank', 'Zenith Bank', 'Access Bank', 'Quickteller', 'Moniepoint', 'FairMoney'],
+      dep: [{ id: 'card' }, { id: 'transfer' }, { id: 'ussd' }, { id: 'opay' }, { id: 'palmpay' }],
+      wd: [{ id: 'bank' }, { id: 'friend' }],
     },
     GH: {
-      curCode: 'GHS', depMin: 1, depMax: 100000, wdMin: 1, wdMax: 100000, chips: [2, 5, 10, 50, 100],
+      curCode: 'GHS', depMin: 1, depMax: 100000, wdMin: 1, wdMax: 100000, chips: [5, 10, 20, 50, 100],
       acctLen: [10, 16], banks: GH_BANKS,
-      dep: [{ id: 'momo', name: 'Mobile Money', api: 'mobile_money' }, { id: 'paybill', name: 'Paybill' }, { id: 'card', name: 'Card', api: 'card', isNew: true }],
-      wd: [{ id: 'momo', name: 'Mobile Money' }, { id: 'bank', name: 'Bank', isNew: true }, { id: 'friend', name: 'Transfer to Friend' }],
+      dep: [{ id: 'momo' }, { id: 'card' }],
+      wd: [{ id: 'momo' }, { id: 'bank' }, { id: 'friend' }],
     },
   };
 
@@ -90,6 +82,10 @@
     gift: '<svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg>',
     clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
     mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>',
+    hash: '<svg viewBox="0 0 24 24"><path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/></svg>',
+    send: '<svg viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg>',
+    up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+    down: '<svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
   };
 
   // Demo-only checksum so demo accounts need their password. The server uses bcrypt.
@@ -513,49 +509,86 @@
   }
 
   /* =========================================================
-     WALLET – shared pieces
+     WALLET – deposit & withdraw
+     One layout for both: balance card → method → method details → amount → one button → recent activity.
+     Live: money moves only through the API. PAYMENTS_MODE=demo credits a deposit at once; with a payment provider
+     the server answers `pending` and `next` = { url } (hosted checkout – card details are never typed on our pages)
+     or { message, rows } (bank transfer account, USSD code, mobile-money prompt) – see PROVIDER: in routes/wallet.js.
+     Demo (opened as a file): simulated in localStorage with the same screens.
      ========================================================= */
-  const wl = { dep: null, wd: null, busy: false, hasDeposit: null };
-  function tabsHTML(list, active, base) {
-    return `<nav class="wl-tabs" role="tablist">${list.map(t => `<a role="tab" href="#/${base}/${t.id}" class="${t.id === active ? 'on' : ''}" aria-selected="${t.id === active}">${t.name}${t.isNew ? '<em>NEW</em>' : ''}</a>`).join('')}</nav>`;
+  const wl = { dep: null, wd: null, busy: false, hasDeposit: null, amt: { dep: '', wd: '' }, recent: null, recentAt: 0 };
+  const METHOD = {
+    card: { name: 'Card', sub: cc => (cc === 'GH' ? 'Visa and Mastercard · instant' : 'Visa, Mastercard and Verve · instant'), icon: 'card', api: 'card' },
+    transfer: { name: 'Bank Transfer', sub: () => 'From any Nigerian bank app · instant', icon: 'bank', api: 'bank_transfer' },
+    ussd: { name: 'USSD', sub: () => 'Dial a short code – no data needed', icon: 'hash', api: 'ussd' },
+    opay: { name: 'OPay', sub: () => 'Pay from your OPay wallet · instant', mark: 'O', color: '#1dcf9f', api: 'opay' },
+    palmpay: { name: 'PalmPay', sub: () => 'Pay from your PalmPay wallet · instant', mark: 'P', color: '#6c2bd9', api: 'palmpay' },
+    momo: { name: 'Mobile Money', sub: () => 'MTN MoMo, Telecel Cash and AirtelTigo Money', icon: 'phone', api: 'mobile_money' },
+    bank: { name: 'Bank Account', sub: () => 'Paid to a bank account in your name', icon: 'bank', api: 'bank_transfer' },
+    friend: { name: 'To a Friend', sub: () => 'Send to another LetBetAfrika player · instant and free', icon: 'send' },
+  };
+  const API_NAME = { card: 'Card', bank_transfer: 'Bank transfer', ussd: 'USSD', mobile_money: 'Mobile money', opay: 'OPay', palmpay: 'PalmPay' };
+  const mIcon = m => (m.mark ? `<span class="wx-mi mark" style="--mc:${m.color}">${m.mark}</span>` : `<span class="wx-mi">${ICON[m.icon]}</span>`);
+  function methodsHTML(list, active, label) {
+    return `<div class="wx-methods n${list.length}" role="radiogroup" aria-label="${label}">${list.map(t => {
+      const m = METHOD[t.id], on = t.id === active;
+      return `<button type="button" class="wx-method${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-method="${t.id}">${mIcon(m)}<b>${m.name}</b></button>`;
+    }).join('')}</div><p class="wx-mdesc">${METHOD[active].sub(app().CC)}</p>`;
   }
-  const balanceRow = label => `<div class="wl-bal"><span>${label || 'Balance'} (${P().curCode})</span><b>${fmt(user().balance)}</b></div>`;
-  function amountBlock(kind) {
-    const p = P(), min = kind === 'wd' ? p.wdMin : p.depMin;
-    return `<div class="wl-amt">
-        <label class="wl-lbl" for="wlAmt">Amount (${p.curCode})</label>
-        <div class="wl-amt-in"><span>${app().C.cur}</span><input id="wlAmt" name="amount" inputmode="decimal" placeholder="Min. ${fmt(min)}" autocomplete="off"><button type="button" class="wl-clear" data-clear aria-label="Clear amount" hidden>${ICON.close}</button></div>
-        ${kind === 'dep' ? `<div class="wl-chips">${p.chips.map(v => `<button type="button" data-plus="${v}">+${v.toLocaleString()}</button>`).join('')}</div>` : `<div class="wl-chips">${[0.25, 0.5, 1].map(f => `<button type="button" data-frac="${f}">${f === 1 ? 'All' : f * 100 + '%'}</button>`).join('')}</div>`}
-        <p class="wl-hint" id="wlHint" aria-live="polite"></p>
-      </div>`;
+  // switching method keeps the typed amount and does not add browser history entries
+  function bindMethods(el, base, key) {
+    $$('[data-method]', el).forEach(b => b.addEventListener('click', () => {
+      if (b.classList.contains('on')) return;
+      const i = $('#wlAmt', el); if (i) wl.amt[key] = i.value;
+      location.replace('#/' + base + '/' + b.dataset.method);
+    }));
+  }
+  function heroHTML(kind) {
+    const a = app(), u = user();
+    return `<section class="wx-hero" aria-label="Balance">
+      <div class="wx-hero-t"><span>${kind === 'wd' ? 'Withdrawable balance' : 'Main balance'}</span><em>${P().curCode}</em></div>
+      <b class="wx-hero-amt">${a.money(u.balance)}</b>
+      <nav class="wx-hero-nav">${kind === 'wd' ? `<a href="#/deposit">${ICON.plus}Deposit</a>` : `<a href="#/withdraw">${ICON.up}Withdraw</a>`}<a href="#/acct/tx">${ICON.clock}Transactions</a></nav>
+    </section>`;
+  }
+  const bonusHTML = () => `<div class="wx-bonus">${ICON.gift}<div><b>200% Welcome Bonus</b><span>Get 200% extra on your first deposit, up to ${app().whole(app().C.bonusMax)}.</span></div></div>`;
+  function amountHTML(kind) {
+    const p = P(), a = app(), key = kind === 'dep' ? 'dep' : 'wd';
+    const chips = kind === 'dep' ? p.chips.map(v => [`${a.C.cur}${v.toLocaleString()}`, v]) : [['25%', 0.25], ['50%', 0.5], ['Max', 1]];
+    return `<div class="wx-amount">
+      <label class="wx-h" for="wlAmt">${kind === 'dep' ? 'Amount to deposit' : kind === 'tf' ? 'Amount to send' : 'Amount to withdraw'}</label>
+      <div class="wx-amt-in"><span>${a.C.cur}</span><input id="wlAmt" name="amount" inputmode="decimal" placeholder="0.00" autocomplete="off" value="${a.esc(wl.amt[key] || '')}"><button type="button" class="wx-clear" data-clear aria-label="Clear amount" hidden>${ICON.close}</button></div>
+      <div class="wx-chips${kind === 'dep' ? '' : ' frac'}">${chips.map(([l, v]) => `<button type="button" ${kind === 'dep' ? `data-set="${v}"` : `data-frac="${v}"`}>${l}</button>`).join('')}</div>
+      <p class="wx-hint" id="wlHint" aria-live="polite"></p>
+    </div>`;
   }
   function bindAmount(form, kind, onChange) {
-    const p = P(), min = kind === 'wd' ? p.wdMin : p.depMin, max = kind === 'wd' ? p.wdMax : p.depMax;
+    const p = P(), a = app(), dep = kind === 'dep', min = dep ? p.depMin : p.wdMin, max = dep ? p.depMax : p.wdMax, key = dep ? 'dep' : 'wd';
     const inp = $('#wlAmt', form), hint = $('#wlHint', form), clr = $('[data-clear]', form);
     const get = () => +String(inp.value).replace(/,/g, '') || 0;
+    const base = dep ? `Min ${a.whole(min)} · Max ${a.whole(max)} · No fees` : kind === 'tf' ? `Min ${a.whole(min)} · Instant and free` : `Min ${a.whole(min)} · No fees`;
     const upd = () => {
-      const v = get();
-      clr.hidden = !inp.value;
-      let msg = '', bad = false;
-      if (v && v < min) { msg = `Minimum is ${app().whole(min)}`; bad = true; }
-      else if (v > max) { msg = `Maximum is ${app().whole(max)}`; bad = true; }
-      else if (kind === 'wd' && v > user().balance) { msg = 'Amount is more than your balance'; bad = true; }
-      else if (kind === 'dep' && v && firstDeposit()) msg = `+ ${app().whole(Math.min(v * 2, app().C.bonusMax))} welcome bonus`;
-      hint.textContent = msg; hint.className = 'wl-hint' + (bad ? ' bad' : msg ? ' good' : '');
-      onChange && onChange(v, !bad && v >= min);
+      const v = get(); wl.amt[key] = inp.value; clr.hidden = !inp.value;
+      let msg = base, cls = '';
+      if (v && v < min) { msg = `Minimum is ${a.whole(min)}`; cls = 'bad'; }
+      else if (v > max) { msg = `Maximum is ${a.whole(max)}`; cls = 'bad'; }
+      else if (!dep && v > user().balance) { msg = 'That is more than your balance'; cls = 'bad'; }
+      else if (dep && v && firstDeposit()) { msg = `+${a.whole(Math.min(v * 2, a.C.bonusMax))} welcome bonus with this deposit`; cls = 'good'; }
+      hint.textContent = msg; hint.className = 'wx-hint ' + cls;
+      $$('[data-set]', form).forEach(b => b.classList.toggle('on', +b.dataset.set === v));
+      onChange && onChange(v);
     };
     inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').replace(/(\.\d{2}).+/, '$1'); upd(); });
     form.addEventListener('click', e => {
-      const b = e.target.closest('[data-plus],[data-frac],[data-clear]'); if (!b) return;
-      if (b.dataset.plus) inp.value = String(app().r2(get() + +b.dataset.plus));
-      if (b.dataset.frac) inp.value = String(Math.floor(user().balance * +b.dataset.frac * 100) / 100);
+      const b = e.target.closest('[data-set],[data-frac],[data-clear]'); if (!b) return;
+      if (b.dataset.set) inp.value = b.dataset.set;
+      if (b.dataset.frac) inp.value = String(Math.floor(Math.min(user().balance, max) * +b.dataset.frac * 100) / 100);
       if ('clear' in b.dataset) inp.value = '';
       upd(); inp.focus();
     });
     upd();
-    return { get, valid: () => { const v = get(); return v >= min && v <= max && (kind !== 'wd' || v <= user().balance); } };
+    return { get, valid: () => { const v = get(); return v >= min && v <= max && (dep || v <= user().balance); } };
   }
-  const rules = list => `<ol class="wl-rules">${list.map(x => `<li>${x}</li>`).join('')}</ol>`;
   const firstDeposit = () => live() ? wl.hasDeposit === false : !app().state.tx.some(t => t.type === 'Deposit' && t.status !== 'failed');
   function depositLimit() {
     const u = user(), L = live() ? u.limits?.deposit : u.limits;
@@ -566,6 +599,36 @@
     const used = app().state.tx.filter(t => t.type === 'Deposit' && t.status !== 'failed' && Date.now() - t.at < span).reduce((s, t) => s + t.amt, 0);
     return { period, amt, left: Math.max(0, amt - used) };
   }
+  function limitBlocked(v) {
+    const lim = depositLimit();
+    if (lim && lim.left != null && v > lim.left) { app().toast(`That is over your deposit limit. You can deposit up to ${app().whole(lim.left)} right now.`, 'err'); return true; }
+    return false;
+  }
+
+  /* ----- recent activity (live: the server's payment records; demo: local history) ----- */
+  const ST = { success: ['Successful', 'ok'], pending: ['Processing', 'pend'], rejected: ['Rejected', 'bad'], failed: ['Failed', 'bad'] };
+  function recentRows(kind) {
+    const a = app(), dep = kind === 'dep';
+    if (live() && wl.recent == null) return `<p class="wx-empty"><i class="spin"></i>Loading…</p>`;
+    const list = (live()
+      ? wl.recent.filter(x => x.kind === (dep ? 'deposit' : 'withdrawal')).map(x => ({ amt: +x.amount, method: API_NAME[x.method] || x.method, at: new Date(x.created_at).getTime(), st: x.status }))
+      : a.state.tx.filter(t => t.type === (dep ? 'Deposit' : 'Withdrawal')).map(t => ({ amt: Math.abs(t.amt), method: t.method, at: t.at, st: t.status || 'success' }))).slice(0, 5);
+    if (!list.length) return `<p class="wx-empty">No ${dep ? 'deposits' : 'withdrawals'} yet.</p>`;
+    return list.map(x => {
+      const [label, cls] = ST[x.st] || [x.st, ''];
+      return `<div class="wx-tx"><span class="wx-tx-i ${kind}">${dep ? ICON.down : ICON.up}</span>
+        <span class="wx-tx-m"><b>${a.esc(x.method || (dep ? 'Deposit' : 'Withdrawal'))}</b><small>${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></span>
+        <span class="wx-tx-r"><b>${dep ? '+' : '−'}${a.money(x.amt)}</b><em class="wx-st ${cls}">${label}</em></span></div>`;
+    }).join('');
+  }
+  const recentHTML = kind => `<section class="wx-card wx-recent"><div class="wx-recent-h"><h2 class="wx-h">Recent ${kind === 'dep' ? 'deposits' : 'withdrawals'}</h2><a href="#/acct/tx">See all</a></div><div id="wxRecent">${recentRows(kind)}</div></section>`;
+  function loadRecent(kind) {
+    if (!live() || Date.now() - wl.recentAt < 3000) return;
+    wl.recentAt = Date.now();
+    API.wallet.payments().then(l => { wl.recent = l; const box = $('#wxRecent'); if (box) box.innerHTML = recentRows(kind); })
+      .catch(() => { if (wl.recent == null) wl.recent = []; const box = $('#wxRecent'); if (box) box.innerHTML = recentRows(kind); });
+  }
+
   // spinner on a button; returns a function that restores it
   function spin(btn, label) {
     const txt = btn.innerHTML, dis = btn.disabled; btn.disabled = true; btn.classList.add('loading'); btn.innerHTML = `<i class="spin"></i>${label}`;
@@ -623,290 +686,107 @@
   }
   const refresh = () => { const a = app(); a.renderAuth(); a.renderMe(); };
 
-  /* ---------------- Deposit core ---------------- */
-  async function deposit(amount, tab, method) {
-    const a = app(), u = user(), first = firstDeposit();
-    let r, status = 'success';
-    if (live()) {
-      // PROVIDER: with PAYMENTS_MODE=demo the server credits at once; with a provider it returns pending + a checkout
-      const res = await API.wallet.deposit(amount, tab.api);
-      u.balance = res.balance; status = res.status; r = String(res.paymentId).slice(0, 8).toUpperCase();
-      if (status === 'success') wl.hasDeposit = true;
-    } else {
-      u.balance = a.r2(u.balance + amount); r = ref('DP');
-      a.addTx('Deposit', amount, { method, ref: r, status: 'success' });
-      if (first) { u.bonus = Math.min(amount * 2, a.C.bonusMax); a.addTx('Welcome bonus (locked)', 0, { method: `${a.whole(u.bonus)} bonus – unlocks as you play`, status: 'success' }); }
-    }
-    if (tab.id === 'card') prefs.set({ cardDeposited: true });
-    saveUser(); refresh(); rerender();
-    if (status !== 'success') return resultSheet({ ok: 'pending', title: 'Deposit pending', amount, note: 'Complete the payment with your provider. Your balance updates as soon as it is confirmed.', rows: [['Method', method], ['Reference', r]], primary: ['View Transaction Records', '#/acct/tx'], secondary: 'Done' });
-    if (window.Motion && Motion.confetti) Motion.confetti();
-    resultSheet({
-      ok: 'ok', title: 'Deposit successful', amount,
-      rows: [['Method', method], ['Reference', r], ['New balance', a.money(u.balance)], ...(first && !live() ? [['Welcome bonus', `<b class="gold">+${a.whole(u.bonus)}</b>`]] : [])],
-      primary: ['Bet Now', '#/home'], secondary: 'Done',
-    });
+  /* ----- GH mobile money: the payer's number (registered one, or typed for email sign-ups) + network ----- */
+  const providerOf = phone => GH_MOMO.find(m => m.prefixes.includes(String(phone).slice(0, 2)));
+  const momoOf = u => u.phone || prefs.get().momo || '';
+  function momoHTML() {
+    const u = user(), num = momoOf(u), prov = providerOf(num);
+    return `<div class="wx-sub">
+      <label class="wx-l">Mobile money number${phoneField('mm', num, !!u.phone)}</label>
+      <div class="wx-nets" role="radiogroup" aria-label="Network">${GH_MOMO.map(n => `<label class="wx-net" style="--nc:${n.color};--ni:${n.ink}"><input type="radio" name="prov" value="${n.id}" ${prov && prov.id === n.id ? 'checked' : ''}><span>${n.short}</span><small>${n.name}</small></label>`).join('')}</div>
+      <p class="wx-note">${u.phone ? 'Mobile money uses the number you registered with.' : 'Use a mobile money number registered in your name.'}</p>
+    </div>`;
   }
-  async function depositFlow(amount, tab, method, waitMs) {
-    processingSheet(waitMs.title, waitMs.sub);
-    try { await sleep(waitMs.ms); await deposit(amount, tab, method); }
-    catch (x) { failSheet(x, method); }
+  function bindMomo(f, u, onChange) {
+    const num = () => (u.phone ? u.phone : normPhone(f.mm.value));
+    if (!u.phone) f.mm.addEventListener('input', () => { const p = providerOf(num()); if (p) { const r = f.querySelector(`input[name=prov][value=${p.id}]`); if (r) r.checked = true; } onChange(); });
+    return () => (num().length === app().C.digits && f.querySelector('input[name=prov]:checked') ? num() : '');
   }
 
   /* =========================================================
      DEPOSIT
      ========================================================= */
   function renderDeposit(tab) {
-    const a = app(), p = P(), el = root('deposit');
-    if (!user()) return a.go('login/deposit' + (tab ? encodeURIComponent('/' + tab) : ''));
+    const a = app(), p = P(), el = root('deposit'), u = user();
+    if (!u) return a.go('login/deposit' + (tab ? encodeURIComponent('/' + tab) : ''));
     migratePrefs();
-    if (!p.dep.find(t => t.id === tab)) tab = p.dep[0].id;
+    if (!p.dep.find(t => t.id === tab)) { const lastUsed = prefs.get().lastDep; tab = p.dep.find(t => t.id === lastUsed) ? lastUsed : p.dep[0].id; }
     wl.dep = tab;
     if (live() && wl.hasDeposit == null) {
       wl.hasDeposit = undefined;
       API.wallet.transactions('in').then(l => { wl.hasDeposit = l.some(t => t.type === 'deposit'); if (a.state.route === 'deposit') rerender(); }).catch(() => { wl.hasDeposit = true; });
     }
-    const lim = depositLimit();
+    loadRecent('dep');
+    const lim = depositLimit(), m = METHOD[tab];
     el.innerHTML = `${pageHead('Deposit', { help: true })}
-      ${tabsHTML(p.dep, tab, 'deposit')}
-      <div class="wl-body">
-        ${firstDeposit() ? `<div class="au-bonus">${ICON.gift}<span><b>200% Welcome Bonus</b> – your first deposit is tripled, up to ${a.whole(a.C.bonusMax)}.</span></div>` : ''}
+      <div class="wx">
+        ${heroHTML('dep')}
+        ${firstDeposit() ? bonusHTML() : ''}
         ${lim ? `<div class="wl-note">${ICON.shield}<span>Your ${lim.period.toLowerCase()} deposit limit is <b>${a.whole(lim.amt)}</b>${lim.left != null ? ` – <b>${a.whole(lim.left)}</b> left` : ''}. <a href="#/acct/limits">Change</a></span></div>` : ''}
-        <div id="depPane"></div>
-        ${demoNote('No real money moves. Payments are simulated so the full flow can be tested.')}
+        <form class="wx-form" id="depForm" novalidate>
+          <section class="wx-card">
+            <h2 class="wx-h">Payment method</h2>
+            ${methodsHTML(p.dep, tab, 'Payment method')}
+            ${tab === 'momo' ? momoHTML() : ''}
+            ${tab === 'ussd' ? `<div class="wx-sub"><label class="wx-l">Your bank<select name="bank"><option value="">Select your bank</option>${Object.keys(NG_USSD).map(b => `<option>${b}</option>`).join('')}</select></label></div>` : ''}
+          </section>
+          <section class="wx-card">${amountHTML('dep')}</section>
+          <button class="au-btn wx-cta" id="depBtn" disabled>Deposit</button>
+          <p class="wx-secure">${ICON.lock}<span>${tab === 'card' ? 'You confirm card payments with your bank (3-D Secure). We never store your card details.' : 'Secure payment · credited to your balance instantly'}</span></p>
+        </form>
+        ${recentHTML('dep')}
       </div>`;
-    const t = p.dep.find(x => x.id === tab);
-    ({ card: depCard, transfer: depTransfer, opay: depWallet, palmpay: depWallet, ussd: depUssd, others: depOthers, momo: depMomo, paybill: depPaybill })[tab]($('#depPane', el), t);
-  }
-  function limitBlocked(v) {
-    const lim = depositLimit();
-    if (lim && lim.left != null && v > lim.left) { app().toast(`That is over your deposit limit. You can deposit up to ${app().whole(lim.left)} right now.`, 'err'); return true; }
-    return false;
-  }
-  function depRules(extra = []) {
-    const p = P();
-    return rules([`Minimum per transaction is ${p.curCode} ${fmt(p.depMin)}.`, `Maximum per transaction is ${p.curCode} ${fmt(p.depMax)}.`, 'LetBetAfrika does not charge any fees on deposits.', ...extra]);
-  }
-
-  /* ----- Card (both countries) ----- */
-  const luhn = n => { let s = 0, alt = false; for (let i = n.length - 1; i >= 0; i--) { let d = +n[i]; if (alt) { d *= 2; if (d > 9) d -= 9; } s += d; alt = !alt; } return s % 10 === 0; };
-  const brandOf = n => /^4/.test(n) ? 'VISA' : /^(5[1-5]|2[2-7])/.test(n) ? 'Mastercard' : /^(5061|5078|6500)/.test(n) ? 'Verve' : '';
-  function depCard(pane, t) {
-    const a = app(), cards = prefs.get().cards;
-    pane.innerHTML = `<form class="wl-form" id="depForm" novalidate>
-      ${balanceRow()}
-      ${amountBlock('dep')}
-      ${cards.length ? `<p class="wl-lbl">Pay with</p><div class="wl-opts">${cards.map((c, i) => `<label class="wl-opt"><input type="radio" name="card" value="${i}" ${i === 0 ? 'checked' : ''}><span class="wl-opt-i">${ICON.card}</span><span><b>${c.brand} •••• ${c.last4}</b><small>Expires ${c.exp}</small></span><button type="button" class="wl-del" data-delcard="${i}" aria-label="Remove card">${ICON.trash}</button></label>`).join('')}
-        <label class="wl-opt"><input type="radio" name="card" value="new"><span class="wl-opt-i">${ICON.plus}</span><span><b>Use a new card</b></span></label></div>` : '<input type="hidden" name="card" value="new">'}
-      <div class="wl-card" id="newCard" ${cards.length ? 'hidden' : ''}>
-        <label class="wl-lbl">Card number<div class="wl-in"><input name="num" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23"><em id="cardBrand"></em></div></label>
-        <div class="wl-2">
-          <label class="wl-lbl">Expiry<input name="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5"></label>
-          <label class="wl-lbl">CVV<input name="cvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" type="password"></label>
-        </div>
-        <label class="au-check sm"><input type="checkbox" name="save" checked><span>Save card for faster deposits</span></label>
-      </div>
-      <button class="au-btn" id="depBtn" disabled>Top Up Now</button>
-      <p class="wl-secure">${ICON.lock} Card payments are encrypted and protected by your bank's verification.</p>
-      ${depRules(a.CC === 'GH' ? ['Depositing with a card unlocks withdrawals to a bank account.'] : [])}
-    </form>`;
-    const f = $('#depForm', pane), btn = $('#depBtn', pane), nc = $('#newCard', pane);
-    const isNew = () => (f.querySelector('input[name=card]:checked') || f.card).value === 'new';
-    const cardOk = () => { const n = digits(f.num.value); const [mm, yy] = f.exp.value.split('/').map(Number); const exp = new Date(2000 + yy, mm);
-      return n.length >= 13 && luhn(n) && mm >= 1 && mm <= 12 && exp > new Date() && /^\d{3,4}$/.test(f.cvv.value); };
-    let amt;
-    const sync = () => { nc.hidden = !isNew(); btn.disabled = !(amt.valid() && (!isNew() || cardOk())); };
-    amt = bindAmount(f, 'dep', () => amt && sync());
-    f.num.addEventListener('input', () => { const n = digits(f.num.value).slice(0, 19); f.num.value = n.replace(/(.{4})/g, '$1 ').trim(); $('#cardBrand', pane).textContent = brandOf(n); f.num.classList.toggle('bad', n.length >= 13 && !luhn(n)); });
-    f.exp.addEventListener('input', () => { let d = digits(f.exp.value).slice(0, 4); if (d.length === 1 && +d > 1) d = '0' + d; f.exp.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d; });
-    f.cvv.addEventListener('input', () => { f.cvv.value = digits(f.cvv.value); });
-    f.addEventListener('input', sync); f.addEventListener('change', sync); sync();
-    f.addEventListener('click', e => { const d = e.target.closest('[data-delcard]'); if (!d) return; e.preventDefault(); const c = prefs.get().cards; c.splice(+d.dataset.delcard, 1); prefs.set({ cards: c }); rerender(); a.toast('Card removed'); });
-    f.addEventListener('submit', async e => {
-      e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
-      let card;
-      if (isNew()) { const n = digits(f.num.value); card = { brand: brandOf(n) || 'Card', last4: n.slice(-4), exp: f.exp.value }; }
-      else card = cards[+f.querySelector('input[name=card]:checked').value];
-      const label = `${card.brand} •••• ${card.last4}`;
-      // PROVIDER: card checkout + 3-D Secure happens on the provider's page
-      processingSheet('Contacting your bank…', label);
-      await sleep(1000);
-      const otp = String(Math.floor(1000 + Math.random() * 9000));
-      wl.busy = false;
-      const s = sheet(`<h3>Bank verification</h3><p class="wl-p">Enter the one-time PIN your bank sent to the phone linked to ${label}.</p>
-        <div class="au-field"><input id="bankOtp" inputmode="numeric" maxlength="6" placeholder="Enter OTP" aria-label="Bank OTP" autocomplete="one-time-code"></div>
-        ${testNote(`Card checkout is simulated until the payment provider is connected. Your bank's code is <b>${otp}</b>.`)}
-        <div class="wl-sheet-btns"><button class="au-btn ghost" data-no>Cancel</button><button class="au-btn" data-yes>Authorise ${a.whole(v)}</button></div>`);
-      $('[data-no]', s).onclick = () => { closeSheet(); if (!live()) a.addTx('Deposit', 0, { method: label, ref: ref('DP'), status: 'failed' }); a.toast('Payment cancelled', 'err'); };
-      $('[data-yes]', s).onclick = () => {
-        if ($('#bankOtp', s).value.trim() !== otp) { $('#bankOtp', s).classList.add('bad'); return a.toast('Incorrect OTP', 'err'); }
-        if (isNew() && f.save.checked && !prefs.get().cards.some(c => c.last4 === card.last4)) prefs.set({ cards: [card, ...prefs.get().cards].slice(0, 3) });
-        depositFlow(v, t, label, { title: 'Confirming payment…', sub: 'Please don’t close this page.', ms: 900 });
-      };
-    });
-  }
-
-  /* ----- NG Bank transfer (dedicated virtual account) ----- */
-  function depTransfer(pane, t) {
-    const a = app(), u = user();
-    // PROVIDER: each player gets a dedicated virtual account from the payment provider
-    const acct = '9' + String(u.uid).padStart(9, '0').slice(-9);
-    pane.innerHTML = `<div class="wl-form">
-      ${balanceRow()}
-      <p class="wl-p">Transfer any amount from any bank app to your personal LetBetAfrika account below. Your balance is credited automatically, usually within a minute.</p>
-      <div class="wl-va">
-        <div><span>Bank</span><b>LetBet Wallet MFB <em class="wl-tag">TEST</em></b></div>
-        <div><span>Account number</span><b class="big">${acct.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}</b>${copyBtn(acct)}</div>
-        <div><span>Account name</span><b>LetBetAfrika – ${a.esc(u.fullName || (u.phone ? fmtPhone(u.phone) : u.email))}</b></div>
-      </div>
-      <form id="trForm" class="wl-sim" novalidate>
-        <p class="wl-lbl">Test the flow: pretend you sent a transfer</p>
-        ${amountBlock('dep')}
-        <button class="au-btn" id="trBtn" disabled>I have sent the money</button>
-      </form>
-      ${depRules(['This account number is yours only – save it as a beneficiary in your bank app.'])}
-    </div>`;
-    const f = $('#trForm', pane), btn = $('#trBtn', pane);
-    const amt = bindAmount(f, 'dep', (v, ok) => { btn.disabled = !ok; });
-    f.addEventListener('submit', e => {
-      e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
-      depositFlow(v, t, 'Bank Transfer', { title: 'Waiting for your transfer…', sub: `Looking for ${a.whole(v)} sent to ${acct}`, ms: 1800 });
-    });
-  }
-
-  /* ----- NG wallets: OPay / PalmPay ----- */
-  function depWallet(pane, t) {
-    const a = app();
-    pane.innerHTML = `<form class="wl-form" id="depForm" novalidate>
-      <div class="wl-brand" style="--bc:${t.color}"><b>${t.name}</b><span>Pay from your ${t.name} balance. Instant, no fees.</span></div>
-      ${balanceRow()}
-      ${amountBlock('dep')}
-      <button class="au-btn" id="depBtn" disabled>Pay with ${t.name}</button>
-      ${depRules([`You'll approve the payment in your ${t.name} app.`])}
-    </form>`;
-    const f = $('#depForm', pane), btn = $('#depBtn', pane);
-    const amt = bindAmount(f, 'dep', (v, ok) => { btn.disabled = !ok; });
-    f.addEventListener('submit', e => {
-      e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
-      // PROVIDER: redirect / push to the wallet app
-      depositFlow(v, t, t.name, { title: `Opening ${t.name}…`, sub: `Approve the payment of ${a.whole(v)} in your ${t.name} app.`, ms: 2000 });
-    });
-  }
-
-  /* ----- NG USSD ----- */
-  function depUssd(pane, t) {
-    const a = app(), banks = Object.keys(NG_USSD);
-    pane.innerHTML = `<form class="wl-form" id="depForm" novalidate>
-      ${balanceRow()}
-      <label class="wl-lbl">Your bank<select name="bank"><option value="">Select a bank</option>${banks.map(b => `<option>${b}</option>`).join('')}</select></label>
-      ${amountBlock('dep')}
-      <button class="au-btn" id="depBtn" disabled>Get USSD Code</button>
-      <div id="ussdOut"></div>
-      ${depRules(['Works on any phone, no data needed.', 'Your bank may charge a small USSD fee.'])}
-    </form>`;
-    const f = $('#depForm', pane), btn = $('#depBtn', pane), out = $('#ussdOut', pane);
-    let amt;
-    const sync = () => { btn.disabled = !(f.bank.value && amt.valid()); out.innerHTML = ''; };
-    amt = bindAmount(f, 'dep', () => amt && sync());
-    f.bank.addEventListener('change', sync); sync();
-    f.addEventListener('submit', async e => {
-      e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
-      const stop = spin(btn, 'Generating…'); await sleep(500); stop();
-      // PROVIDER: the payment provider issues the real merchant code + reference
-      const r = String(Math.floor(1e5 + Math.random() * 9e5)), base = NG_USSD[f.bank.value].slice(0, -1);
-      const code = `${base}*000*${Math.round(v)}*${r}#`;
-      out.innerHTML = `<div class="wl-ussd"><span>Dial this code on the phone number linked to your ${a.esc(f.bank.value)} account</span>
-        <b>${code}</b><div class="wl-2">${copyBtn(code, 'Copy code')}<a class="wl-copy" href="tel:${encodeURIComponent(code)}">${ICON.phone}Dial now</a></div>
-        <small>Code expires in 10 minutes. <em class="wl-tag">TEST CODE</em></small>
-        <button type="button" class="au-btn" id="ussdDone">I have completed the payment</button></div>`;
-      $('#ussdDone', out).onclick = () => depositFlow(v, t, `USSD · ${f.bank.value}`, { title: 'Checking your payment…', sub: `Reference ${r}`, ms: 1500 });
-    });
-  }
-
-  /* ----- NG Others: pay from your bank / fintech app ----- */
-  function depOthers(pane) {
-    const u = user();
-    pane.innerHTML = `<div class="wl-form">
-      <p class="wl-p">Fund your wallet from your bank or fintech app using <b>Pay Bills → Betting → LetBetAfrika</b>. Tap a provider for the steps.</p>
-      <div class="wl-acc">${P().others.map(n => `<details class="wl-step"><summary><span class="wl-logo">${n.slice(0, 2).toUpperCase()}</span>${n}${ICON.chev}</summary>
-        <ol>
-          <li>Log in to your <b>${n}</b> app or website.</li>
-          <li>Tap <b>Payments</b> or <b>Pay Bills</b>.</li>
-          <li>Choose <b>Betting</b>, then <b>LetBetAfrika</b>.</li>
-          <li>Enter the amount and your LetBetAfrika ${u.phone ? 'number' : 'account ID'} <b>${payRef(u)}</b> ${copyBtn(payRef(u))}</li>
-          <li>Confirm. Your balance is credited instantly and you'll get a notification.</li>
-        </ol></details>`).join('')}</div>
-      <p class="wl-demo"><b>SOON</b> LetBetAfrika is being listed in these apps – the steps show how it works once the payment partners are live.</p>
-    </div>`;
-  }
-
-  /* ----- GH Mobile money ----- */
-  const providerOf = phone => GH_MOMO.find(m => m.prefixes.includes(String(phone).slice(0, 2)));
-  // the payment reference: the registered number, or the account ID for players who signed up with email
-  const payRef = u => (u.phone ? '0' + u.phone : String(u.uid));
-  // mobile money number: the registered one (fixed), or – for email sign-ups – one the player enters (remembered)
-  const momoOf = u => u.phone || prefs.get().momo || '';
-  const momoField = (u, label) => `<label class="wl-lbl">${label}${phoneField('mm', momoOf(u), !!u.phone)}</label>
-      <p class="wl-small">${u.phone ? 'For your security, mobile money uses the number you registered with.' : 'Use a mobile money number registered in your name.'}</p>`;
-  function bindMomo(f, u, onChange) {
-    if (u.phone) return () => u.phone;
-    const num = () => normPhone(f.mm.value);
-    f.mm.addEventListener('input', () => { const p = providerOf(num()); if (p) { const r = f.querySelector(`input[name=prov][value=${p.id}]`); if (r) r.checked = true; } onChange(); });
-    return () => (num().length === app().C.digits ? num() : '');
-  }
-  const momoPicker = sel => `<p class="wl-lbl">Select your mobile provider</p><div class="wl-mm" role="radiogroup">${GH_MOMO.map(m => `<label class="wl-mmo" style="--bc:${m.color};--bi:${m.ink}"><input type="radio" name="prov" value="${m.id}" ${sel && sel.id === m.id ? 'checked' : ''}><span class="wl-mm-logo">${m.short}</span><small>${m.name}</small></label>`).join('')}</div>`;
-  function depMomo(pane, t) {
-    const a = app(), u = user(), prov = providerOf(momoOf(u));
-    pane.innerHTML = `<form class="wl-form" id="depForm" novalidate>
-      ${momoField(u, 'Mobile money number')}
-      ${momoPicker(prov)}
-      ${balanceRow()}
-      ${amountBlock('dep')}
-      <button class="au-btn" id="depBtn" disabled>Top Up Now</button>
-      ${depRules([u.phone ? 'Your balance can only be withdrawn to the mobile number you registered with.' : 'Withdrawals go to a mobile money number in your name.'])}
-    </form>`;
-    const f = $('#depForm', pane), btn = $('#depBtn', pane);
-    let amt;
-    const sync = () => { btn.disabled = !(f.querySelector('input[name=prov]:checked') && amt.valid() && mm()); };
-    const mm = bindMomo(f, u, () => sync());
-    amt = bindAmount(f, 'dep', () => amt && sync());
+    bindMethods(el, 'deposit', 'dep');
+    const f = $('#depForm', el), btn = $('#depBtn', el);
+    let amt = null, mm = () => true;
+    // the button says what is still missing, then the exact amount
+    const sync = () => {
+      if (!amt) return;
+      const need = !mm() ? 'Enter your mobile money number' : tab === 'ussd' && !f.bank.value ? 'Select your bank' : '';
+      btn.disabled = !amt.valid() || !!need;
+      btn.textContent = !amt.valid() ? 'Deposit' : need || `Deposit ${a.money(amt.get())}`;
+    };
+    if (tab === 'momo') mm = bindMomo(f, u, sync);
+    amt = bindAmount(f, 'dep', sync);
     f.addEventListener('change', sync); sync();
-    f.addEventListener('submit', e => {
-      e.preventDefault(); const v = amt.get(); if (limitBlocked(v)) return;
-      const num = mm(); if (!u.phone) prefs.set({ momo: num });
-      const m = GH_MOMO.find(x => x.id === f.querySelector('input[name=prov]:checked').value);
-      // PROVIDER: collection request → the network sends a payment prompt to the phone
-      wl.busy = true;
-      let left = 60;
-      const s = sheet(`<div class="wl-proc"><div class="wl-phone-anim" style="--bc:${m.color}">${ICON.phone}</div>
-        <h3>Check your phone</h3><p>We've sent a ${m.name} prompt to <b>${fmtPhone(num)}</b>. Enter your MoMo PIN to approve <b>${a.whole(v)}</b>.</p>
-        <p class="wl-count">Waiting for approval… <b id="mmLeft">${left}s</b></p>
-        <p class="wl-small">No prompt? Dial <b>${m.dial}</b> and check <b>My Approvals</b>.</p>
-        ${testNote('Mobile money is simulated until the payment provider is connected.')}
-        <div class="wl-sheet-btns"><button class="au-btn ghost" data-no>Cancel</button><button class="au-btn" data-yes>Simulate approval</button></div></div>`);
-      const timer = setInterval(() => { left--; const x = $('#mmLeft', s); if (x) x.textContent = left + 's'; if (left <= 0) { clearInterval(timer); fail('The prompt expired before it was approved.'); } }, 1000);
-      const fail = why => { wl.busy = false; if (!live()) a.addTx('Deposit', 0, { method: m.name, ref: ref('DP'), status: 'failed' }); resultSheet({ ok: 'fail', title: 'Deposit not completed', rows: [['Reason', why], ['Method', m.name]], secondary: 'Close' }); };
-      $('[data-no]', s).onclick = () => { clearInterval(timer); fail('You cancelled the payment.'); };
-      $('[data-yes]', s).onclick = () => { clearInterval(timer); depositFlow(v, t, m.name, { title: 'Confirming payment…', sub: m.name, ms: 900 }); };
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const v = amt.get(); if (btn.disabled || limitBlocked(v)) return;
+      const details = tab === 'momo' ? { phone: mm(), network: f.querySelector('input[name=prov]:checked').value } : tab === 'ussd' ? { bank: f.bank.value } : {};
+      if (tab === 'momo' && !u.phone) prefs.set({ momo: details.phone });
+      prefs.set({ lastDep: tab });
+      processingSheet('Processing your deposit…', `${m.name} · ${a.money(v)}`);
+      try { await deposit(v, tab, details); } catch (x) { failSheet(x, m.name); }
     });
   }
 
-  /* ----- GH Paybill (dial the merchant menu) ----- */
-  function depPaybill(pane) {
-    const u = user();
-    pane.innerHTML = `<div class="wl-form">
-      <p class="wl-p">Pay from your mobile money menu – no app or data needed.</p>
-      <div class="wl-acc">${GH_MOMO.map((m, i) => `<details class="wl-step" ${i === 0 ? 'open' : ''}><summary><span class="wl-logo" style="background:${m.color};color:${m.ink}">${m.short}</span>${m.name}${ICON.chev}</summary>
-        <ol>
-          <li>Dial <b>${m.dial}</b> on ${u.phone ? fmtPhone(u.phone) : 'your mobile money phone'}.</li>
-          <li>Choose <b>${m.id === 'mtn' ? 'MoMoPay &amp; Pay Bill' : 'Pay Bill'}</b>, then <b>General Payment</b>.</li>
-          <li>Enter merchant code <b>LETBET</b> ${copyBtn('LETBET')}</li>
-          <li>Enter the amount and use your ${u.phone ? 'number' : 'account ID'} <b>${payRef(u)}</b> as the reference.</li>
-          <li>Enter your MoMo PIN to confirm. Your balance is credited instantly.</li>
-        </ol></details>`).join('')}</div>
-      ${depRules([u.phone ? 'Your balance can only be withdrawn to the mobile number you registered with.' : 'Withdrawals go to a mobile money number in your name.'])}
-      <p class="wl-demo"><b>SOON</b> Merchant code LETBET is a placeholder until the mobile money partners are live.</p>
-    </div>`;
+  async function deposit(amount, tab, details) {
+    const a = app(), u = user(), m = METHOD[tab], first = firstDeposit(), bonus = first ? Math.min(amount * 2, a.C.bonusMax) : 0, t0 = Date.now();
+    let r, status = 'success', next = null;
+    if (live()) {
+      const res = await API.wallet.deposit(amount, m.api, details);
+      u.balance = res.balance; status = res.status; next = res.next || null; r = String(res.paymentId).slice(0, 8).toUpperCase();
+      if (status === 'success') wl.hasDeposit = true;
+      wl.recentAt = 0;
+    } else {
+      u.balance = a.r2(u.balance + amount); r = ref('DP');
+      a.addTx('Deposit', amount, { method: m.name, ref: r, status: 'success' });
+      if (first) { u.bonus = bonus; a.addTx('Welcome bonus (locked)', 0, { method: `${a.whole(bonus)} bonus – unlocks as you play`, status: 'success' }); }
+    }
+    await sleep(Math.max(0, 700 - (Date.now() - t0)));   // let the processing state register
+    wl.amt.dep = '';
+    saveUser(); refresh(); rerender();
+    if (next && next.url) { location.href = next.url; return; }   // PROVIDER: hosted checkout
+    if (status !== 'success') {
+      return resultSheet({ ok: 'pending', title: 'Complete your payment', amount,
+        note: a.esc((next && next.message) || 'Approve the payment with your bank or wallet. Your balance updates automatically as soon as it is confirmed.'),
+        rows: [['Method', m.name], ...((next && next.rows) || []).map(([k, v]) => [a.esc(k), a.esc(v)]), ['Reference', r]],
+        primary: ['View transactions', '#/acct/tx'], secondary: 'Done' });
+    }
+    if (window.Motion && Motion.confetti) Motion.confetti();
+    resultSheet({ ok: 'ok', title: 'Deposit successful', amount,
+      rows: [['Method', m.name], ['Reference', r], ['New balance', a.money(u.balance)], ...(bonus ? [['Welcome bonus', `<b class="gold">+${a.whole(bonus)}</b> · unlocks as you play`]] : [])],
+      primary: ['Start betting', '#/home'], secondary: 'Done' });
   }
 
   /* =========================================================
@@ -914,30 +794,46 @@
      ========================================================= */
   // live: the server holds payouts for admin approval; demo: they pay out after a few seconds
   const kyc = u => live() ? (u.verified ? 'ok' : u.limits?.kyc?.status === 'pending' ? 'pending' : 'none') : (u.verified ? 'ok' : 'none');
+  const canWithdraw = () => kyc(user()) !== 'none';
   function renderWithdraw(tab) {
     const a = app(), p = P(), el = root('withdraw'), u = user();
     if (!u) return a.go('login/withdraw' + (tab ? encodeURIComponent('/' + tab) : ''));
     migratePrefs();
     if (!p.wd.find(t => t.id === tab)) tab = p.wd[0].id;
     wl.wd = tab;
-    const k = kyc(u);
-    const pending = live() ? [] : a.state.tx.filter(t => t.status === 'pending' && t.amt < 0);
+    loadRecent('wd');
+    const k = kyc(u), friend = tab === 'friend';
     el.innerHTML = `${pageHead('Withdraw', { help: true })}
-      ${tabsHTML(p.wd, tab, 'withdraw')}
-      <div class="wl-body">
-        ${k === 'none' && tab !== 'friend' ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
-        ${k === 'pending' && tab !== 'friend' ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
-        ${pending.length ? `<a class="wl-note" href="#/acct/tx">${ICON.clock}<span><b>${pending.length}</b> withdrawal${pending.length > 1 ? 's' : ''} processing – ${a.whole(-pending.reduce((s, t) => s + t.amt, 0))}. View records</span></a>` : ''}
-        <div id="wdPane"></div>
-        ${demoNote('No real money moves. Payouts are simulated so the full flow can be tested.')}
+      <div class="wx">
+        ${heroHTML('wd')}
+        ${k === 'none' && !friend ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
+        ${k === 'pending' && !friend ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
+        <form class="wx-form" id="wdForm" novalidate>
+          <section class="wx-card">
+            <h2 class="wx-h">${friend ? 'Send to' : 'Withdraw to'}</h2>
+            ${methodsHTML(p.wd, tab, 'Withdraw to')}
+            ${tab === 'bank' ? banksHTML() : tab === 'momo' ? momoHTML() : friendHTML()}
+          </section>
+          <section class="wx-card">${amountHTML(friend ? 'tf' : 'wd')}
+            ${friend ? `<label class="wx-l"><span>Note <span class="muted">(optional)</span></span><input name="note" maxlength="40" placeholder="e.g. Share of our win"></label>` : ''}</section>
+          <button class="au-btn wx-cta" id="wdBtn" disabled>${friend ? 'Send' : 'Withdraw'}</button>
+          <p class="wx-secure">${ICON.shield}<span>${friend ? 'Transfers are instant and can’t be reversed – check the details first.' : 'Withdrawals are free and paid only to accounts in your name.'}</span></p>
+        </form>
+        ${friend ? '' : recentHTML('wd')}
       </div>`;
     $$('[data-after-verify]', el).forEach(x => x.addEventListener('click', () => { a.state.afterVerify = x.dataset.afterVerify; }));
-    ({ bank: wdBank, friend: wdFriend, momo: wdMomo })[tab]($('#wdPane', el));
+    bindMethods(el, 'withdraw', 'wd');
+    ({ bank: wdBank, momo: wdMomo, friend: wdFriend })[tab](el);
   }
-  const canWithdraw = () => kyc(user()) !== 'none';
-  function wdRules(extra = []) {
-    const p = P();
-    return rules([`Minimum per transaction is ${p.curCode} ${fmt(p.wdMin)}.`, `Maximum per transaction is ${p.curCode} ${fmt(p.wdMax)}.`, 'Withdrawal is free, no transaction fees.', 'Bonus funds can only be withdrawn after the wagering requirements are met.', ...extra]);
+  // shared button state: label with the amount, enabled only when everything needed is filled in
+  // shared button state: `need()` names what is still missing (shown on the button), then "Withdraw ₦5,000.00"
+  function wdButton(btn, amt, need, verb) {
+    return () => {
+      if (!amt()) return;
+      const missing = need(), ok = amt().valid() && !missing;
+      btn.disabled = !ok;
+      btn.textContent = missing && (amt().valid() || missing.startsWith('Verify')) ? missing : amt().valid() ? `${verb} ${app().money(amt().get())}` : verb;
+    };
   }
   async function payout({ amount, method, apiMethod, details, to, ms = 6000 }) {
     const a = app(), u = user();
@@ -945,13 +841,14 @@
     processingSheet('Submitting withdrawal…', to);
     let r;
     try {
-      if (live()) { const res = await API.wallet.withdraw(amount, apiMethod, details); u.balance = res.balance; r = String(res.paymentId).slice(0, 8).toUpperCase(); }
-      else { await sleep(1000); u.balance = a.r2(u.balance - amount); r = ref('WD'); a.addTx('Withdrawal', -amount, { method, ref: r, status: 'pending' }); setTimeout(() => settleWithdrawal(r), ms); }
+      if (live()) { const res = await API.wallet.withdraw(amount, apiMethod, details); u.balance = res.balance; r = String(res.paymentId).slice(0, 8).toUpperCase(); wl.recentAt = 0; }
+      else { await sleep(800); u.balance = a.r2(u.balance - amount); r = ref('WD'); a.addTx('Withdrawal', -amount, { method, ref: r, status: 'pending' }); setTimeout(() => settleWithdrawal(r), ms); }
     } catch (x) { return failSheet(x, method); }
+    wl.amt.wd = '';
     saveUser(); refresh(); rerender();
     resultSheet({ ok: 'pending', title: 'Withdrawal submitted', amount,
-      rows: [['To', to], ['Reference', r], ['Status', '<em class="tx-st pending">Processing</em>'], ['Usually arrives', kyc(u) === 'pending' ? 'After your ID is approved' : 'Within 5 minutes']],
-      primary: ['View Transaction Records', '#/acct/tx'], secondary: 'Done' });
+      rows: [['To', to], ['Reference', r], ['Status', '<em class="wx-st pend">Processing</em>'], ['Usually arrives', kyc(u) === 'pending' ? 'After your ID is approved' : 'Within minutes']],
+      primary: ['View transactions', '#/acct/tx'], secondary: 'Done' });
   }
   function settleWithdrawal(r) {
     const a = app(), t = a.state.tx.find(x => x.ref === r);
@@ -966,101 +863,71 @@
     a.state.tx.filter(t => t.status === 'pending').forEach(t => setTimeout(() => settleWithdrawal(t.ref), Math.max(500, 6000 - (Date.now() - t.at))));
   }
 
-  /* ----- Bank (NG main tab, GH needs a card deposit first) ----- */
-  function wdBank(pane) {
-    const a = app(), p = P(), pr = prefs.get(), banks = pr.banks;
-    if (a.CC === 'GH' && !pr.cardDeposited) {
-      pane.innerHTML = `<div class="wl-lockbox">${ICON.lock}<h3>Enhanced Protection</h3><p>To withdraw to a bank account, you must have deposited with a card first. This keeps your money safe from fraud.</p><a class="au-btn" href="#/deposit/card">Deposit with Card</a><a class="au-btn ghost" href="#/withdraw/momo">Withdraw to Mobile Money</a></div>`;
-      return;
-    }
-    const sel = Math.min(pr.wdBank || 0, Math.max(0, banks.length - 1));
-    pane.innerHTML = `<form class="wl-form" id="wdForm" novalidate>
-      <div class="wl-row"><p class="wl-lbl">Withdraw To</p>${banks.length ? '<button type="button" class="au-link" id="manageBtn">Manage Accounts</button>' : ''}</div>
-      ${banks.length ? `<div class="wl-opts">${banks.map((b, i) => `<label class="wl-opt"><input type="radio" name="bank" value="${i}" ${i === sel ? 'checked' : ''}><span class="wl-opt-i">${ICON.bank}</span><span><b>${a.esc(b.bank)}</b><small>${b.acct.replace(/\d(?=\d{4})/g, '•')} · ${a.esc(b.name)}</small></span></label>`).join('')}</div>` : ''}
-      <button type="button" class="wl-add" id="addBank">${ICON.plus}${banks.length ? 'Add another bank account' : 'Add a bank account'}</button>
-      ${balanceRow('Withdrawable balance')}
-      ${amountBlock('wd')}
-      <button class="au-btn" id="wdBtn" disabled>Withdraw</button>
-      ${wdRules(['The account name must match the name on your verified ID.'])}
-    </form>`;
-    const f = $('#wdForm', pane), btn = $('#wdBtn', pane);
-    let amt;
-    const sync = () => { btn.disabled = !(canWithdraw() && banks.length && amt.valid()); };
-    amt = bindAmount(f, 'wd', () => amt && sync());
+  /* ----- bank account (saved on this device; the account must be in the player's name) ----- */
+  const bankMark = n => n.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+  function banksHTML() {
+    const a = app(), pr = prefs.get(), banks = pr.banks, sel = Math.min(pr.wdBank || 0, Math.max(0, banks.length - 1));
+    return `<div class="wx-sub">
+      ${banks.length ? `<div class="wx-accts" role="radiogroup" aria-label="Bank account">${banks.map((b, i) => `<label class="wx-acct"><input type="radio" name="bank" value="${i}" ${i === sel ? 'checked' : ''}><span class="wx-acct-i">${a.esc(bankMark(b.bank))}</span><span class="wx-acct-m"><b>${a.esc(b.bank)}</b><small>${b.acct.replace(/\d(?=\d{4})/g, '•')} · ${a.esc(b.name)}</small></span><button type="button" class="wx-del" data-delbank="${i}" aria-label="Remove ${a.esc(b.bank)} account">${ICON.trash}</button></label>`).join('')}</div>` : ''}
+      <button type="button" class="wx-add" id="addBank">${ICON.plus}${banks.length ? 'Add another bank account' : 'Add a bank account'}</button>
+    </div>`;
+  }
+  function wdBank(el) {
+    const a = app(), f = $('#wdForm', el), btn = $('#wdBtn', el);
+    let amt = null;
+    const sync = wdButton(btn, () => amt, () => (!canWithdraw() ? 'Verify your ID to withdraw' : !f.querySelector('input[name=bank]:checked') ? 'Add a bank account' : ''), 'Withdraw');
+    amt = bindAmount(f, 'wd', sync);
     f.addEventListener('change', sync); sync();
-    $('#addBank', pane).onclick = () => bankSheet(p);
-    if (banks.length) $('#manageBtn', pane).onclick = manageSheet;
+    $('#addBank', el).onclick = bankSheet;
+    $$('[data-delbank]', el).forEach(d => d.addEventListener('click', e => {
+      e.preventDefault(); const banks = prefs.get().banks; banks.splice(+d.dataset.delbank, 1); prefs.set({ banks, wdBank: 0 }); a.toast('Bank account removed'); rerender();
+    }));
     f.addEventListener('submit', e => {
-      e.preventDefault();
+      e.preventDefault(); if (btn.disabled) return;
       if (!canWithdraw()) return a.toast('Please verify your ID first', 'err');
-      const i = +f.querySelector('input[name=bank]:checked').value, b = banks[i]; prefs.set({ wdBank: i });
+      const i = +f.querySelector('input[name=bank]:checked').value, b = prefs.get().banks[i]; prefs.set({ wdBank: i });
       payout({ amount: amt.get(), method: `${b.bank} ••${b.acct.slice(-4)}`, apiMethod: 'bank_transfer',
         details: { account: `${b.bank} · ${b.acct} · ${b.name}`, bank: b.bank, acct: b.acct, name: b.name },
         to: `${a.esc(b.bank)} ${b.acct.replace(/\d(?=\d{4})/g, '•')}<br><small>${a.esc(b.name)}</small>` });
     });
   }
-  function bankSheet(p) {
-    const a = app(), u = user();
+  function bankSheet() {
+    const a = app(), u = user(), p = P();
     if (prefs.get().banks.length >= 3) return a.toast('You can save up to 3 bank accounts. Remove one first.', 'err');
     const [minL, maxL] = p.acctLen;
+    // PROVIDER: account-name enquiry (NIBSS NIP / GhIPSS) fills the name automatically once the payout partner is live
     const s = sheet(`<h3>Add bank account</h3>
-      <form id="bankForm" class="wl-form" novalidate>
-        <label class="wl-lbl">Bank<select name="bank"><option value="">Select a Bank</option>${p.banks.map(b => `<option>${b}</option>`).join('')}</select></label>
-        <label class="wl-lbl">Account number<input name="acct" inputmode="numeric" maxlength="${maxL}" placeholder="${minL === maxL ? minL + '-digit account number' : 'Account number'}"></label>
-        <div class="wl-resolve" id="resolve" aria-live="polite"></div>
-        <div class="wl-sheet-btns"><button type="button" class="au-btn ghost" data-no>Cancel</button><button class="au-btn" id="bankSave" disabled>Save Account</button></div>
+      <form id="bankForm" class="wx-sheetform" novalidate>
+        <label class="wx-l">Bank<select name="bank"><option value="">Select your bank</option>${p.banks.map(b => `<option>${b}</option>`).join('')}</select></label>
+        <label class="wx-l">Account number<input name="acct" inputmode="numeric" maxlength="${maxL}" placeholder="${minL === maxL ? minL + '-digit account number' : 'Account number'}"></label>
+        <label class="wx-l">Account name<input name="name" maxlength="80" autocomplete="name" value="${a.esc(u.fullName || '')}" placeholder="As shown on your bank account"></label>
+        <p class="wx-note">${ICON.shield}<span>The account must be in your own name – the same name as on your verified ID.</span></p>
+        <div class="wl-sheet-btns"><button type="button" class="au-btn ghost" data-no>Cancel</button><button class="au-btn" id="bankSave" disabled>Save account</button></div>
       </form>`);
-    const f = $('#bankForm', s), out = $('#resolve', s), save = $('#bankSave', s);
-    let resolved = null, seq = 0;
-    const look = async () => {
-      f.acct.value = digits(f.acct.value); resolved = null; save.disabled = true;
-      const n = f.acct.value;
-      if (!f.bank.value || n.length < minL) { out.innerHTML = ''; out.className = 'wl-resolve'; return; }
-      const my = ++seq; out.innerHTML = '<i class="spin"></i> Checking account…'; out.className = 'wl-resolve';
-      // PROVIDER: account-name enquiry (NIBSS NIP name enquiry / GhIPSS)
-      await sleep(800); if (my !== seq) return;
-      resolved = (u.fullName || 'ACCOUNT HOLDER').toUpperCase();
-      out.innerHTML = `${ICON.check}<b>${a.esc(resolved)}</b>${u.fullName ? '' : '<small>Verify your ID so we can check this name matches yours.</small>'}`;
-      out.className = 'wl-resolve ok';
-      save.disabled = false;
-    };
-    f.bank.onchange = look; f.acct.oninput = look;
+    const f = $('#bankForm', s), save = $('#bankSave', s);
+    const ok = () => !!f.bank.value && f.acct.value.length >= minL && f.name.value.trim().length >= 3;
+    f.addEventListener('input', () => { f.acct.value = digits(f.acct.value); save.disabled = !ok(); });
+    f.addEventListener('change', () => { save.disabled = !ok(); });
     $('[data-no]', s).onclick = closeSheet;
     f.addEventListener('submit', e => {
-      e.preventDefault(); if (!resolved) return;
+      e.preventDefault(); if (!ok()) return;
       const banks = prefs.get().banks;
       if (banks.some(b => b.acct === f.acct.value && b.bank === f.bank.value)) return a.toast('That account is already saved', 'err');
-      banks.push({ bank: f.bank.value, acct: f.acct.value, name: resolved }); prefs.set({ banks, wdBank: banks.length - 1 });
+      banks.push({ bank: f.bank.value, acct: f.acct.value, name: f.name.value.trim().toUpperCase() }); prefs.set({ banks, wdBank: banks.length - 1 });
       closeSheet(); a.toast('Bank account saved'); rerender();
     });
   }
-  function manageSheet() {
-    const a = app(), banks = prefs.get().banks;
-    const s = sheet(`<h3>Manage accounts</h3><div class="wl-opts">${banks.map((b, i) => `<div class="wl-opt"><span class="wl-opt-i">${ICON.bank}</span><span><b>${a.esc(b.bank)}</b><small>${b.acct} · ${a.esc(b.name)}</small></span><button type="button" class="wl-del" data-del="${i}" aria-label="Remove ${a.esc(b.bank)} account">${ICON.trash}</button></div>`).join('')}</div>
-      <div class="wl-sheet-btns"><button class="au-btn ghost" data-no>Close</button></div>`);
-    $('[data-no]', s).onclick = closeSheet;
-    $$('[data-del]', s).forEach(b => b.onclick = () => { banks.splice(+b.dataset.del, 1); prefs.set({ banks, wdBank: 0 }); a.toast('Bank account removed'); closeSheet(); rerender(); });
-  }
 
-  /* ----- GH Mobile money ----- */
-  function wdMomo(pane) {
-    const u = user(), prov = providerOf(momoOf(u));
-    pane.innerHTML = `<form class="wl-form" id="wdForm" novalidate>
-      ${momoField(u, 'Withdraw to')}
-      ${momoPicker(prov)}
-      ${balanceRow('Withdrawable balance')}
-      ${amountBlock('wd')}
-      <button class="au-btn" id="wdBtn" disabled>Withdraw</button>
-      ${wdRules()}
-    </form>`;
-    const f = $('#wdForm', pane), btn = $('#wdBtn', pane);
-    let amt;
-    const sync = () => { btn.disabled = !(canWithdraw() && f.querySelector('input[name=prov]:checked') && amt.valid() && mm()); };
-    const mm = bindMomo(f, u, () => sync());
-    amt = bindAmount(f, 'wd', () => amt && sync());
+  /* ----- GH mobile money ----- */
+  function wdMomo(el) {
+    const u = user(), f = $('#wdForm', el), btn = $('#wdBtn', el);
+    let amt = null, mm = () => '';
+    const sync = wdButton(btn, () => amt, () => (!canWithdraw() ? 'Verify your ID to withdraw' : !mm() ? 'Enter your mobile money number' : ''), 'Withdraw');
+    mm = bindMomo(f, u, sync);
+    amt = bindAmount(f, 'wd', sync);
     f.addEventListener('change', sync); sync();
     f.addEventListener('submit', e => {
-      e.preventDefault();
+      e.preventDefault(); if (btn.disabled) return;
       const num = mm(); if (!u.phone) prefs.set({ momo: num });
       const m = GH_MOMO.find(x => x.id === f.querySelector('input[name=prov]:checked').value);
       payout({ amount: amt.get(), method: m.name, apiMethod: 'mobile_money', details: { account: `${m.name} · 0${num}`, net: m.short, phone: num },
@@ -1068,51 +935,43 @@
     });
   }
 
-  /* ----- Transfer to friend (both countries) ----- */
-  function wdFriend(pane) {
-    const a = app(), u = user();
-    pane.innerHTML = `<form class="wl-form" id="wdForm" novalidate>
-      <p class="wl-p">Send money from your balance to another LetBetAfrika player instantly. It's free.</p>
-      <label class="wl-lbl">Friend's mobile number${phoneField('to', '')}</label>
-      <div class="wl-resolve" id="friendName" aria-live="polite"></div>
-      ${balanceRow()}
-      ${amountBlock('wd')}
-      <label class="wl-lbl">Note <span class="muted">(optional)</span><input name="note" maxlength="40" placeholder="e.g. Share of our win"></label>
-      <button class="au-btn" id="wdBtn" disabled>Send</button>
-      ${rules(['Transfers between players are instant and free.', 'You can’t transfer bonus funds.', 'Check the number carefully – transfers can’t be reversed.'])}
-    </form>`;
-    const f = $('#wdForm', pane), btn = $('#wdBtn', pane), nm = $('#friendName', pane);
-    let amt;
-    const toOk = () => { const t = normPhone(f.to.value); return t.length === a.C.digits && t !== u.phone; };
-    const sync = () => {
-      const t = normPhone(f.to.value);
-      if (t === u.phone) { nm.innerHTML = 'You can’t send money to yourself.'; nm.className = 'wl-resolve bad'; }
-      else if (toOk()) {
-        if (live()) { nm.innerHTML = `<small>We'll check this number is a LetBetAfrika player before sending.</small>`; nm.className = 'wl-resolve'; }
-        else { const rec = accounts.get(t); nm.innerHTML = rec ? `${ICON.check}<b>LetBetAfrika player ${mask(t)}</b>` : `<small>This number isn't registered yet.</small>`; nm.className = 'wl-resolve ' + (rec ? 'ok' : 'bad'); }
-      } else { nm.innerHTML = ''; nm.className = 'wl-resolve'; }
-      btn.disabled = !(toOk() && amt.valid() && (live() || accounts.get(t)));
+  /* ----- to a friend: another player, found by mobile number or email (same country) ----- */
+  const friendHTML = () => `<div class="wx-sub"><label class="wx-l">Friend's mobile number or email<input name="to" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="080 1234 5678 or name@email.com"></label><div class="wl-resolve" id="friendName" aria-live="polite"></div></div>`;
+  function wdFriend(el) {
+    const a = app(), u = user(), f = $('#wdForm', el), btn = $('#wdBtn', el), nm = $('#friendName', el);
+    const target = () => { const raw = f.to.value.trim(); if (raw.includes('@')) return isEmail(raw) ? { email: normEmail(raw) } : null; const t = normPhone(raw); return t.length === a.C.digits ? { phone: t } : null; };
+    const self = t => t && ((t.phone && t.phone === u.phone) || (t.email && t.email === (u.email || '').toLowerCase()));
+    let amt = null;
+    const known = t => live() || !!accounts.get(t.phone || t.email);
+    const check = () => {
+      const t = target();
+      if (self(t)) { nm.innerHTML = 'You can’t send money to yourself.'; nm.className = 'wl-resolve bad'; }
+      else if (t && !live()) { const rec = accounts.get(t.phone || t.email); nm.innerHTML = rec ? `${ICON.check}<b>LetBetAfrika player ${a.esc(t.phone ? mask(t.phone) : maskEmail(t.email))}</b>` : `<small>No LetBetAfrika account uses this ${t.phone ? 'number' : 'email'}.</small>`; nm.className = 'wl-resolve ' + (rec ? 'ok' : 'bad'); }
+      else if (t) { nm.innerHTML = '<small>We check this is a LetBetAfrika player before sending.</small>'; nm.className = 'wl-resolve'; }
+      else { nm.innerHTML = ''; nm.className = 'wl-resolve'; }
     };
-    amt = bindAmount(f, 'wd', () => amt && sync());
-    f.addEventListener('input', sync); sync();
+    const sync = wdButton(btn, () => amt, () => { const t = target(); return !t ? 'Enter your friend’s number or email' : self(t) || !known(t) ? 'Check the number or email' : ''; }, 'Send');
+    amt = bindAmount(f, 'tf', sync);
+    f.addEventListener('input', () => { check(); sync(); }); check(); sync();
     f.addEventListener('submit', async e => {
-      e.preventDefault();
-      const t = normPhone(f.to.value), v = amt.get();
-      if (!await confirmSheet('Send money', [['To', fmtPhone(t)], ['Amount', `<b>${a.money(v)}</b>`], ...(f.note.value ? [['Note', a.esc(f.note.value)]] : []), ['Fee', 'Free']], 'Send')) return;
-      processingSheet('Sending…', fmtPhone(t));
+      e.preventDefault(); if (btn.disabled) return;
+      const t = target(), v = amt.get(), shown = t.phone ? fmtPhone(t.phone) : a.esc(t.email);
+      if (!await confirmSheet('Send money', [['To', shown], ['Amount', `<b>${a.money(v)}</b>`], ...(f.note.value ? [['Note', a.esc(f.note.value)]] : []), ['Fee', 'Free']], 'Send')) return;
+      processingSheet('Sending…', shown);
       let r;
       try {
-        if (live()) { const res = await API.wallet.transfer(t, v, f.note.value || undefined); u.balance = res.balance; r = res.ref; }
+        if (live()) { const res = await API.wallet.transfer(t.phone ? t.phone : { email: t.email }, v, f.note.value || undefined); u.balance = res.balance; r = res.ref; }
         else {
           await sleep(800);
           u.balance = a.r2(u.balance - v); r = ref('TF');
-          a.addTx('Transfer to friend', -v, { method: fmtPhone(mask(t)), ref: r, status: 'success' });
-          const rec = accounts.get(t);
-          if (rec && rec.profile) { rec.profile.balance = a.r2((rec.profile.balance || 0) + v); accounts.put(t, { profile: rec.profile }); }
+          a.addTx('Transfer to friend', -v, { method: t.phone ? fmtPhone(mask(t.phone)) : maskEmail(t.email), ref: r, status: 'success' });
+          const id = t.phone || t.email, rec = accounts.get(id);
+          if (rec && rec.profile) { rec.profile.balance = a.r2((rec.profile.balance || 0) + v); accounts.put(id, { profile: rec.profile }); }
         }
       } catch (x) { return failSheet(x, 'Transfer to friend'); }
+      wl.amt.wd = '';
       saveUser(); refresh(); rerender();
-      resultSheet({ ok: 'ok', title: 'Money sent', amount: v, rows: [['To', fmtPhone(t)], ['Reference', r], ['New balance', a.money(u.balance)]], secondary: 'Done' });
+      resultSheet({ ok: 'ok', title: 'Money sent', amount: v, rows: [['To', shown], ['Reference', r], ['New balance', a.money(u.balance)]], secondary: 'Done' });
     });
   }
 

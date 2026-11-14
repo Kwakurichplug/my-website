@@ -32,7 +32,7 @@ BORDER = {
     '#f2f3f5': '#121418', '#e8eaed': '#2c3138', '#c3c7cd': '#3a4049',
     '#d3d7dc': '#3a4049', '#c9ccd1': '#3a4049', '#c9cdd2': '#3a4049', '#ccc': '#3a4049', '#eee': '#2c3138', '#e1e4e8': '#2c3138', '#c5e4cf': '#2a5a3a',
 }
-SKIP = re.compile(r'live-block|\.dots|\.dark\b|#page-match|me-dark|pg-dark|\.jp-|bd-top|wl-head|pg-head|\.topbar|#splash|\.sp-|\.toast|crash|\.game|games|v-head|md-hero|\.btn-gold|\.btn-accent|\.au-btn|\.lpill\.active|\.hot\b|\.badge|\.status|slip-pill|bottom-nav|\.ch-follow|\.ch-act|\.rs-lg|\.rs-date|\.el-live|\.au-bonus|\.wl-brand|\.wl-mm-logo|\.tx-st|\.bs-bar|\.bs-place|drawer-head|modal-logo|\.cat\b|\.tile|cc-top|desk-nav|\.pr-card|\.pr-cap|\.wl-tag|\.wl-demo b|\.age|\.ar\b|\.ar-|\.kn\b|\.sc\b|\.sc-|\.cr-|#arWheel|\.tr-|\.gx|\.dz|\.dc|\.wh|\.sl\b|\.sl-|\.kn-|\.kb|\.sx|\.hl|\.pk\b|#pkCv|#knGlobe|#whRot|\.cd-svg|\.mv-')
+SKIP = re.compile(r'live-block|\.dots|\.dark\b|#page-match|me-dark|pg-dark|\.jp-|bd-top|wl-head|pg-head|\.topbar|#splash|\.sp-|\.toast|crash|\.game|games|v-head|md-hero|\.btn-gold|\.btn-accent|\.au-btn|\.lpill\.active|\.hot\b|\.badge|\.status|slip-pill|bottom-nav|\.ch-follow|\.ch-act|\.rs-lg|\.rs-date|\.el-live|\.au-bonus|\.wl-brand|\.wl-mm-logo|\.tx-st|\.bs-bar|\.bs-place|drawer-head|modal-logo|\.cat\b|\.tile|cc-top|desk-nav|\.pr-card|\.pr-cap|\.wl-tag|\.wl-demo b|\.age|\.ar\b|\.ar-|\.kn\b|\.sc\b|\.sc-|\.cr-|#arWheel|\.tr-|\.gx|\.dz|\.dc|\.wh|\.sl\b|\.sl-|\.kn-|\.kb|\.sx|\.hl|\.pk\b|#pkCv|#knGlobe|#whRot|\.cd-svg|\.mv-|\.wx')
 PROP = re.compile(r'(?<![-\w])(background(?:-color)?|color|border(?:-(?:top|bottom|left|right))?(?:-color)?|box-shadow)\s*:\s*([^;}]+)')
 
 

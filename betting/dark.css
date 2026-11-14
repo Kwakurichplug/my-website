@@ -137,35 +137,10 @@ html[data-theme="dark"] .au-check{color:#a9aeb5}
 html[data-theme="dark"] .au-why{background:#3a3120;color:#e8c56a}
 html[data-theme="dark"] .au-otp input{border:1px solid #3a4049;background:#1d2127}
 html[data-theme="dark"] .wl-demo{background:#262a31}
-html[data-theme="dark"] .wl-tabs{background:#15181c;border-bottom:1px solid #2c3138}
-html[data-theme="dark"] .wl-tabs a{color:#c9cdd2}
 html[data-theme="dark"] .wl-p{color:#b8bdc4}
-html[data-theme="dark"] .wl-lbl{color:#a9aeb5}
-html[data-theme="dark"] .wl-lbl input,html[data-theme="dark"] .wl-lbl select{border-color:#3a4049}
-html[data-theme="dark"] .wl-bal{background:#1d2127;border:1px solid #2c3138;color:#a9aeb5}
-html[data-theme="dark"] .wl-amt-in{background:#1d2127;border:1px solid #3a4049}
-html[data-theme="dark"] .wl-chips button{border:1px solid #3a4049;background:#1d2127;color:#c9cdd2}
-html[data-theme="dark"] .wl-chips button:active{background:#183323}
-html[data-theme="dark"] .wl-rules{color:#9aa0a8}
 html[data-theme="dark"] .wl-note,html[data-theme="dark"] .wl-verify{background:#1d2127;border:1px solid #2c3138;color:#b8bdc4}
 html[data-theme="dark"] .wl-verify{background:#2e2a1f}
 html[data-theme="dark"] .wl-copy{background:#1d2127}
-html[data-theme="dark"] .wl-card{background:#1d2127;border:1px solid #2c3138}
-html[data-theme="dark"] .wl-opts{background:#1d2127;border:1px solid #2c3138}
-html[data-theme="dark"] .wl-opt{border-bottom:1px solid #2c3138}
-html[data-theme="dark"] .wl-opt-i{background:#183323}
-html[data-theme="dark"] .wl-add{background:#1d2127}
-html[data-theme="dark"] .wl-va,html[data-theme="dark"] .wl-ussd{background:#1d2127;border:1px solid #2c3138}
-html[data-theme="dark"] .wl-va>div{border-bottom:1px solid #2c3138}
-html[data-theme="dark"] .wl-sim{border-top:1px dashed #3a4049}
-html[data-theme="dark"] .wl-mmo{background:#1d2127;border:1.5px solid #2c3138}
-html[data-theme="dark"] .wl-mmo small{color:#b8bdc4}
-html[data-theme="dark"] .wl-acc{background:#1d2127;border:1px solid #2c3138}
-html[data-theme="dark"] .wl-step{border-bottom:1px solid #2c3138}
-html[data-theme="dark"] .wl-logo{background:#183323}
-html[data-theme="dark"] .wl-step ol{color:#b8bdc4}
-html[data-theme="dark"] .wl-lockbox{background:#1d2127;border:1px solid #2c3138}
-html[data-theme="dark"] .wl-lockbox p{color:#a9aeb5}
 html[data-theme="dark"] .wl-sheet-card{background:#1d2127}
 html[data-theme="dark"] .wl-dl{background:#22262d}
 html[data-theme="dark"] .wl-dl>div{border-bottom:1px solid #2c3138}

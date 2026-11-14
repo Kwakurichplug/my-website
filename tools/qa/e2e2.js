@@ -53,63 +53,60 @@ async function otpFromToast(p) {
   log('Deposit card');
   await p.click('.au-done a[href="#/deposit"]'); await p.waitForTimeout(500);
   expect(p.url().includes('#/deposit'), 'Deposit Now opens deposit page');
+  expect(await p.isVisible('.wx-bonus'), 'first-deposit welcome bonus banner shown');
   await shot(p, '05-deposit-card');
-  await p.click('[data-plus="1000"]'); await p.click('[data-plus="500"]');
-  expect(await p.inputValue('#wlAmt') === '1500', 'quick-add chips add up (1500)');
+  await p.click('[data-set="1000"]');
+  expect(await p.inputValue('#wlAmt') === '1000', 'quick amount chip sets the amount (1000)');
   expect((await p.textContent('#wlHint')).includes('welcome bonus'), 'first-deposit bonus hint shown');
-  await p.fill('[name=num]', '4111 1111 1111 1112');
-  expect(await p.$eval('[name=num]', e => e.classList.contains('bad')), 'invalid card number flagged');
-  await p.fill('[name=num]', '4111111111111111'); await p.fill('[name=exp]', '1229'); await p.fill('[name=cvv]', '123');
-  expect(await p.inputValue('[name=exp]') === '12/29', 'expiry auto-formats to MM/YY');
-  expect(await p.textContent('#cardBrand') === 'VISA', 'card brand detected');
-  await p.click('#depBtn'); await p.waitForSelector('#bankOtp');
-  await shot(p, '06-card-otp');
-  const bankOtp = (await p.textContent('.wl-sheet-card .wl-demo')).match(/(\d{4})/)[1];
-  await p.fill('#bankOtp', bankOtp); await p.click('.wl-sheet [data-yes]');
-  await p.waitForSelector('.wl-res', { timeout: 5000 }); await shot(p, '07-deposit-success');
+  expect((await p.textContent('#depBtn')).includes('Deposit ₦1,000.00'), 'button shows the amount');
+  expect(!(await p.$('#page-deposit [name=num]')), 'no card number fields on our page (the payment partner takes them)');
+  await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 }); await shot(p, '07-deposit-success');
   expect((await p.textContent('.wl-res')).includes('Deposit successful'), 'card deposit succeeds');
-  await p.click('.wl-res [data-close-sheet]');
-  await p.waitForTimeout(300);
-  expect((await p.$$('.wl-opt input[name=card]')).length === 2, 'saved card offered next time');
+  expect((await p.textContent('.wl-res')).includes('Welcome bonus'), 'welcome bonus shown on the first deposit');
+  await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300);
+  expect((await p.textContent('#wxRecent')).includes('+₦1,000.00'), 'recent deposits list shows it');
+  expect(!(await p.isVisible('.wx-bonus')), 'bonus banner gone after the first deposit');
 
-  // ---------- other NG deposit tabs ----------
-  for (const t of ['transfer', 'opay', 'palmpay', 'ussd', 'others']) {
-    await p.click(`.wl-tabs a[href="#/deposit/${t}"]`); await p.waitForTimeout(400);
-    await shot(p, `08-deposit-${t}`);
-  }
+  // ---------- other NG methods ----------
+  for (const t of ['transfer', 'ussd', 'opay', 'palmpay']) { await p.click(`[data-method="${t}"]`); await p.waitForTimeout(400); await shot(p, `08-deposit-${t}`); }
+  expect(!(await p.evaluate(() => /TEST|SOON|Simulate|pretend|LetBet Wallet/.test(document.querySelector('#page-deposit').textContent))), 'no test or placeholder wording on the deposit page');
   log('Deposit USSD');
-  await p.click('.wl-tabs a[href="#/deposit/ussd"]'); await p.waitForTimeout(300);
-  await p.selectOption('[name=bank]', 'GTBank'); await p.fill('#wlAmt', '2000'); await p.click('#depBtn'); await p.waitForTimeout(800);
-  expect((await p.textContent('.wl-ussd b')).startsWith('*737*000*2000*'), 'USSD code built for GTBank');
-  await p.click('#ussdDone'); await p.waitForSelector('.wl-res', { timeout: 5000 });
+  await p.click('[data-method="ussd"]'); await p.waitForTimeout(300);
+  await p.fill('#wlAmt', '2000'); await p.waitForTimeout(100);
+  expect((await p.textContent('#depBtn')).includes('Select your bank') && await p.isDisabled('#depBtn'), 'USSD asks for the bank first');
+  await p.selectOption('[name=bank]', 'GTBank'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 });
   await p.click('.wl-res [data-close-sheet]');
   log('Deposit OPay');
-  await p.click('.wl-tabs a[href="#/deposit/opay"]'); await p.waitForTimeout(300);
+  await p.click('[data-method="opay"]'); await p.waitForTimeout(300);
   await p.fill('#wlAmt', '50'); await p.waitForTimeout(100);
   expect(await p.isDisabled('#depBtn') && (await p.textContent('#wlHint')).includes('Minimum'), 'below minimum blocked');
   await p.fill('#wlAmt', '3000'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 });
-  await p.click('.wl-res [data-close-sheet]');
+  await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300);
+  expect((await p.textContent('.wx-hero-amt')).includes('6,000.00'), 'balance card shows 1,000 + 2,000 + 3,000');
 
   // ---------- Withdraw (NG) ----------
   log('Withdraw NG');
   await p.goto(URL + '#/withdraw'); await p.waitForTimeout(500);
   await shot(p, '09-withdraw-unverified');
   expect(await p.isVisible('.wl-verify'), 'unverified users see the verify prompt');
+  expect((await p.textContent('#wdBtn')).includes('Verify your ID'), 'the button says to verify first');
   await p.click('.wl-verify'); await p.waitForTimeout(400);
   await p.fill('[data-acform=verify] [name=name]', 'Chinedu Okafor'); await p.fill('[data-acform=verify] [name=dob]', '1995-04-02'); await p.fill('[data-acform=verify] [name=idn]', '12345678901');
   await p.click('[data-acform=verify] button'); await p.waitForTimeout(600);
   expect(p.url().includes('#/withdraw'), 'after verifying, user returns to withdraw');
   await p.click('#addBank'); await p.selectOption('#bankForm [name=bank]', 'GTBank'); await p.fill('#bankForm [name=acct]', '0123456789');
-  await p.waitForSelector('.wl-resolve.ok'); await shot(p, '10-add-bank');
-  expect((await p.textContent('#resolve')).includes('CHINEDU OKAFOR'), 'account name resolves to verified name');
+  expect((await p.inputValue('#bankForm [name=name]')) === 'Chinedu Okafor', 'account name prefilled with the verified name');
+  await shot(p, '10-add-bank');
   await p.click('#bankSave'); await p.waitForTimeout(400);
+  expect((await p.textContent('.wx-accts')).includes('CHINEDU OKAFOR'), 'saved account listed');
   await p.click('[data-frac="0.5"]'); await shot(p, '11-withdraw-bank');
-  const balBefore = await p.textContent('.wl-bal b');
+  const balBefore = await p.textContent('.wx-hero-amt');
   await p.click('#wdBtn'); await p.waitForSelector('.wl-sheet [data-yes]'); await shot(p, '12-withdraw-confirm');
   await p.click('.wl-sheet [data-yes]'); await p.waitForSelector('.wl-res', { timeout: 5000 }); await shot(p, '13-withdraw-submitted');
   expect((await p.textContent('.wl-res')).includes('Processing'), 'withdrawal shows Processing');
-  await p.click('.wl-res [data-close-sheet]');
-  expect((await p.textContent('.wl-bal b')) !== balBefore, 'balance reduced');
+  await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300);
+  expect((await p.textContent('.wx-hero-amt')) !== balBefore, 'balance reduced');
+  expect((await p.textContent('#wxRecent')).includes('Processing'), 'recent withdrawals shows it as Processing');
   await p.waitForTimeout(6500);
   await p.goto(URL + '#/acct/tx'); await p.waitForTimeout(500); await shot(p, '14-transactions');
   expect((await p.textContent('#acBody')).includes('Successful'), 'withdrawal later marked Successful');
@@ -119,7 +116,7 @@ async function otpFromToast(p) {
   await p.fill('#wdForm [name=to]', '08031234567'); await p.waitForTimeout(100);
   expect((await p.textContent('#friendName')).includes('yourself'), 'cannot send to own number');
   await p.fill('#wdForm [name=to]', '08099998888'); await p.waitForTimeout(100);
-  expect(await p.isDisabled('#wdBtn') && (await p.textContent('#friendName')).includes("isn't registered"), 'unregistered friend blocked');
+  expect(await p.isDisabled('#wdBtn') && (await p.textContent('#friendName')).includes('No LetBetAfrika account'), 'unregistered friend blocked');
   await p.evaluate(() => { const a = JSON.parse(localStorage.getItem('lba_NG_accounts')); a['8099998888'] = { h: 'x', profile: { phone: '8099998888', balance: 0, uid: 1 } }; localStorage.setItem('lba_NG_accounts', JSON.stringify(a)); });
   await p.fill('#wdForm [name=to]', '08099998887'); await p.fill('#wdForm [name=to]', '08099998888'); await p.fill('#wlAmt', '500'); await shot(p, '15-friend');
   await p.click('#wdBtn'); await p.click('.wl-sheet [data-yes]'); await p.waitForSelector('.wl-res', { timeout: 5000 });
@@ -153,14 +150,14 @@ async function otpFromToast(p) {
   await p.reload(); await p.waitForTimeout(800); await p.goto(URL + '#/login'); await p.waitForTimeout(500);
   await p.fill('#loginForm [name=phone]', '0241234567'); await p.fill('#loginForm [name=pw]', 'x'); await p.click('#loginBtn'); await p.waitForTimeout(1000);
   await p.goto(URL + '#/deposit'); await p.waitForTimeout(500); await shot(p, '18-gh-momo');
-  expect(await p.$eval('input[name=prov][value=mtn]', e => e.checked), 'MTN auto-detected from 024 number');
-  await p.click('[data-plus="10"]'); await p.click('[data-plus="5"]'); await p.click('#depBtn'); await p.waitForSelector('#mmLeft');
-  await shot(p, '19-gh-momo-prompt');
-  await p.click('.wl-sheet [data-yes]'); await p.waitForSelector('.wl-res', { timeout: 5000 });
+  expect(await p.$eval('input[name=prov][value=mtn]', e => e.checked), 'MTN detected from the 024 number');
+  await p.click('[data-set="20"]'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 });
+  await shot(p, '19-gh-momo-done');
+  expect((await p.textContent('.wl-res')).includes('Mobile Money'), 'mobile money deposit succeeds');
   await p.click('.wl-res [data-close-sheet]');
-  for (const t of ['paybill', 'card']) { await p.click(`.wl-tabs a[href="#/deposit/${t}"]`); await p.waitForTimeout(300); await shot(p, `20-gh-deposit-${t}`); }
-  await p.goto(URL + '#/withdraw/bank'); await p.waitForTimeout(400); await shot(p, '21-gh-withdraw-bank-locked');
-  expect(await p.isVisible('.wl-lockbox'), 'GH bank withdrawal locked until a card deposit');
+  await p.click('[data-method="card"]'); await p.waitForTimeout(300); await shot(p, '20-gh-deposit-card');
+  await p.goto(URL + '#/withdraw/bank'); await p.waitForTimeout(400); await shot(p, '21-gh-withdraw-bank');
+  expect(await p.isVisible('#addBank'), 'Ghana players can withdraw to a bank account');
   await p.goto(URL + '#/withdraw/momo'); await p.waitForTimeout(400); await shot(p, '22-gh-withdraw-momo');
 
   // ---------- desktop ----------
@@ -170,7 +167,7 @@ async function otpFromToast(p) {
   for (const r of ['register', 'deposit', 'withdraw']) { await d.goto(URL + '#/' + r); await d.waitForTimeout(700); await d.screenshot({ path: `${S}/e2e/30-desktop-${r}.png` }); }
   // horizontal overflow check on phone
   const ov = [];
-  for (const r of ['register', 'login', 'forgot', 'deposit/card', 'deposit/momo', 'deposit/paybill', 'withdraw/momo', 'withdraw/friend']) {
+  for (const r of ['register', 'login', 'forgot', 'deposit/card', 'deposit/momo', 'withdraw/bank', 'withdraw/momo', 'withdraw/friend']) {
     await p.goto(URL + '#/' + r); await p.waitForTimeout(250);
     if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) ov.push(r);
   }

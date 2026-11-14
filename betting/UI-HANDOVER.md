@@ -225,7 +225,7 @@ iPhone 13 size and placing it side-by-side (the environment allows
 
 | File | Purpose |
 |---|---|
-| `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<tab>`) and **withdraw** (`#/withdraw/<tab>`). Calls the API in live mode, simulates in demo mode. `PROVIDER:` comments mark where a payment provider plugs in. |
+| `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<method>`: card, transfer, ussd, opay, palmpay · GH momo, card) and **withdraw** (`#/withdraw/<method>`: bank, momo, friend). Calls the API in live mode, simulates in demo mode. The provider contract is in `server/src/routes/wallet.js` (`PROVIDER:`). |
 | `pages.js` | `window.Pages`: screens rebuilt on the reference layout – **Live** (`#/live[/sport]`), **Sports filter** (`#/sports`), **event list** (`#/list/<sport>/<when>[/<lg,lg>\|out]`), **league** (`#/league/<idx>`), **Jackpot** (`#/jackpot[/results\|how\|tickets]`, live: server round + real results + ticket outcomes), **Promotions** (`#/promos[/tab]`, `#/promo/<id>`), **Results** (`#/results`), **Code Hub** (`#/codes`), **bet detail** (`#/bet/<id>`), **Instant Football** (`#/instant`). |
 | `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
 | `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
@@ -266,6 +266,14 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Lobby thumbnails** (`img/games/thumb-<id>.webp`, 300×300) are captured from the real scenes by
   `tools/assets/thumbs.js` with a Kanit title band – re-run it after changing a scene.
 - **No technical internals on player screens**: no seeds, hashes, formulas, server or provider names – plain language only.
+- **Deposit & withdraw** (`v24`, `account.js`, classes `.wx-*`): `.wx-hero` balance card (gradient, Withdraw/Deposit +
+  Transactions links), `.wx-bonus` first-deposit banner, `.wx-card` sections, `.wx-methods` tile grid (`data-method`, a
+  check badge on the selected one; switching keeps the typed amount and uses `location.replace`), `.wx-sub` method
+  details (MoMo number + `.wx-nets` network chips auto-picked from the prefix, USSD bank, saved bank accounts `.wx-acct`
+  + `.wx-add`), `.wx-amount` (32px amount, `data-set` quick amounts / `data-frac` 25%·50%·Max, `#wlHint`), `.wx-cta`
+  (names what is missing, else "Deposit ₦5,000.00"), `.wx-recent` (last 5 from `GET /api/wallet/payments`, status chips
+  `.wx-st ok|pend|bad`). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
+  (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
 - **Mobile number or email** (`v23`, `account.js`): register, login and forgot password have a *Mobile Number | Email*
   switch (`.au-via`, `data-via`); the email field (`.au-mail`) has a mail icon where the dial code sits. Only channels
   that can deliver a code are offered (`Account.prefetch()` asks `/api/auth/methods` when the app goes live). The code

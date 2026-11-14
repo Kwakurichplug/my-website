@@ -64,7 +64,7 @@ const rnd = () => '80' + String(Math.floor(1e7 + Math.random() * 9e7)).slice(0, 
   expect(p.url().includes('#/withdraw'), 'returns to withdraw after submitting ID');
   expect((await p.textContent('#page-withdraw')).includes('ID check in progress'), 'shows ID check in progress');
   await p.click('#addBank'); await p.selectOption('#bankForm [name=bank]', 'GTBank'); await p.fill('#bankForm [name=acct]', '0123456789');
-  await p.waitForSelector('.wl-resolve.ok'); await p.click('#bankSave'); await p.waitForTimeout(300);
+  await p.fill('#bankForm [name=name]', 'Ada Obi'); await p.click('#bankSave'); await p.waitForTimeout(300);
   await p.fill('#wlAmt', '1000'); await p.click('#wdBtn'); await p.click('.wl-sheet [data-yes]');
   await p.waitForSelector('.wl-res', { timeout: 10000 });
   expect((await p.textContent('.wl-res')).includes('Withdrawal submitted'), 'withdrawal request accepted by the API');

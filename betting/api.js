@@ -61,10 +61,11 @@
     wallet: {
       balance: () => get('/wallet'),
       transactions: filter => get('/wallet/transactions' + (filter ? '?filter=' + filter : '')).then(r => r.transactions),
-      deposit: (amount, method) => post('/wallet/deposit', { amount, method }),
+      deposit: (amount, method, details) => post('/wallet/deposit', { amount, method, ...(details && Object.keys(details).length ? { details } : {}) }),
       withdraw: (amount, method, details) => post('/wallet/withdraw', { amount, method, details }),
       payments: () => get('/wallet/payments').then(r => r.payments),
-      transfer: (phone, amount, note) => post('/wallet/transfer', { phone, amount, note }),
+      // `who` is a phone number (string) or { email }
+      transfer: (who, amount, note) => post('/wallet/transfer', { ...(typeof who === 'object' ? who : { phone: who }), amount, note }),
       bonuses: () => get('/wallet/bonuses'),
     },
     jackpot: {

@@ -28,7 +28,7 @@ Never copy another operator's brand assets – we match their quality and layout
 | `betting/` | Static front end (HTML/CSS/JS, no build step). Served by the API server. |
 | `betting/index.html` | All page markup. Script order: `api → account → pages → motion → icons → game-logic → games → scenes → arcade → app`. |
 | `betting/app.js` | Core: data model, router, betslip, home, match page, account sub-pages, live-API bridge, Virtual League client. Exposes `window.LBA_APP`. |
-| `betting/account.js` | Sign up (SMS code), login, reset password, deposit, withdraw (per country). |
+| `betting/account.js` | Sign up / login / reset with mobile number or email (code by SMS or email); **deposit and withdraw** (one layout: balance card → method tiles → method details → amount → button → recent activity). |
 | `betting/pages.js` | Live, Sports filter, lists, league, **Jackpot** (server rounds, real results), Promotions, Results, Code Hub, bet detail, Instant Football, **YOU WON trophy** (`Pages.trophy()`), offline banner. |
 | `betting/game-logic.js` | **Shared game rules + pay tables + exact RTP** (`GameLogic.rtp(game)`), used by the browser demo and the server. |
 | `betting/games.js` | Games lobby (all 11 games live, thumbnails from `img/games/`) + **Rocket Crash** (canvas scene: parallax stars, rocket sprite, exhaust particles, explosion; live: shared server rounds; demo: browser rounds). |
@@ -109,6 +109,13 @@ Earn reward per country (₦1,000 / GH₵10).
   those (production without an SMS provider = email only). Emails are unique site-wide; adding or changing an email
   (Me → Email & Password) needs a code sent to the new address. Email-only players get their account ID as payment
   reference and type their mobile-money number when they need it.
+- **Deposit & withdraw pages** rebuilt to a professional standard: balance card, method tiles (NG: Card, Bank Transfer,
+  USSD, OPay, PalmPay · GH: Mobile Money, Card), big amount entry with quick amounts, a button that names what is
+  missing ("Select your bank", "Verify your ID to withdraw") or the exact amount, live welcome-bonus preview, and
+  recent deposits/withdrawals with real statuses. **No fake content**: no made-up bank or account number, no fake USSD
+  codes, no "simulate"/"TEST"/"SOON" wording, no card numbers typed on our pages (the payment partner's hosted
+  checkout takes them), no faked account-name check (the player types the account holder's name until the payout
+  partner's name enquiry is connected). Send money to a friend by mobile number **or email** (same country).
 - **Money**: register/login, deposit (demo provider), withdraw (admin approval), transfer to friend,
   bets single/multiple with win boost, cashout, booking codes. Payout tests pass (exact to the cent, void legs,
   refunds, cashout, no double pay, ledger = balance).
@@ -199,9 +206,12 @@ The site is wired end to end. The owner's next steps are **SMTP → payments →
    - Deliverability: Spaceship DNS for `letbetafrika.online` must have SPF, DKIM and DMARC (Spacemail sets them when
      the domain uses Spaceship DNS – check in the Spacemail dashboard).
 2. **Payments** (Paystack / Flutterwave cards + bank, MTN MoMo / Vodafone Cash for Ghana, OPay):
-   - `POST /api/wallet/deposit` already creates a `payments` row; with `PAYMENTS_MODE` ≠ `demo` it stays `pending`.
-     Return the provider's checkout URL / USSD / MoMo prompt from there; the deposit screens in `betting/account.js`
-     show it (each method's spot is marked with a `PROVIDER:` comment).
+   - `POST /api/wallet/deposit {amount, method, details}` creates a `payments` row (`details` = `{phone, network}` for
+     mobile money, `{bank}` for USSD); with `PAYMENTS_MODE` ≠ `demo` it stays `pending`. Create the provider charge there
+     and answer `{status:'pending', paymentId, balance, next}` – the deposit page already handles both shapes:
+     `next = {url}` → it redirects to the provider's hosted checkout (cards); `next = {message, rows:[[label, value]…]}`
+     → it shows them (bank-transfer account, USSD code, "approve the prompt on 024…"). See the `PROVIDER:` comment in
+     `server/src/routes/wallet.js`.
    - Add `POST /api/payments/webhook/<provider>`: verify the signature, find the pending payment by reference, then in
      **one transaction** (`SELECT … FOR UPDATE`, only if still `pending`) mark it `success` and call
      **`creditDeposit(c, user, amount, paymentId, {method})`** from `server/src/lib/bonus.js` – the only function that may
