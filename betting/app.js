@@ -335,6 +335,18 @@
     cfg.lines.forEach(L => { const o = mk['o' + L], u = mk['u' + L]; if (o && u && o.o && u.o) { const g = Math.abs(o.o - u.o); if (g < gap) { gap = g; best = L; } } });
     return best;
   }
+  // the line cell in a list row opens a sheet with every open line and its prices
+  function openLinePicker(key) {
+    const [mid, mk] = key.split('|'), m = byId(mid), cfg = m && listMarkets(m.sport).find(x => x.mk === mk);
+    if (!cfg) return;
+    const map = m.map[mk] || {}, cur = rowLine(m, cfg), px = o => (o && o.o ? o.o.toFixed(2) : '–');
+    const open = cfg.lines.filter(L => map['o' + L]?.o || map['u' + L]?.o);
+    if (open.length < 2) return toast('Only one line is open for this match');
+    $('#lineTitle').textContent = { hou: 'Home Over/Under', aou: 'Away Over/Under' }[mk] || 'Over/Under';
+    $('#lineSub').textContent = `${m.home} v ${m.away}`;
+    $('#lineList').innerHTML = open.map(L => `<button class="ln-row${L === cur ? ' on' : ''}" data-lpick="${m.id}|${mk}|${L}" aria-pressed="${L === cur}"><b>${L}</b><span>${px(map['o' + L])}</span><span>${px(map['u' + L])}</span></button>`).join('');
+    openModal('lineModal');
+  }
   // desktop shows Over/Under 2.5 next to 1X2, like the reference's wide table (hidden on phones by CSS)
   const exOk = cfg => cfg.mk === '1x2';
   const exCols = (m, cfg) => exOk(cfg) ? `<div class="ev-odds ex">${m.map.ou?.['o2.5'] ? oddBtn(m, 'ou', 'o2.5') + oddBtn(m, 'ou', 'u2.5') : '<span class="odd void"></span><span class="odd void"></span>'}</div>` : '';
@@ -535,12 +547,14 @@
     if (!keepScroll) window.scrollTo(0, 0);
   }
 
-  const STAR = '<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.2 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>';
+  // the same line icons as the rest of the site (header star, empty-state info icon)
+  const STAR = '<svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>';
+  const INFO = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>';
   const lineOf = l => { const r = /\(([^)]+)\)/.exec(l); return r ? r[1] : l.replace(/^(Over|Under)\s*/, ''); };
   function marketHTML(m, x) {
     const ck = m.id + x.key, closed = state.collapsed.has(ck), v = window.LBAMarkets ? LBAMarkets.view(x.key) : 'grid';
     const live = x.outs.filter(o => o.k), allLocked = live.length > 0 && live.every(o => !o.o);
-    const head = `<div class="mkt-head"><button class="mkt-tog" data-collapse="${ck}" aria-expanded="${!closed}"><i class="tri"></i><span>${esc(x.name)}</span></button><button class="mkt-i" data-mkinfo="${esc(x.key)}" aria-label="How this market settles">i</button>${allLocked ? '<em class="susp">Suspended</em>' : ''}<button class="mkt-star ${state.favMk.includes(x.key) ? 'on' : ''}" data-mkfav="${esc(x.key)}" aria-label="Favourite market" aria-pressed="${state.favMk.includes(x.key)}">${STAR}</button></div>`;
+    const head = `<div class="mkt-head"><button class="mkt-tog" data-collapse="${ck}" aria-expanded="${!closed}"><i class="tri"></i><span>${esc(x.name)}</span></button><button class="mkt-i" data-mkinfo="${esc(x.key)}" aria-label="How this market settles">${INFO}</button>${allLocked ? '<em class="susp">Suspended</em>' : ''}<button class="mkt-star ${state.favMk.includes(x.key) ? 'on' : ''}" data-mkfav="${esc(x.key)}" aria-label="Favourite market" aria-pressed="${state.favMk.includes(x.key)}">${STAR}</button></div>`;
     let body;
     if (v === 'ou') {
       let rows = ''; for (let i = 0; i + 1 < live.length; i += 2) rows += `<span class="line">${esc(lineOf(live[i].l))}</span>${oddBtn(m, x.key, live[i].k, null, 'tb')}${oddBtn(m, x.key, live[i + 1].k, null, 'tb')}`;
@@ -1491,7 +1505,8 @@
     if (d.bets) { state.betsTab = d.bets; return renderMe(); }
     if (d.mdtab) { state.mdTab = d.mdtab; return renderMatch(+state.arg, true); }
     if (d.group) { state.mdGroup = d.group; return renderMatch(+state.arg, true); }
-    if (d.lcycle) { const [mid, mk] = d.lcycle.split('|'); const m = byId(mid), cfg = m && listMarkets(m.sport).find(x => x.mk === mk); if (!cfg) return; const avail = cfg.lines.filter(L => m.map[mk]?.['o' + L]?.o || m.map[mk]?.['u' + L]?.o); if (avail.length < 2) return toast('Only one line is open for this match'); const cur = rowLine(m, cfg); m.uiLine = m.uiLine || {}; m.uiLine[mk] = avail[(avail.indexOf(cur) + 1) % avail.length]; return renderCurrent(true); }
+    if (d.lcycle) return openLinePicker(d.lcycle);
+    if (d.lpick) { const [mid, mk, L] = d.lpick.split('|'), m = byId(mid); if (!m) return; m.uiLine = m.uiLine || {}; m.uiLine[mk] = +L; closeModals(); return renderCurrent(true); }
     if (d.mkinfo) return showMarketInfo(d.mkinfo);
     if (d.mkfav) { const i = state.favMk.indexOf(d.mkfav); i > -1 ? state.favMk.splice(i, 1) : state.favMk.push(d.mkfav); store.set('favmk', state.favMk); toast(i > -1 ? 'Removed from favourite markets' : 'Added to favourite markets'); return renderMatch(+state.arg, true); }
     if (d.collapse) { state.collapsed.has(d.collapse) ? state.collapsed.delete(d.collapse) : state.collapsed.add(d.collapse); const blk = t.closest('.mkt'); blk.classList.toggle('closed'); t.setAttribute('aria-expanded', !blk.classList.contains('closed')); return; }

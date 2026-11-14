@@ -2691,3 +2691,66 @@ html[data-theme="dark"] .mk-guide.small{border-color:#2c3138}
 @keyframes bsIn{0%{opacity:0;transform:translateY(-14px)}60%{opacity:1;transform:none;box-shadow:inset 3px 0 0 var(--brand)}100%{box-shadow:inset 3px 0 0 transparent}}
 .bs-item.bs-out{overflow:hidden;opacity:0;transform:translateX(28px);height:0!important;padding-top:0!important;padding-bottom:0!important;border-bottom-width:0;transition:height .22s ease,padding .22s ease,opacity .18s ease,transform .22s ease,border-width .22s}
 @media (prefers-reduced-motion:reduce){.bs-item.bs-in{animation:none}.betslip{transition-duration:.01s}}
+
+/* =========================================================
+   v27 – market feature on the LetBetAfrika design: green header
+   bar, our tab and chip style, line icons, neutral line cells,
+   the line picker sheet, no floating slip button on desktop
+   ========================================================= */
+/* match page: the header and the market groups stay in view; the three tabs scroll away */
+#page-match .md-tabs{position:static}
+#page-match .group-chips,html:not([data-theme="dark"]) #page-match.pre .group-chips{position:sticky;top:calc(var(--top-h) + 48px);z-index:5}
+@media (min-width:1024px){ #page-match .group-chips,html:not([data-theme="dark"]) #page-match.pre .group-chips{top:138px} }
+#page-match .sub-head .icon-btn svg{width:24px;height:24px}
+/* pre-match (light): our green inner-page header over the white hero */
+html:not([data-theme="dark"]) #page-match.pre .sub-head{background:var(--brand);color:#fff;border-bottom:0}
+html:not([data-theme="dark"]) #page-match.pre .sub-head h1{color:#fff}
+html:not([data-theme="dark"]) #page-match.pre .sub-head .icon-btn,html:not([data-theme="dark"]) #page-match.pre .fav{color:#fff}
+html:not([data-theme="dark"]) #page-match.pre .fav.on{color:var(--gold)}
+#page-match .fav.on svg{fill:var(--gold)}
+/* Markets | Statistics | Match Info: equal tabs with the green underline, as on every other page */
+html:not([data-theme="dark"]) #page-match.pre .md-tabs{background:#fff;border-bottom:1px solid #eaecef;padding:0;gap:0}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button{flex:1 1 0;height:auto;padding:12px 4px;background:none;border-radius:0;color:#5f656d;font-weight:700;font-size:var(--fs)}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button.active{background:none;color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .md-tabs button.active::after{display:block;content:"";position:absolute;left:30%;right:30%;bottom:0;height:3px;background:var(--g)}
+/* market groups: same height and underline as the live page */
+html:not([data-theme="dark"]) #page-match.pre .group-chips{background:#fff;height:48px;padding:0 var(--side)}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button{padding:0 14px}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button:first-child{padding-left:0}
+html:not([data-theme="dark"]) #page-match.pre .group-chips button.active::after{height:3px}
+/* line icons: info and favourite star (outline; filled gold when on) */
+.mkt-i{width:28px;height:28px;margin-left:2px;border-radius:0;background:none;color:#9ca0ab;font:inherit;display:grid;place-items:center}
+.mkt-head .mkt-i svg{display:block;width:17px;height:17px}
+.mkt-star{color:#9ca0ab}
+.mkt-star svg{fill:none;stroke:currentColor;stroke-width:1.6}
+.mkt-star.on svg{fill:currentColor}
+html:not([data-theme="dark"]) #page-match.pre .mkt-i,html:not([data-theme="dark"]) #page-match.pre .mkt-star{color:var(--mute)}
+html:not([data-theme="dark"]) #page-match.pre .mkt-star.on,.mkt-star.on{color:var(--gold)}
+.group-chips .gstar svg{fill:none;stroke:currentColor;stroke-width:1.7}
+.group-chips .gstar.active svg{fill:currentColor}
+/* hero meta and the market info sheet on the type scale */
+.mh-meta{font-size:var(--fs-s)}
+.mk-info h2{font-size:17px;padding:0 28px;text-align:center}
+/* list rows: the line cell is a neutral picker, not an odds button */
+.odd.lsel{background:#eaecef;color:var(--ink-2)}
+.odd.lsel:hover,.odd.lsel:active{background:#e1e4e8}
+.odd.lsel svg{stroke:var(--mute)}
+.live-block .odd.lsel,html[data-theme="dark"] .odd.lsel{background:rgba(234,236,239,.15);color:#fff}
+.live-block .odd.lsel:hover,html[data-theme="dark"] .odd.lsel:hover{background:rgba(234,236,239,.22)}
+.live-block .odd.lsel svg,html[data-theme="dark"] .odd.lsel svg{stroke:#c9ccd2}
+/* line picker sheet (same rows as the country sheet) */
+.ln-pick{gap:8px}
+.ln-sub{margin-top:-6px;text-align:center;font-size:var(--fs);color:var(--mute)}
+.ln-head,.ln-row{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;text-align:center}
+.ln-head{padding:2px 12px 0;font-size:var(--fs-s);color:var(--mute)}
+.ln-list{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto;overscroll-behavior:contain}
+.ln-row{flex:none;width:100%;height:44px;padding:0 12px;border:1px solid var(--line-2);border-radius:4px;font-size:var(--fs-t);color:var(--ink-2)}
+.ln-row b{font-weight:700;color:var(--ink)}
+.ln-row.on{border-color:var(--brand);background:#eef7f1;box-shadow:inset 3px 0 0 var(--brand)}
+.ln-row.on b{color:var(--g)}
+html[data-theme="dark"] .ln-row{border-color:#3a4049;color:#c9cdd2}
+html[data-theme="dark"] .ln-row b{color:#eef0f2}
+html[data-theme="dark"] .ln-row.on{border-color:#36d26e;background:#183323;box-shadow:inset 3px 0 0 #36d26e}
+html[data-theme="dark"] .ln-row.on b{color:#36d26e}
+/* desktop always shows the betslip column, so the floating slip button never shows there */
+@media (min-width:1024px){ .slip-pill,.slip-pill.show{display:none!important} }
