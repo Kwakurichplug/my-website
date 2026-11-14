@@ -163,3 +163,14 @@ CREATE TABLE IF NOT EXISTS email_log (
   sent_at   timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email text;
+
+-- Real odds feed: calibrated goal-model parameters per event (server-only, never sent to clients)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS model jsonb;
+-- Team crest cache (TheSportsDB lookups by team name)
+CREATE TABLE IF NOT EXISTS team_logos (
+  name       text PRIMARY KEY,
+  url        text,
+  fetched_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS events_league_status_idx ON events (league_id, status);
+CREATE INDEX IF NOT EXISTS bet_legs_event_open_idx ON bet_legs (event_id) WHERE result IS NULL;

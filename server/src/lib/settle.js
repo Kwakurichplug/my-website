@@ -84,7 +84,8 @@ export async function cashoutValue(bet, legs) {
   let cur = 1;
   for (const l of legs) {
     if (l.result === 'lost') return null;
-    if (l.result === 'won' || l.result === 'void') { cur *= l.result === 'won' ? 1 : 1 / Number(l.odd); continue; }
+    // a won leg is banked (contributes its full odd); a void leg drops out, so remove its odd from the bet odds
+    if (l.result === 'won' || l.result === 'void') { cur *= l.result === 'won' ? 1 : Number(l.odd); continue; }
     const { rows } = await q('SELECT outcomes, suspended FROM markets WHERE event_id=$1 AND key=$2', [l.eventId ?? l.event_id, l.market ?? l.market_key]);
     const o = rows[0]?.outcomes?.[l.outcome ?? l.outcome_key];
     if (!rows[0] || rows[0].suspended || !o || o.o == null) return null;

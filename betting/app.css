@@ -2168,3 +2168,23 @@ html[data-theme="dark"] .sf-chips button:not(.on){color:#4cd07d;border-color:#2a
 @media (min-width:1024px){
   .day-sep>span:first-child,.league-head .lh-name{flex:1;min-width:0}
 }
+
+/* =========================================================
+   v17 – real flags (flag-icons) and crests: one size system
+   flags 4:3, crests square boxes, same sizes on every page
+   ========================================================= */
+img.flg{display:inline-block;width:18px;height:13.5px;object-fit:cover;border-radius:2px;vertical-align:middle;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.12);background:#e6e9ed}
+svg.flg{width:18px;height:13.5px}
+.lpill .flg,.el-lg .flg,.league-head .flg,.sf-row .flg,.left-rail .flg{width:18px;height:13.5px}
+.cc-opt .f .flg{width:30px;height:22.5px}
+.au-cc .flg{width:24px;height:18px}
+.me-list .cc-flag .flg{width:22px;height:16.5px}
+.crest.logo-img{object-fit:contain;background:none}
+.crest.nation{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.15);background:#e6e9ed}
+.crest.nation img{width:100%;height:100%;object-fit:cover}
+.crest.nation:not(.big){width:16px;height:16px}
+.crest.nation.big{width:44px;height:44px}
+.tile-match .crest.nation.big{width:30px;height:30px}
+.fc-team .crest.nation.big{width:36px;height:36px}
+.crest-fb{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#3a4049;color:#fff;font:700 9px Roboto,sans-serif;width:16px;height:16px}
+.crest-fb.big{width:40px;height:40px;font-size:13px}

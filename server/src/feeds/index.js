@@ -1,13 +1,15 @@
 // Odds feed scheduler. ODDS_PROVIDER picks the adapter:
 //   demo        – generates and simulates matches (no key needed)
-//   apifootball – API-Football (api-sports.io); needs ODDS_API_KEY   [stub until key arrives]
+//   oddsapi     – The Odds API (the-odds-api.com); needs ODDS_API_KEY – real odds + scores
 // Every adapter exposes: sync() -> upserts leagues/events/markets, and
 // tick() -> updates live events; finished events are settled here.
 import { q } from '../db/pool.js';
 import { settleEvent } from '../lib/settle.js';
 import * as demo from './demo.js';
+import * as oddsapi from './oddsapi.js';
 
-const adapters = { demo };
+const adapters = { demo, oddsapi };
+export const feedStatus = async () => { const a = adapters[process.env.ODDS_PROVIDER || 'demo']; return a?.status ? a.status() : { provider: process.env.ODDS_PROVIDER || 'demo' }; };
 
 export function startFeeds() {
   const name = process.env.ODDS_PROVIDER || 'demo';

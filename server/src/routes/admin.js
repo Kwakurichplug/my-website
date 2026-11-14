@@ -7,9 +7,13 @@ import { move } from '../lib/wallet.js';
 import { getSetting, setSetting } from '../lib/settings.js';
 import { settleEvent } from '../lib/settle.js';
 import { sendEmail } from '../emails/index.js';
+import { feedStatus } from '../feeds/index.js';
 
 const r = Router();
 r.use(requireAdmin);
+
+// odds feed health: provider, credits left, today's allowance
+r.get('/feed', async (_req, res, next) => { try { res.json(await feedStatus()); } catch (e) { next(e); } });
 
 r.get('/overview', async (_req, res, next) => {
   try {

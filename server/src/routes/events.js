@@ -23,7 +23,8 @@ async function withMarkets(events, keys) {
 }
 
 r.get('/leagues', async (_req, res, next) => {
-  try { const { rows } = await q('SELECT id, sport, name, country, flag, top FROM leagues ORDER BY top DESC, country, name'); res.json({ leagues: rows }); } catch (e) { next(e); }
+  // only leagues that have something to bet on right now
+  try { const { rows } = await q(`SELECT id, sport, name, country, flag, top FROM leagues l WHERE EXISTS (SELECT 1 FROM events e WHERE e.league_id=l.id AND e.status IN ('scheduled','live')) ORDER BY top DESC, country, name`); res.json({ leagues: rows }); } catch (e) { next(e); }
 });
 
 // GET /events?sport=football&status=scheduled|live&league=3&from=&to=&limit=

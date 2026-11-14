@@ -34,7 +34,7 @@ const ncdf = z => 0.5 * (1 + erf(z / Math.SQRT2));
 // in-memory model params per event (lambda etc.) – demo only
 const model = new Map();
 
-function footballMarkets(m) {
+export function footballMarkets(m) {
   const out = [];
   const add = (key, name, group, cols, list) => out.push({ key, name, group, cols, outcomes: Object.fromEntries(list.filter(x => x[0]).map(([k, l, p]) => [k, { l, o: price(p) }])) });
   const N = 8, rem = m.status === 'live' ? Math.max(0, 90 - m.minute) / 90 : 1;

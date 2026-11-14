@@ -121,7 +121,7 @@
     { sport: 'mma', name: 'Fight Series', country: 'World', flag: '🥋', teams: ['A. Okoro', 'D. Silva', 'R. Kamau', 'L. Petrov'] },
     { sport: 'darts', name: 'Grand Prix', country: 'World', flag: '🎯', teams: ['P. Hartley', 'S. van Dijk', 'O. Bello', 'R. Fischer'] },
   ];
-  const FLAG_OF = { England: 'eng', Spain: 'es', Italy: 'it', Germany: 'de', France: 'fr', Nigeria: 'ng', Ghana: 'gh', 'South Africa': 'za', UEFA: 'eu', Europe: 'eu', USA: 'us' };
+  const FLAG_OF = { England: 'gb-eng', Scotland: 'gb-sct', Spain: 'es', Italy: 'it', Germany: 'de', France: 'fr', Nigeria: 'ng', Ghana: 'gh', 'South Africa': 'za', UEFA: 'eu', Europe: 'eu', USA: 'us' };
   LEAGUES.forEach((l, i) => { l.idx = i; l.full = `${l.country} · ${l.name}`; l.flag = FLAG_OF[l.country] ? LBA.flag(FLAG_OF[l.country]) : LBA.sport(l.sport); });
 
   /* ---------------- Match generation ---------------- */
@@ -439,12 +439,13 @@
       <a class="tile" href="#/jackpot" style="background-image:url(${C.b3})"><b>Jackpot</b></a>
       <a class="tile tile-game" href="#/games"><svg viewBox="0 0 24 24"><path d="M12 3c3 2 4 6 4 9l-4 4-4-4c0-3 1-7 4-9z"/><circle cx="12" cy="10" r="1.5"/><path d="M8 16l-2 4 4-2M16 16l2 4-4-2"/></svg><b>Rocket Crash</b></a>`;
     const lgIdx = (c, n) => LEAGUES.find(l => l.country === c && l.name === n)?.idx;
+    const LG_COL = ['#0a7d3e', '#ffc20e', '#3d1a6e', '#0055a4', '#c8102e'];
+    const busy = LEAGUES.filter(l => l.sport === 'football').map(l => [l, MATCHES.filter(m => m.lg === l.idx && !m.finished).length]).filter(x => x[1]).sort((a, b) => (b[0].top - a[0].top) || b[1] - a[1]).slice(0, 3);
+    void lgIdx;
     $('#catCards').innerHTML = [
       ["TODAY'S FOOTBALL", '#e5163a', 'data-cat="today"'],
       ['FOOTBALL IN NEXT 3 HOURS', '#7d838c', 'data-cat="3h"'],
-      ['NIGERIA NPFL', '#0a7d3e', `href="#/league/${lgIdx('Nigeria', 'NPFL')}"`],
-      ['GHANA PREMIER LEAGUE', '#ffc20e', `href="#/league/${lgIdx('Ghana', 'Premier League')}"`],
-      ['ENGLAND PREMIER LEAGUE', '#3d1a6e', `href="#/league/${lgIdx('England', 'Premier League')}"`],
+      ...busy.map(([l], i) => [`${l.country} ${l.name}`.toUpperCase().replace(/^UEFA /, 'UEFA '), LG_COL[i], `href="#/league/${l.idx}"`]),
     ].map(([t, c, a]) => `<a class="cat" ${a.startsWith('href') ? a : 'href="#" ' + a} style="--c:${c}">${t}</a>`).join('');
     $('#hotTabs').innerHTML = `<button class="active">Matches</button><a href="#/games">Games</a><a href="#/codes">Codes</a><a href="#/virtuals">Virtuals</a><a href="#/jackpot">Jackpot</a>`;
     const hotLgs = LEAGUES.filter(l => l.sport === 'football' && MATCHES.some(m => m.lg === l.idx && !m.live && !m.finished));
@@ -1145,7 +1146,7 @@
     let idx = LEAGUES.findIndex(x => x.sport === sport && x.name === l.name && x.country === l.country);
     if (idx < 0) {
       idx = LEAGUES.length;
-      LEAGUES.push({ sport, name: l.name, country: l.country, idx, full: `${l.country} · ${l.name}`, top: !!l.top, teams: [], flag: FLAG_OF[l.country] ? LBA.flag(FLAG_OF[l.country]) : (l.flag && l.flag !== 'world' ? LBA.flag(l.flag) : LBA.sport(sport)) });
+      LEAGUES.push({ sport, name: l.name, country: l.country, idx, full: `${l.country} · ${l.name}`, top: !!l.top, teams: [], flag: l.flag ? LBA.flag(l.flag) : FLAG_OF[l.country] ? LBA.flag(FLAG_OF[l.country]) : LBA.sport(sport) });
     }
     SERVER_LEAGUES[l.id] = idx; return idx;
   }
@@ -1220,7 +1221,7 @@
     if (!window.API || !API.enabled) return false;
     if (!(await API.ping())) return false;
     LIVE = true; document.documentElement.dataset.live = '1';
-    MATCHES.length = 0; RESULTS.length = 0;
+    MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0;
     await liveUser();
     try { const evs = await API.events.list({ limit: 400 }); evs.forEach(mapEvent); } catch {}
     try { (await API.events.results()).forEach(mapEvent); } catch {}
