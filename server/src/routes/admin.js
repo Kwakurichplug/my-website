@@ -15,6 +15,127 @@ import { creditDeposit } from '../lib/bonus.js';
 const r = Router();
 r.use(requireAdmin);
 
+// every change made from the portal is written to admin_log (who, what, on which record)
+r.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  res.on('finish', () => {
+    if (res.statusCode >= 400) return;
+    const body = { ...(req.body || {}) }; delete body.password;
+    q('INSERT INTO admin_log (admin_id, action, target, meta) VALUES ($1,$2,$3,$4)', [req.user.id, `${req.method} ${req.route ? req.route.path : req.path}`, Object.values(req.params || {}).join('/') || null, body]).catch(() => {});
+  });
+  next();
+});
+r.get('/log', async (_req, res, next) => {
+  try { res.json({ log: (await q(`SELECT l.id, l.action, l.target, l.meta, l.at, u.uid, u.phone, u.full_name FROM admin_log l JOIN users u ON u.id=l.admin_id ORDER BY l.id DESC LIMIT 200`)).rows }); } catch (e) { next(e); }
+});
+
+// 14-day series for the overview charts (per calendar day, UTC)
+r.get('/series', async (req, res, next) => {
+  const days = Math.min(60, Math.max(7, +req.query.days || 14));
+  try {
+    const [pay, bet, usr, game] = await Promise.all([
+      q(`SELECT created_at::date AS d, kind, coalesce(sum(amount),0) AS amt, count(*)::int AS n FROM payments WHERE status='success' AND created_at > now() - ($1 || ' days')::interval GROUP BY 1,2`, [days]),
+      q(`SELECT placed_at::date AS d, coalesce(sum(stake),0) AS staked, coalesce(sum(paid) FILTER (WHERE status IN ('won','cashout')),0) AS paid, count(*)::int AS n FROM bets WHERE placed_at > now() - ($1 || ' days')::interval GROUP BY 1`, [days]),
+      q(`SELECT created_at::date AS d, count(*)::int AS n FROM users WHERE created_at > now() - ($1 || ' days')::interval GROUP BY 1`, [days]),
+      q(`SELECT created_at::date AS d, coalesce(sum(stake),0) AS staked, coalesce(sum(payout),0) AS paid, count(*)::int AS n FROM game_bets WHERE status <> 'void' AND created_at > now() - ($1 || ' days')::interval GROUP BY 1`, [days]),
+    ]);
+    const out = {}; const day = d => { const k = new Date(d).toISOString().slice(0, 10); return out[k] ||= { d: k, deposits: 0, withdrawals: 0, staked: 0, paid: 0, bets: 0, signups: 0, gameStaked: 0, gamePaid: 0, plays: 0 }; };
+    for (let i = days - 1; i >= 0; i--) day(Date.now() - i * 864e5);
+    pay.rows.forEach(x => { const o = day(x.d); if (x.kind === 'deposit') o.deposits += Number(x.amt); else o.withdrawals += Number(x.amt); });
+    bet.rows.forEach(x => { const o = day(x.d); o.staked += Number(x.staked); o.paid += Number(x.paid); o.bets += x.n; });
+    usr.rows.forEach(x => { day(x.d).signups += x.n; });
+    game.rows.forEach(x => { const o = day(x.d); o.gameStaked += Number(x.staked); o.gamePaid += Number(x.paid); o.plays += x.n; });
+    res.json({ days: Object.values(out).sort((a, b) => a.d.localeCompare(b.d)) });
+  } catch (e) { next(e); }
+});
+
+// one player: profile, money, recent activity
+r.get('/users/:id', async (req, res, next) => {
+  try {
+    const u = (await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits, created_at FROM users WHERE id=$1', [req.params.id])).rows[0];
+    if (!u) return res.status(404).json({ error: 'not_found' });
+    const [pay, bets, tx, games, sums] = await Promise.all([
+      q('SELECT id, kind, amount, method, status, details, created_at FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 30', [u.id]),
+      q('SELECT id, type, stake, odds, potential, status, paid, placed_at, settled_at FROM bets WHERE user_id=$1 ORDER BY placed_at DESC LIMIT 30', [u.id]),
+      q('SELECT id, type, amount, balance_after, ref, meta, created_at FROM transactions WHERE user_id=$1 ORDER BY id DESC LIMIT 50', [u.id]),
+      q(`SELECT game, count(*)::int AS plays, coalesce(sum(stake),0) AS staked, coalesce(sum(payout),0) AS paid FROM game_bets WHERE user_id=$1 AND status <> 'void' GROUP BY game ORDER BY staked DESC`, [u.id]),
+      q(`SELECT coalesce(sum(amount) FILTER (WHERE kind='deposit' AND status='success'),0) AS deposited, coalesce(sum(amount) FILTER (WHERE kind='withdrawal' AND status='success'),0) AS withdrawn,
+          (SELECT coalesce(sum(stake),0) FROM bets WHERE user_id=$1) AS staked, (SELECT coalesce(sum(paid),0) FROM bets WHERE user_id=$1 AND status IN ('won','cashout')) AS won FROM payments WHERE user_id=$1`, [u.id]),
+    ]);
+    res.json({ user: u, payments: pay.rows, bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0] });
+  } catch (e) { next(e); }
+});
+
+// a bet with its legs
+r.get('/bets/:id', async (req, res, next) => {
+  try {
+    const b = (await q('SELECT b.*, u.uid, u.phone, u.country FROM bets b JOIN users u ON u.id=b.user_id WHERE b.id=$1', [req.params.id])).rows[0];
+    if (!b) return res.status(404).json({ error: 'not_found' });
+    const legs = (await q('SELECT l.*, e.status AS ev_status, e.score_home, e.score_away, e.kickoff FROM bet_legs l JOIN events e ON e.id=l.event_id WHERE l.bet_id=$1 ORDER BY l.id', [b.id])).rows;
+    res.json({ bet: b, legs });
+  } catch (e) { next(e); }
+});
+
+// events for the trading desk: status filter, search, market counts, open liability
+r.get('/events', async (req, res, next) => {
+  const st = req.query.status || 'open', s = String(req.query.q || '');
+  const where = st === 'open' ? "e.status IN ('scheduled','live')" : st === 'all' ? 'true' : 'e.status=$1';
+  const params = st === 'open' || st === 'all' ? [] : [st];
+  if (s) { params.push('%' + s + '%'); }
+  try {
+    const { rows } = await q(`SELECT e.id, e.sport, e.home, e.away, e.kickoff, e.status, e.minute, e.score_home, e.score_away, e.ht_home, e.ht_away, e.ext_id, l.name AS league, l.country,
+        (SELECT count(*)::int FROM markets k WHERE k.event_id=e.id) AS markets, (SELECT count(*)::int FROM markets k WHERE k.event_id=e.id AND k.suspended) AS suspended,
+        (SELECT count(*)::int FROM bet_legs g WHERE g.event_id=e.id AND g.result IS NULL) AS open_legs,
+        (SELECT coalesce(sum(b.potential),0) FROM bet_legs g JOIN bets b ON b.id=g.bet_id WHERE g.event_id=e.id AND b.status='open') AS liability
+      FROM events e JOIN leagues l ON l.id=e.league_id WHERE ${where} ${s ? `AND (e.home ILIKE $${params.length} OR e.away ILIKE $${params.length} OR l.name ILIKE $${params.length} OR e.id::text ILIKE $${params.length})` : ''}
+      ORDER BY (e.status='live') DESC, e.kickoff ${st === 'finished' || st === 'cancelled' ? 'DESC' : 'ASC'} LIMIT 200`, params);
+    res.json({ events: rows.map(e => ({ ...e, liability: Number(e.liability) })) });
+  } catch (e) { next(e); }
+});
+r.get('/events/:id', async (req, res, next) => {
+  try {
+    const e = (await q('SELECT e.*, l.name AS league, l.country FROM events e JOIN leagues l ON l.id=e.league_id WHERE e.id=$1', [+req.params.id])).rows[0];
+    if (!e) return res.status(404).json({ error: 'not_found' });
+    const markets = (await q('SELECT key, name, grp, cols, outcomes, suspended, updated_at FROM markets WHERE event_id=$1', [e.id])).rows;
+    const legs = (await q(`SELECT l.market_key, l.outcome_key, l.label, count(*)::int AS n, coalesce(sum(b.stake),0) AS staked, coalesce(sum(b.potential),0) AS liability FROM bet_legs l JOIN bets b ON b.id=l.bet_id WHERE l.event_id=$1 AND b.status='open' GROUP BY 1,2,3 ORDER BY liability DESC LIMIT 50`, [e.id])).rows;
+    res.json({ event: e, markets, exposure: legs.map(x => ({ ...x, staked: Number(x.staked), liability: Number(x.liability) })) });
+  } catch (e) { next(e); }
+});
+// suspend / reopen every market of an event in one go
+r.post('/events/:id/suspend', async (req, res, next) => {
+  try { await q('UPDATE markets SET suspended=$2, updated_at=now() WHERE event_id=$1', [+req.params.id, !!(req.body && req.body.suspended)]); res.json({ ok: true }); } catch (e) { next(e); }
+});
+
+// jackpot rounds with ticket totals
+r.get('/jackpot', async (_req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT r.id, r.code, r.closes_at, r.status, r.summary, r.settled_at, array_length(r.event_ids,1) AS games,
+        (SELECT count(*)::int FROM jackpot_tickets t WHERE t.round_id=r.id) AS tickets, (SELECT coalesce(sum(lines),0)::int FROM jackpot_tickets t WHERE t.round_id=r.id) AS lines,
+        (SELECT coalesce(sum(cost),0) FROM jackpot_tickets t WHERE t.round_id=r.id) AS sales, (SELECT coalesce(sum(prize),0) FROM jackpot_tickets t WHERE t.round_id=r.id) AS prizes
+      FROM jackpot_rounds r ORDER BY r.id DESC LIMIT 30`);
+    res.json({ rounds: rows.map(x => ({ ...x, sales: Number(x.sales), prizes: Number(x.prizes) })) });
+  } catch (e) { next(e); }
+});
+// recent game plays (per game or all)
+r.get('/games/plays', async (req, res, next) => {
+  try {
+    const g = req.query.game ? String(req.query.game) : null;
+    const { rows } = await q(`SELECT p.id, p.game, p.round, p.stake, p.mult, p.payout, p.status, p.created_at, u.uid, u.phone FROM game_bets p JOIN users u ON u.id=p.user_id ${g ? 'WHERE p.game=$1' : ''} ORDER BY p.created_at DESC LIMIT 100`, g ? [g] : []);
+    res.json({ plays: rows });
+  } catch (e) { next(e); }
+});
+// ledger across players (type filter, search)
+r.get('/transactions', async (req, res, next) => {
+  const t = req.query.type ? String(req.query.type) : null, s = String(req.query.q || '');
+  const params = []; const where = [];
+  if (t) { params.push(t); where.push(`x.type=$${params.length}`); }
+  if (s) { params.push('%' + s + '%'); where.push(`(u.phone ILIKE $${params.length} OR u.uid::text LIKE $${params.length} OR x.ref ILIKE $${params.length})`); }
+  try {
+    const { rows } = await q(`SELECT x.id, x.type, x.amount, x.balance_after, x.ref, x.meta, x.created_at, u.uid, u.phone, u.country FROM transactions x JOIN users u ON u.id=x.user_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY x.id DESC LIMIT 200`, params);
+    res.json({ transactions: rows });
+  } catch (e) { next(e); }
+});
+
 // odds feed health: provider, credits left, today's allowance
 r.get('/feed', async (_req, res, next) => { try { res.json(await feedStatus()); } catch (e) { next(e); } });
 
@@ -57,13 +178,18 @@ r.post('/jackpot/settle', async (req, res, next) => {
 
 r.get('/overview', async (_req, res, next) => {
   try {
-    const [u, b, p, t] = await Promise.all([
+    const [u, b, p, t, l, g, pp, k] = await Promise.all([
       q(`SELECT count(*)::int AS users, count(*) FILTER (WHERE created_at > now() - interval '1 day')::int AS new_today, coalesce(sum(balance),0) AS liabilities FROM users`),
       q(`SELECT count(*) FILTER (WHERE status='open')::int AS open, coalesce(sum(stake) FILTER (WHERE placed_at > now() - interval '1 day'),0) AS staked_today, coalesce(sum(paid) FILTER (WHERE settled_at > now() - interval '1 day'),0) AS paid_today FROM bets`),
       q(`SELECT count(*) FILTER (WHERE kind='withdrawal' AND status='pending')::int AS pending_withdrawals, coalesce(sum(amount) FILTER (WHERE kind='deposit' AND status='success' AND created_at > now() - interval '1 day'),0) AS deposits_today FROM payments`),
       q(`SELECT count(*) FILTER (WHERE status='live')::int AS live, count(*) FILTER (WHERE status='scheduled')::int AS upcoming FROM events`),
+      q(`SELECT coalesce(sum(potential) FILTER (WHERE status='open'),0) AS open_liability, count(*) FILTER (WHERE placed_at > now() - interval '1 day')::int AS bets_today FROM bets`),
+      q(`SELECT coalesce(sum(stake) FILTER (WHERE created_at > now() - interval '1 day'),0) AS game_staked_today, coalesce(sum(payout) FILTER (WHERE created_at > now() - interval '1 day'),0) AS game_paid_today, count(*) FILTER (WHERE created_at > now() - interval '1 day')::int AS plays_today FROM game_bets WHERE status <> 'void'`),
+      q(`SELECT count(*) FILTER (WHERE kind='deposit' AND status='pending')::int AS pending_deposits, coalesce(sum(amount) FILTER (WHERE kind='withdrawal' AND status='success' AND created_at > now() - interval '1 day'),0) AS withdrawals_today, count(*) FILTER (WHERE created_at > now() - interval '1 day' AND kind='deposit' AND status='success')::int AS deposit_count_today FROM payments`),
+      q(`SELECT count(*)::int AS unverified FROM users WHERE NOT verified AND role='user'`),
     ]);
-    res.json({ ...u.rows[0], ...b.rows[0], ...p.rows[0], ...t.rows[0] });
+    const n = x => Object.fromEntries(Object.entries(x).map(([k, v]) => [k, typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v]));
+    res.json({ ...n(u.rows[0]), ...n(b.rows[0]), ...n(p.rows[0]), ...n(t.rows[0]), ...n(l.rows[0]), ...n(g.rows[0]), ...n(pp.rows[0]), ...n(k.rows[0]) });
   } catch (e) { next(e); }
 });
 
@@ -97,9 +223,12 @@ r.post('/users/:id/adjust', async (req, res, next) => {
 });
 
 r.get('/payments', async (req, res, next) => {
-  const st = req.query.status || 'pending';
+  const st = req.query.status || 'pending', kind = req.query.kind ? String(req.query.kind) : null;
   try {
-    const { rows } = await q(`SELECT p.*, u.phone, u.country, u.uid FROM payments p JOIN users u ON u.id=p.user_id WHERE p.status=$1 ORDER BY p.created_at LIMIT 200`, [st]);
+    const params = [], where = [];
+    if (st !== 'all') { params.push(st); where.push(`p.status=$${params.length}`); }
+    if (kind) { params.push(kind); where.push(`p.kind=$${params.length}`); }
+    const { rows } = await q(`SELECT p.*, u.phone, u.country, u.uid, u.full_name FROM payments p JOIN users u ON u.id=p.user_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${st === 'pending' ? 'p.created_at' : 'p.created_at DESC'} LIMIT 200`, params);
     res.json({ payments: rows });
   } catch (e) { next(e); }
 });
@@ -125,7 +254,10 @@ r.post('/payments/:id/:action', async (req, res, next) => {
 
 r.get('/bets', async (req, res, next) => {
   try {
-    const { rows } = await q(`SELECT b.*, u.phone, u.uid FROM bets b JOIN users u ON u.id=b.user_id ${req.query.status ? 'WHERE b.status=$1' : ''} ORDER BY b.placed_at DESC LIMIT 200`, req.query.status ? [req.query.status] : []);
+    const params = [], where = [];
+    if (req.query.status) { params.push(String(req.query.status)); where.push(`b.status=$${params.length}`); }
+    if (req.query.q) { params.push('%' + req.query.q + '%'); where.push(`(b.id ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR u.uid::text LIKE $${params.length})`); }
+    const { rows } = await q(`SELECT b.*, u.phone, u.uid, u.country, (SELECT count(*)::int FROM bet_legs l WHERE l.bet_id=b.id) AS legs FROM bets b JOIN users u ON u.id=b.user_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY b.placed_at DESC LIMIT 200`, params);
     res.json({ bets: rows });
   } catch (e) { next(e); }
 });

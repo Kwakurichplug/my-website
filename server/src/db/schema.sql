@@ -318,3 +318,14 @@ ALTER TABLE email_log ADD COLUMN IF NOT EXISTS error text;
 
 -- market set v2 (markets.js): the two legacy European handicap rows are replaced by the 'eh' table on open events
 DELETE FROM markets WHERE key IN ('eh-1','eh+1') AND event_id IN (SELECT id FROM events WHERE status IN ('scheduled','live'));
+
+-- admin portal: every change an admin makes
+CREATE TABLE IF NOT EXISTS admin_log (
+  id        bigserial PRIMARY KEY,
+  admin_id  uuid NOT NULL REFERENCES users(id),
+  action    text NOT NULL,
+  target    text,
+  meta      jsonb NOT NULL DEFAULT '{}',
+  at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS admin_log_at ON admin_log (at DESC);

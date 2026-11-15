@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>LetBetAfrika Admin</title>
+  <link rel="icon" href="img/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Kanit:ital,wght@1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <!-- ============ SIGN IN ============ -->
+  <section id="login" class="login" hidden>
+    <div class="login-card">
+      <div class="login-brand"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""><span class="login-tag">Admin</span></div>
+      <h1>Sign in to the back office</h1>
+      <p class="login-sub">Administrator accounts only. Every action you take here is recorded in the audit log.</p>
+      <form id="loginForm" autocomplete="on">
+        <div class="field-row">
+          <label class="field sm"><span>Country</span>
+            <select name="country"><option value="NG">Nigeria</option><option value="GH">Ghana</option></select></label>
+          <label class="field"><span>Phone or email</span><input name="who" required autocomplete="username" placeholder="08012345678 or you@letbetafrika.online"></label>
+        </div>
+        <label class="field"><span>Password</span><input name="password" type="password" required autocomplete="current-password"></label>
+        <p class="form-err" id="loginErr" hidden></p>
+        <button class="btn primary block" type="submit">Sign in</button>
+      </form>
+      <p class="login-foot">Back to <a href="./">the site</a> · Need access? Ask an administrator to grant your account the admin role.</p>
+    </div>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <div id="app" class="app" hidden>
+    <aside class="side" id="side">
+      <a class="side-brand" href="#/overview"><span class="logo-text">LetBet<b>Afrika</b></span><img class="logo-ball" src="img/ball.png" alt=""><span class="side-tag">Admin</span></a>
+      <nav class="side-nav" id="nav">
+        <span class="nav-h">Monitor</span>
+        <a href="#/overview" data-nav="overview"><i class="ic">${ic.home}</i>Overview</a>
+        <a href="#/trading" data-nav="trading"><i class="ic">${ic.trade}</i>Trading desk</a>
+        <a href="#/bets" data-nav="bets"><i class="ic">${ic.ticket}</i>Bets</a>
+        <span class="nav-h">Players &amp; money</span>
+        <a href="#/players" data-nav="players"><i class="ic">${ic.users}</i>Players</a>
+        <a href="#/payments" data-nav="payments"><i class="ic">${ic.card}</i>Payments<b class="nav-badge" id="navPending" hidden></b></a>
+        <a href="#/finance" data-nav="finance"><i class="ic">${ic.ledger}</i>Ledger</a>
+        <span class="nav-h">Products</span>
+        <a href="#/games" data-nav="games"><i class="ic">${ic.game}</i>Games</a>
+        <a href="#/jackpot" data-nav="jackpot"><i class="ic">${ic.trophy}</i>Jackpot</a>
+        <span class="nav-h">Operations</span>
+        <a href="#/settings" data-nav="settings"><i class="ic">${ic.cog}</i>Settings</a>
+        <a href="#/email" data-nav="email"><i class="ic">${ic.mail}</i>Email</a>
+        <a href="#/audit" data-nav="audit"><i class="ic">${ic.shield}</i>Audit log</a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-user"><span class="avatar" id="adminAvatar">A</span><span><b id="adminName">Admin</b><small id="adminSub"></small></span></div>
+        <button class="side-out" id="logoutBtn" title="Sign out">${ic.out}</button>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+      <header class="top">
+        <button class="burger" id="burger" aria-label="Menu"><span></span></button>
+        <h1 id="pageTitle">Overview</h1>
+        <form class="top-search" id="topSearch"><i>${ic.search}</i><input id="topQ" placeholder="Find a player: phone, ID, name or email" autocomplete="off"></form>
+        <div class="top-right">
+          <span class="chip" id="feedChip" title="Odds feed"><i class="dot"></i>feed</span>
+          <span class="chip" id="emailChip" title="Email delivery"><i class="dot"></i>email</span>
+          <a class="chip link" href="./" target="_blank" rel="noopener">Open site ${ic.ext}</a>
+          <button class="icon-btn" id="refreshBtn" title="Refresh">${ic.refresh}</button>
+        </div>
+      </header>
+      <main id="main" class="content"></main>
+    </div>
+  </div>
+
+  <!-- drawer, modal, toasts -->
+  <aside class="drawer" id="drawer" aria-hidden="true"><div class="drawer-card"><button class="x" data-close-drawer aria-label="Close">×</button><div id="drawerBody"></div></div></aside>
+  <div class="modal" id="modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true"><button class="x" data-close-modal aria-label="Close">×</button><div id="modalBody"></div></div></div>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="api.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,601 @@
+/* =========================================================
+   LetBetAfrika – admin portal (back office)
+   Plain JS on top of api.js (window.API). Pages are hash routes;
+   every write goes through /api/admin and lands in the audit log.
+   ========================================================= */
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ---------- icons ---------- */
+  const IC = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
+    trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
+    ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 0 1 6-4.6"/></svg>',
+    card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+    ledger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+    game: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4h-1l-2-2H9l-2 2H6a4 4 0 0 1-4-4v-1a4 4 0 0 1 4-4z"/><path d="M8 11v4M6 13h4M16 12h.01M18 14h.01"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M12 14v3M8 20h8"/></svg>',
+    cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>',
+  };
+  document.body.innerHTML = document.body.innerHTML.replace(/\$\{ic\.(\w+)\}/g, (_, k) => IC[k] || '');
+
+  /* ---------- helpers ---------- */
+  const SYM = { NG: '₦', GH: 'GH₵' };
+  const money = (n, cc = 'NG') => `${SYM[cc] || ''}${Number(n || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const compact = (n, cc) => { n = Number(n || 0); const s = SYM[cc] || ''; const a = Math.abs(n); const f = a >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : a >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : a > 0 && a < 10 && !Number.isInteger(n) ? n.toFixed(2) : n.toLocaleString('en', { maximumFractionDigits: 0 }); return s + f; };
+  const int = n => Number(n || 0).toLocaleString('en');
+  const when = d => { if (!d) return '–'; const x = new Date(d); return x.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+  const ago = d => { if (!d) return ''; const s = (Date.now() - new Date(d)) / 1000; if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago'; return Math.floor(s / 86400) + ' d ago'; };
+  const flag = cc => `<span class="flag"><img src="img/flags/${cc === 'GH' ? 'gh' : 'ng'}.svg" alt="${cc}"></span>`;
+  const phoneFmt = (cc, p) => p ? (cc === 'GH' ? '+233 ' : '+234 ') + p : '–';
+  const pill = (s, map) => { const [cls, label] = (map && map[s]) || ['', s]; return `<span class="pill ${cls}">${esc(label || s)}</span>`; };
+  const P_PAY = { pending: ['warn', 'Pending'], success: ['ok', 'Paid'], failed: ['bad', 'Failed'], rejected: ['bad', 'Rejected'] };
+  const P_BET = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], void: ['warn', 'Void'], cashout: ['gold', 'Cashed out'] };
+  const P_EV = { live: ['live', 'Live'], scheduled: ['info', 'Upcoming'], finished: ['', 'Finished'], cancelled: ['bad', 'Cancelled'] };
+  const P_USER = { active: ['ok', 'Active'], suspended: ['bad', 'Suspended'], self_excluded: ['warn', 'Self-excluded'] };
+  const P_GAME = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], cashed: ['ok', 'Cashed'], void: ['warn', 'Void'] };
+  const ERR = { admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
+  const errMsg = e => ERR[e && e.message] || (e && e.detail) || (e && e.message) || 'Something went wrong';
+  const toast = (msg, kind) => { const t = document.createElement('div'); t.className = 'toast ' + (kind || ''); t.textContent = msg; $('#toasts').appendChild(t); setTimeout(() => t.remove(), 3200); };
+  const initials = u => ((u.full_name || u.fullName || '').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2) || (u.phone || 'A').slice(-2)).toUpperCase();
+
+  const state = { me: null, page: 'overview', arg: null, cache: {}, timer: null, drawer: null };
+
+  /* ---------- auth ---------- */
+  async function boot() {
+    bind();
+    if (!API.enabled) { showLogin('The API is not reachable from this address. Open the portal from the server\'s own domain.'); return; }
+    if (API.token) {
+      try { const u = await API.auth.me(); if (u.role === 'admin') return enter(u); API.auth.logout(); showLogin(ERR.admin_only); return; } catch (e) { if (!e.offline) API.auth.logout(); }
+    }
+    showLogin();
+  }
+  function showLogin(msg) {
+    $('#app').hidden = true; $('#login').hidden = false;
+    const e = $('#loginErr'); e.hidden = !msg; e.textContent = msg || '';
+  }
+  async function enter(u) {
+    state.me = u;
+    $('#login').hidden = true; $('#app').hidden = false;
+    $('#adminName').textContent = u.fullName || u.full_name || 'Administrator';
+    $('#adminSub').textContent = u.email || phoneFmt(u.country, u.phone);
+    $('#adminAvatar').textContent = initials(u);
+    chips(); route();
+    clearInterval(state.timer); state.timer = setInterval(() => { if (!document.hidden) { chips(); if (state.page === 'overview') render(true); } }, 30000);
+  }
+
+  /* ---------- top chips: feed + email health ---------- */
+  async function chips() {
+    try {
+      const f = await API.admin.feed();
+      const c = $('#feedChip'); const demo = (f.provider || 'demo') === 'demo';
+      const left = f.credits && (f.credits.remaining ?? f.credits.left); const used = f.credits && f.credits.used;
+      c.className = 'chip ' + (demo ? 'warn' : f.error ? 'bad' : 'ok');
+      c.innerHTML = `<i class="dot"></i>${demo ? 'Demo odds' : 'Odds: ' + esc(f.provider)}${left != null ? ` · ${int(left)} credits left` : used != null ? ` · ${int(used)} used` : ''}`;
+      c.title = JSON.stringify(f, null, 1).slice(0, 600);
+      state.feed = f;
+    } catch {}
+    try {
+      const m = await API.admin.emailStatus();
+      const c = $('#emailChip'); const console_ = (m.provider || 'console') === 'console';
+      c.className = 'chip ' + (console_ ? 'warn' : m.ready ? 'ok' : 'bad');
+      c.innerHTML = `<i class="dot"></i>${console_ ? 'Email: console' : 'Email: ' + esc(m.provider) + (m.ready ? ' ready' : ' not ready')}`;
+      c.title = m.error || m.server || '';
+      state.email = m;
+    } catch {}
+    try { const o = await API.admin.overview(); const n = (o.pending_withdrawals || 0) + (o.pending_deposits || 0); const b = $('#navPending'); b.hidden = !n; b.textContent = n; state.overview = o; } catch {}
+  }
+
+  /* ---------- router ---------- */
+  const TITLES = { overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log' };
+  function route() {
+    const [page = 'overview', arg = null] = location.hash.replace(/^#\/?/, '').split('/');
+    state.page = TITLES[page] ? page : 'overview'; state.arg = arg ? decodeURIComponent(arg) : null;
+    $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.nav === state.page));
+    $('#pageTitle').textContent = TITLES[state.page];
+    document.body.classList.remove('nav-open');
+    render();
+  }
+  async function render(silent) {
+    const main = $('#main');
+    if (!silent) main.innerHTML = '<div class="loading">Loading…</div>';
+    try { await PAGES[state.page](main, silent); } catch (e) { main.innerHTML = `<div class="card"><div class="empty"><b>Could not load this page</b>${esc(errMsg(e))}</div></div>`; if (e.status === 401 || e.status === 403) { API.auth.logout(); showLogin(errMsg(e)); } }
+  }
+
+  /* =====================================================
+     PAGES
+     ===================================================== */
+  const PAGES = {};
+
+  /* ---------- Overview ---------- */
+  PAGES.overview = async (main, silent) => {
+    const [o, days, pend, live] = await Promise.all([API.admin.overview(), API.admin.series(14), API.admin.paymentsQ('pending'), API.admin.events('open')]);
+    state.overview = o;
+    const cc = state.me.country || 'NG';
+    const today = days[days.length - 1] || {};
+    const ggr = (o.staked_today || 0) - (o.paid_today || 0) + (o.game_staked_today || 0) - (o.game_paid_today || 0);
+    const spark = (key, color) => { const v = days.map(d => d[key]); const mx = Math.max(...v, 1); const pts = v.map((y, i) => `${(i / (v.length - 1)) * 100},${28 - (y / mx) * 24}`).join(' '); return `<div class="spark"><svg viewBox="0 0 100 28" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/></svg></div>`; };
+    const kpi = (k, v, s, cls, sp) => `<div class="card kpi ${cls || ''}"><div class="k">${k}</div><div class="v num">${v}</div>${s ? `<div class="s">${s}</div>` : ''}${sp || ''}</div>`;
+    const lives = live.filter(e => e.status === 'live').slice(0, 8);
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${esc((state.me.fullName || state.me.full_name || 'Admin').split(' ')[0])}</h2><p>Live picture of the book as of ${when(new Date())}. Refreshes every 30 seconds.</p></div>
+        <div class="page-actions"><a class="btn" href="#/payments">Payment queue <b>${int((o.pending_withdrawals || 0) + (o.pending_deposits || 0))}</b></a><a class="btn primary" href="#/trading">Trading desk</a></div></div>
+      <div class="grid g-kpi">
+        ${kpi('Deposits today', compact(o.deposits_today, cc), `<b>${int(o.deposit_count_today)}</b> successful · withdrawals ${compact(o.withdrawals_today, cc)}`, 'good', spark('deposits', 'var(--s1)'))}
+        ${kpi('Sports stakes today', compact(o.staked_today, cc), `<b>${int(o.bets_today)}</b> bets · paid out ${compact(o.paid_today, cc)}`, '', spark('staked', 'var(--s2)'))}
+        ${kpi('Games turnover today', compact(o.game_staked_today, cc), `<b>${int(o.plays_today)}</b> plays · paid ${compact(o.game_paid_today, cc)}`, '', spark('gameStaked', 'var(--s3)'))}
+        ${kpi('Gross gaming revenue', compact(ggr, cc), 'stakes minus payouts, today', ggr < 0 ? 'bad' : 'good')}
+        ${kpi('Open liability', compact(o.open_liability, cc), `<b>${int(o.open)}</b> open bets · potential payout`, 'warn')}
+        ${kpi('Player balances', compact(o.liabilities, cc), `<b>${int(o.users)}</b> players · <b>${int(o.new_today)}</b> joined today`)}
+      </div>
+      <div class="grid g-2 mt">
+        <div class="card">${chartBars({ id: 'c1', title: 'Deposits vs withdrawals', sub: 'last 14 days, successful payments', days, series: [{ key: 'deposits', label: 'Deposits', color: 'var(--s1)' }, { key: 'withdrawals', label: 'Withdrawals', color: 'var(--s2)' }], cc })}</div>
+        <div class="card">
+          <div class="card-h"><h3>Needs attention</h3><a class="lnk" href="#/payments">All payments</a></div>
+          <div class="q-list">
+            ${pend.length ? pend.slice(0, 7).map(p => `<div class="q-item"><div class="who"><b>${p.kind === 'withdrawal' ? 'Withdrawal' : 'Deposit'} · ${esc(p.method)}</b><small>${esc(p.full_name || phoneFmt(p.country, p.phone))} · ID ${p.uid} · ${ago(p.created_at)}</small></div><span class="amt">${money(p.amount, p.country)}</span>
+              <button class="btn xs primary" data-pay="approve" data-id="${p.id}">Approve</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button></div>`).join('')
+              : '<div class="empty"><b>Queue is clear</b>No pending deposits or withdrawals.</div>'}
+            ${o.unverified ? `<div class="q-item"><div class="who"><b>${int(o.unverified)} players not yet verified</b><small>KYC pending – review from the Players page</small></div><a class="btn xs" href="#/players">Open</a></div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="grid g-2 mt">
+        <div class="card">${chartLines({ id: 'c2', title: 'Sports book: stakes and payouts', sub: 'last 14 days', days, series: [{ key: 'staked', label: 'Staked', color: 'var(--s2)' }, { key: 'paid', label: 'Paid out', color: 'var(--s3)' }], cc })}</div>
+        <div class="card">
+          <div class="card-h"><h3>In play now <span class="sub">${int(o.live)} live · ${int(o.upcoming)} upcoming</span></h3><a class="lnk" href="#/trading">Trading desk</a></div>
+          ${lives.length ? lives.map(e => `<div class="live-row click" data-event="${e.id}"><span class="min">${e.minute}'</span><span class="teams">${esc(e.home)} – ${esc(e.away)}<div class="lg">${esc(e.country)} · ${esc(e.league)} · ${int(e.markets - e.suspended)} open markets${e.liability ? ` · exposure ${compact(e.liability, cc)}` : ''}</div></span><span class="sc">${e.score_home}–${e.score_away}</span></div>`).join('') : '<div class="empty">No match is live right now.</div>'}
+        </div>
+      </div>
+      <div class="grid g-2e mt">
+        <div class="card">${chartBars({ id: 'c3', title: 'New players', sub: 'sign-ups per day', days, series: [{ key: 'signups', label: 'Sign-ups', color: 'var(--s1)' }], fmt: int })}</div>
+        <div class="card">${chartLines({ id: 'c4', title: 'Games: turnover and payouts', sub: 'instant games, Rocket Crash, virtuals', days, series: [{ key: 'gameStaked', label: 'Turnover', color: 'var(--s4)' }, { key: 'gamePaid', label: 'Paid out', color: 'var(--s3)' }], cc })}</div>
+      </div>`;
+    bindCharts(main);
+  };
+
+  /* ---------- Players ---------- */
+  PAGES.players = async main => {
+    const q = state.arg || '';
+    const users = await API.admin.users(q);
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Players</h2><p>${q ? `Results for “${esc(q)}”` : 'Most recent 100 accounts. Search by phone, ID, name or email.'}</p></div>
+        <div class="page-actions"><form class="search" id="pq"><i>${IC.search}</i><input placeholder="Search players" value="${esc(q)}"></form></div></div>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Player</th><th>Contact</th><th>Status</th><th>KYC</th><th>Role</th><th class="r">Balance</th><th>Joined</th><th></th></tr></thead><tbody>
+        ${users.map(u => `<tr class="click" data-user="${u.id}"><td><div class="who"><b>${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid}</small></div></td><td><div class="who">${flag(u.country)}${esc(phoneFmt(u.country, u.phone))}<small>${esc(u.email || '')}</small></div></td>
+          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : '<span class="muted">Player</span>'}</td>
+          <td class="r amt">${money(u.balance, u.country)}</td><td class="muted">${when(u.created_at)}</td><td><div class="acts"><button class="btn xs" data-user="${u.id}">Open</button></div></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No players found</b>Try another phone number or ID.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $('#pq').onsubmit = e => { e.preventDefault(); location.hash = '#/players/' + encodeURIComponent($('#pq input').value.trim()); };
+  };
+
+  async function openUser(id) {
+    openDrawer('<div class="loading">Loading player…</div>');
+    const d = await API.admin.user(id);
+    const u = d.user, cc = u.country;
+    const tab = (t) => {
+      if (t === 'bets') return `<table class="mini"><thead><tr><th>Ticket</th><th>Type</th><th class="r">Stake</th><th class="r">Odds</th><th>Status</th><th class="r">Paid</th><th>Placed</th></tr></thead><tbody>${d.bets.map(b => `<tr><td><span class="lnk" data-bet="${esc(b.id)}">${esc(b.id)}</span></td><td>${b.type}</td><td class="r">${money(b.stake, cc)}</td><td class="r">${Number(b.odds).toFixed(2)}</td><td>${pill(b.status, P_BET)}</td><td class="r">${b.paid != null ? money(b.paid, cc) : '–'}</td><td class="muted">${when(b.placed_at)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No bets yet</td></tr>'}</tbody></table>`;
+      if (t === 'pay') return `<table class="mini"><thead><tr><th>Kind</th><th>Method</th><th class="r">Amount</th><th>Status</th><th>When</th><th></th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${p.kind}</td><td>${esc(p.method)}</td><td class="r">${money(p.amount, cc)}</td><td>${pill(p.status, P_PAY)}</td><td class="muted">${when(p.created_at)}</td><td>${p.status === 'pending' ? `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Approve</button> <button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No payments yet</td></tr>'}</tbody></table>`;
+      if (t === 'tx') return `<table class="mini"><thead><tr><th>Type</th><th class="r">Amount</th><th class="r">Balance</th><th>Ref</th><th>When</th></tr></thead><tbody>${d.transactions.map(x => `<tr><td>${esc(x.type)}${x.meta && x.meta.reason ? `<div class="muted small">${esc(x.meta.reason)}</div>` : ''}</td><td class="r amt ${Number(x.amount) >= 0 ? 'in' : 'out'}">${Number(x.amount) >= 0 ? '+' : ''}${money(x.amount, cc)}</td><td class="r">${money(x.balance_after, cc)}</td><td class="id">${esc(x.ref || '')}</td><td class="muted">${when(x.created_at)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No transactions yet</td></tr>'}</tbody></table>`;
+      if (t === 'games') return `<table class="mini"><thead><tr><th>Game</th><th class="r">Plays</th><th class="r">Staked</th><th class="r">Paid</th><th class="r">Hold</th></tr></thead><tbody>${d.games.map(g => `<tr><td>${esc(g.game)}</td><td class="r">${int(g.plays)}</td><td class="r">${money(g.staked, cc)}</td><td class="r">${money(g.paid, cc)}</td><td class="r">${g.staked > 0 ? ((1 - g.paid / g.staked) * 100).toFixed(1) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No game plays yet</td></tr>'}</tbody></table>`;
+    };
+    const lim = u.limits || {};
+    $('#drawerBody').innerHTML = `
+      <div class="d-head"><span class="avatar">${initials(u)}</span><div><h3>${esc(u.full_name || 'No name yet')}</h3><p>ID ${u.uid} · ${flag(cc)}${esc(phoneFmt(cc, u.phone))}${u.email ? ' · ' + esc(u.email) : ''}</p></div></div>
+      <div class="d-actions">${pill(u.status, P_USER)} ${u.verified ? pill('ok', { ok: ['ok', 'KYC verified'] }) : pill('no', { no: ['warn', 'KYC pending'] })} ${u.role === 'admin' ? pill('a', { a: ['gold', 'Administrator'] }) : ''} ${u.status === 'self_excluded' && lim.selfExclude ? pill('x', { x: ['warn', 'Self-excluded until ' + when(lim.selfExclude)] }) : ''}</div>
+      <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
+      <div class="d-actions">
+        <button class="btn sm primary" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
+        ${u.verified ? `<button class="btn sm" data-user-set="${u.id}" data-field="verified" data-value="false">Revoke KYC</button>` : `<button class="btn sm" data-user-set="${u.id}" data-field="verified" data-value="true">Approve KYC</button>`}
+        ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
+        ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
+      </div>
+      <dl class="kv"><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
+      <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
+      <div id="dtab">${tab('bets')}</div>`;
+    $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
+    state.drawer = { type: 'user', id };
+  }
+
+  /* ---------- Payments ---------- */
+  PAGES.payments = async main => {
+    const [status = 'pending', kind = ''] = (state.arg || '').split(':');
+    const rows = await API.admin.paymentsQ(status, kind || undefined);
+    const seg = (cur, items, fn) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" data-f="${fn}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Payments</h2><p>Deposits waiting for confirmation and withdrawals waiting for payout. Approving a withdrawal means you have sent the money; rejecting refunds the player at once.</p></div></div>
+      <div class="card"><div class="toolbar">${seg(status, [['pending', 'Pending'], ['success', 'Paid'], ['rejected', 'Rejected'], ['failed', 'Failed'], ['all', 'All']], 'status')}${seg(kind, [['', 'Both'], ['withdrawal', 'Withdrawals'], ['deposit', 'Deposits']], 'kind')}<span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Requested</th><th>Player</th><th>Kind</th><th>Method</th><th class="wrap">Pay to / reference</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>
+        ${rows.map(p => `<tr><td class="muted">${when(p.created_at)}<div class="small">${ago(p.created_at)}</div></td><td><div class="who"><b class="lnk" data-user="${p.user_id}">${esc(p.full_name || phoneFmt(p.country, p.phone))}</b><small>ID ${p.uid} · ${flag(p.country)}${esc(phoneFmt(p.country, p.phone))}</small></div></td>
+          <td>${p.kind === 'withdrawal' ? pill('w', { w: ['warn', 'Withdrawal'] }) : pill('d', { d: ['info', 'Deposit'] })}</td><td>${esc(p.method)}</td><td class="wrap small">${payDetails(p)}</td><td class="r amt ${p.kind === 'deposit' ? 'in' : 'out'}">${money(p.amount, p.country)}</td><td>${pill(p.status, P_PAY)}</td>
+          <td><div class="acts">${p.status === 'pending' ? `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">${p.kind === 'withdrawal' ? 'Mark paid' : 'Confirm'}</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>` : `<span class="muted small">${p.details && p.details.at ? 'handled ' + ago(p.details.at) : ''}</span>`}</div></td></tr>`).join('') || `<tr><td colspan="8"><div class="empty"><b>Nothing here</b>No ${status === 'all' ? '' : status} payments${kind ? ' of this kind' : ''}.</div></td></tr>`}
+      </tbody></table></div></div>`;
+    $$('#main [data-f]').forEach(b => b.onclick = () => { const s = b.dataset.f === 'status' ? b.dataset.v : status, k = b.dataset.f === 'kind' ? b.dataset.v : kind; location.hash = `#/payments/${s}:${k}`; });
+  };
+  const payDetails = p => { const d = p.details || {}; const parts = []; if (d.bank) parts.push(esc(d.bank)); if (d.account || d.acct) parts.push('<span class="mono">' + esc(d.account || d.acct) + '</span>'); if (d.name) parts.push(esc(d.name)); if (d.phone || d.momo) parts.push(esc(d.phone || d.momo)); if (d.network) parts.push(esc(d.network)); if (p.provider_ref) parts.push('<span class="mono">' + esc(p.provider_ref) + '</span>'); if (d.reason) parts.push('<span class="muted">' + esc(d.reason) + '</span>'); return parts.join(' · ') || '<span class="muted">ID ' + esc(String(p.id).slice(0, 8)) + '</span>'; };
+
+  function payAction(id, action) {
+    const approve = action === 'approve';
+    openModal(`<h3>${approve ? 'Approve this payment?' : 'Reject this payment?'}</h3><p class="sub">${approve ? 'For a withdrawal, confirm only after the transfer has left your account. For a deposit, confirm only once the money has arrived – the player is credited immediately and a receipt email goes out.' : 'The player is told by email. A rejected withdrawal is refunded to the wallet at once.'}</p>
+      <label class="field"><span>${approve ? 'Note (optional)' : 'Reason shown to the player'}</span><input id="mReason" placeholder="${approve ? 'e.g. bank reference' : 'e.g. account name does not match'}" ${approve ? '' : 'required'}></label>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : 'danger solid'}" id="mGo">${approve ? 'Approve' : 'Reject'}</button></div>`);
+    $('#mGo').onclick = async () => {
+      const reason = $('#mReason').value.trim(); if (!approve && !reason) return $('#mReason').focus();
+      try { $('#mGo').disabled = true; await API.admin.payment(id, action, reason || undefined); closeModal(); toast(approve ? 'Payment approved' : 'Payment rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); } catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+
+  /* ---------- Bets ---------- */
+  PAGES.bets = async main => {
+    const [status = '', q = ''] = (state.arg || '').split(':').map(decodeURIComponent);
+    const rows = await API.admin.betsQ(status || undefined, q || undefined);
+    const cc = state.me.country;
+    const tot = rows.reduce((a, b) => { a.stake += Number(b.stake); a.pot += b.status === 'open' ? Number(b.potential) : 0; return a; }, { stake: 0, pot: 0 });
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Bets</h2><p>Sports tickets, newest first. Open a ticket to see its legs; void an open ticket to refund the stake.</p></div>
+        <div class="page-actions"><span class="chip">Shown stake ${compact(tot.stake, cc)}</span><span class="chip warn">Open potential ${compact(tot.pot, cc)}</span></div></div>
+      <div class="card"><div class="toolbar"><div class="seg">${[['', 'All'], ['open', 'Open'], ['won', 'Won'], ['lost', 'Lost'], ['cashout', 'Cashed out'], ['void', 'Void']].map(([v, l]) => `<button class="${v === status ? 'on' : ''}" data-st="${v}">${l}</button>`).join('')}</div>
+        <form class="search" id="bq"><i>${IC.search}</i><input placeholder="Ticket, phone or player ID" value="${esc(q)}"></form><span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Ticket</th><th>Player</th><th>Type</th><th class="r">Stake</th><th class="r">Odds</th><th class="r">Potential</th><th>Status</th><th class="r">Paid</th><th>Placed</th><th></th></tr></thead><tbody>
+        ${rows.map(b => `<tr class="click" data-bet="${esc(b.id)}"><td class="id">${esc(b.id)}</td><td><div class="who"><b>${esc(phoneFmt(b.country, b.phone))}</b><small>ID ${b.uid}</small></div></td><td>${b.type === 'multiple' ? `Multiple · ${b.legs} legs` : 'Single'}${b.boost_pct ? ` <span class="pill gold plain">+${b.boost_pct}%</span>` : ''}</td>
+          <td class="r">${money(b.stake, b.country)}</td><td class="r">${Number(b.odds).toFixed(2)}</td><td class="r">${money(b.potential, b.country)}</td><td>${pill(b.status, P_BET)}</td><td class="r amt ${Number(b.paid) > 0 ? 'in' : ''}">${b.paid != null ? money(b.paid, b.country) : '–'}</td><td class="muted">${when(b.placed_at)}</td>
+          <td><div class="acts">${b.status === 'open' ? `<button class="btn xs danger" data-void="${esc(b.id)}">Void</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="10"><div class="empty"><b>No bets</b>Nothing matches this filter.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $$('#main [data-st]').forEach(x => x.onclick = () => { location.hash = `#/bets/${x.dataset.st}:${encodeURIComponent(q)}`; });
+    $('#bq').onsubmit = e => { e.preventDefault(); location.hash = `#/bets/${status}:${encodeURIComponent($('#bq input').value.trim())}`; };
+  };
+  async function openBet(id) {
+    openDrawer('<div class="loading">Loading ticket…</div>');
+    const { bet: b, legs } = await API.admin.bet(id); const cc = b.country;
+    $('#drawerBody').innerHTML = `
+      <div class="d-head"><div><h3>Ticket ${esc(b.id)}</h3><p>${b.type === 'multiple' ? `Multiple · ${legs.length} legs` : 'Single'}${b.boost_pct ? ` · win boost +${b.boost_pct}%` : ''} · placed ${when(b.placed_at)}</p></div></div>
+      <div class="d-actions">${pill(b.status, P_BET)} <span class="lnk" data-user="${b.user_id}">${esc(phoneFmt(cc, b.phone))} · ID ${b.uid}</span></div>
+      <div class="stat-row"><div class="stat"><small>Stake</small><b>${money(b.stake, cc)}</b></div><div class="stat"><small>Total odds</small><b>${Number(b.odds).toFixed(2)}</b></div><div class="stat"><small>Potential</small><b>${money(b.potential, cc)}</b></div><div class="stat"><small>Paid</small><b>${b.paid != null ? money(b.paid, cc) : '–'}</b></div></div>
+      ${b.status === 'open' ? `<div class="d-actions"><button class="btn sm danger" data-void="${esc(b.id)}">Void ticket and refund stake</button></div>` : ''}
+      <div class="section-t">Selections</div>
+      <table class="mini"><thead><tr><th>Match</th><th>Market · pick</th><th class="r">Odd</th><th>Result</th></tr></thead><tbody>
+        ${legs.map(l => `<tr><td><span class="lnk" data-event="${l.event_id}">${esc(l.match_name)}</span><div class="muted small">${l.ev_status === 'finished' ? `FT ${l.score_home}–${l.score_away}` : l.ev_status === 'live' ? `live ${l.score_home}–${l.score_away}` : when(l.kickoff)}</div></td><td>${esc(l.market_name)}<div class="muted small">${esc(l.label)}</div></td><td class="r">${Number(l.odd).toFixed(2)}</td><td>${l.result ? pill(l.result, { won: ['ok', 'Won'], lost: ['bad', 'Lost'], void: ['warn', 'Void'] }) : '<span class="muted">pending</span>'}</td></tr>`).join('')}
+      </tbody></table>`;
+    state.drawer = { type: 'bet', id };
+  }
+  function voidBet(id) {
+    openModal(`<h3>Void ticket ${esc(id)}?</h3><p class="sub">The full stake goes back to the player's wallet and the ticket is closed as void. This cannot be undone.</p><div class="m-actions"><button class="btn" data-close-modal>Keep it</button><button class="btn danger solid" id="mGo">Void and refund</button></div>`);
+    $('#mGo').onclick = async () => { try { $('#mGo').disabled = true; await API.admin.voidBet(id); closeModal(); toast('Ticket voided and refunded', 'ok'); render(true); if (state.drawer && state.drawer.type === 'bet') openBet(id); } catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; } };
+  }
+
+  /* ---------- Trading desk ---------- */
+  PAGES.trading = async main => {
+    const [status = 'open', q = ''] = (state.arg || '').split(':').map(decodeURIComponent);
+    const rows = await API.admin.events(status, q || undefined);
+    const cc = state.me.country, f = state.feed || {};
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Trading desk</h2><p>Every event on the book with its markets and open exposure. Suspend a market during a key moment, correct a price, or enter a result when the feed cannot.</p></div>
+        <div class="page-actions"><span class="chip ${(f.provider || 'demo') === 'demo' ? 'warn' : 'ok'}"><i class="dot"></i>${(f.provider || 'demo') === 'demo' ? 'Demo odds feed' : 'Feed: ' + esc(f.provider)}</span></div></div>
+      <div class="card"><div class="toolbar"><div class="seg">${[['open', 'Open'], ['live', 'Live'], ['scheduled', 'Upcoming'], ['finished', 'Finished'], ['cancelled', 'Cancelled']].map(([v, l]) => `<button class="${v === status ? 'on' : ''}" data-st="${v}">${l}</button>`).join('')}</div>
+        <form class="search" id="eq"><i>${IC.search}</i><input placeholder="Team, league or event ID" value="${esc(q)}"></form><span class="spacer"></span><span class="muted small">${rows.length} events</span></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Event</th><th>Kick-off</th><th>Status</th><th class="r">Markets</th><th class="r">Exposure</th><th></th></tr></thead><tbody>
+        ${rows.map(e => `<tr class="click" data-event="${e.id}"><td><div class="who"><b>${esc(e.home)} – ${esc(e.away)}</b><small>${esc(e.country)} · ${esc(e.league)} · ID ${e.id}${e.ext_id && !e.ext_id.startsWith('demo:') ? ' · ' + esc(e.ext_id.split(':')[0]) : ''}</small></div></td><td class="muted">${when(e.kickoff)}</td>
+          <td>${e.status === 'live' ? `${pill('live', P_EV)} <b class="num">${e.minute}' ${e.score_home}–${e.score_away}</b>` : e.status === 'finished' ? `${pill(e.status, P_EV)} <span class="num">${e.score_home}–${e.score_away}</span>` : pill(e.status, P_EV)}</td>
+          <td class="r">${int(e.markets)}${e.suspended ? ` <span class="pill bad plain">${e.suspended} off</span>` : ''}</td><td class="r"><span class="amt">${e.liability ? compact(e.liability, cc) : '–'}</span>${e.open_legs ? `<div class="small muted">${int(e.open_legs)} open legs</div>` : ''}</td>
+          <td><div class="acts">${e.status !== 'finished' && e.status !== 'cancelled' ? `<button class="btn xs" data-event="${e.id}">Markets</button><button class="btn xs" data-result="${e.id}">Result</button>` : `<button class="btn xs" data-event="${e.id}">View</button>`}</div></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty"><b>No events</b>Nothing matches this filter.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $$('#main [data-st]').forEach(x => x.onclick = () => { location.hash = `#/trading/${x.dataset.st}:${encodeURIComponent(q)}`; });
+    $('#eq').onsubmit = e => { e.preventDefault(); location.hash = `#/trading/${status}:${encodeURIComponent($('#eq input').value.trim())}`; };
+  };
+  async function openEvent(id) {
+    openDrawer('<div class="loading">Loading event…</div>');
+    const { event: e, markets, exposure } = await API.admin.event(id); const cc = state.me.country;
+    const groups = ['Main', 'Goals', 'Corners', 'Half', 'Combo', 'Bookings'];
+    markets.sort((a, b) => (groups.indexOf(a.grp) - groups.indexOf(b.grp)) || a.name.localeCompare(b.name));
+    const allOff = markets.length && markets.every(m => m.suspended);
+    const maxL = Math.max(...exposure.map(x => x.liability), 1);
+    const open = e.status === 'scheduled' || e.status === 'live';
+    $('#drawerBody').innerHTML = `
+      <div class="d-head"><div><h3>${esc(e.home)} – ${esc(e.away)}</h3><p>${esc(e.country)} · ${esc(e.league)} · ID ${e.id} · ${when(e.kickoff)}</p></div></div>
+      <div class="d-actions">${e.status === 'live' ? `${pill('live', P_EV)} <b class="num">${e.minute}' ${e.score_home}–${e.score_away}</b>` : pill(e.status, P_EV)}${e.ht_home != null ? ` <span class="muted small">HT ${e.ht_home}–${e.ht_away}</span>` : ''}</div>
+      ${open ? `<div class="d-actions"><button class="btn sm ${allOff ? 'primary' : 'danger'}" data-suspend-all="${e.id}" data-v="${allOff ? 'false' : 'true'}">${allOff ? IC.unlock + ' Reopen all markets' : IC.lock + ' Suspend all markets'}</button><button class="btn sm" data-result="${e.id}">Enter result</button><button class="btn sm" data-cancel="${e.id}">Cancel event</button></div>` : ''}
+      ${exposure.length ? `<div class="section-t">Open exposure (${exposure.length} selections)</div><div class="exp">${exposure.slice(0, 10).map(x => `<div class="exp-row"><span>${esc(x.label)} <span class="muted">· ${esc(x.market_key)}</span></span><span class="muted">${x.n} bets</span><span class="bar"><i style="width:${(x.liability / maxL) * 100}%"></i></span><b class="r num">${compact(x.liability, cc)}</b></div>`).join('')}</div>` : '<p class="muted small" style="margin:10px 0">No open bets on this event.</p>'}
+      <div class="section-t">Markets (${markets.length}) <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· tap a price to change it, the lock to suspend</span></div>
+      <div class="mk-grid">${markets.map(m => { const outs = Object.entries(m.outcomes).sort((a, b) => (a[1].i ?? 0) - (b[1].i ?? 0)); return `<div class="mk ${m.suspended ? 'susp' : ''}"><div class="mk-h"><span>${esc(m.name)}</span><span class="grp">${esc(m.grp)}</span><button class="btn xs ${m.suspended ? 'primary' : ''}" data-mk-susp="${esc(m.key)}" data-ev="${e.id}" data-v="${m.suspended ? 'false' : 'true'}">${m.suspended ? 'Reopen' : 'Suspend'}</button></div>
+        <div class="mk-o" style="--c:${Math.min(m.cols || 3, 3)}">${outs.slice(0, 12).map(([k, o]) => `<button data-price="${esc(k)}" data-mk="${esc(m.key)}" data-ev="${e.id}" data-l="${esc(o.l)}" data-o="${o.o ?? ''}" class="${o.o == null ? 'off' : ''}"><span>${esc(o.l)}</span><b>${o.o == null ? '–' : Number(o.o).toFixed(2)}</b></button>`).join('')}${outs.length > 12 ? `<button class="muted" data-mk-more="${esc(m.key)}">+${outs.length - 12} more</button>` : ''}</div></div>`; }).join('')}</div>`;
+    state.drawer = { type: 'event', id };
+  }
+  function priceModal(ev, mk, ok, label, cur) {
+    openModal(`<h3>Set a price</h3><p class="sub">${esc(label)} · market <span class="mono">${esc(mk)}</span> · event ${ev}. The new price applies to new bets only; open bets keep the odds they were placed at.</p>
+      <label class="field"><span>Decimal odds (min 1.01)</span><input id="mPrice" type="number" step="0.01" min="1.01" value="${cur || ''}"></label>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Save price</button></div>`);
+    $('#mPrice').focus();
+    $('#mGo').onclick = async () => { const v = +$('#mPrice').value; if (!(v >= 1.01)) return $('#mPrice').focus(); try { await API.admin.market(ev, mk, { outcome: ok, price: v }); closeModal(); toast('Price updated', 'ok'); openEvent(ev); } catch (e) { toast(errMsg(e), 'err'); } };
+  }
+  function resultModal(ev, cancel) {
+    openModal(cancel ? `<h3>Cancel event ${ev}?</h3><p class="sub">Every open bet on this event is voided and the stakes refunded. Use it for postponed or abandoned matches.</p><div class="m-actions"><button class="btn" data-close-modal>Back</button><button class="btn danger solid" id="mGo">Cancel event and refund</button></div>`
+      : `<h3>Enter the final result</h3><p class="sub">Event ${ev} is marked finished and every bet on it is settled at once. Only do this when the feed has not delivered the result.</p>
+        <div class="field-row"><label class="field"><span>Home goals (FT)</span><input id="rH" type="number" min="0" value="0"></label><label class="field"><span>Away goals (FT)</span><input id="rA" type="number" min="0" value="0"></label></div>
+        <div class="field-row"><label class="field"><span>Home goals (HT)</span><input id="rHH" type="number" min="0" placeholder="optional"></label><label class="field"><span>Away goals (HT)</span><input id="rHA" type="number" min="0" placeholder="optional"></label></div>
+        <p class="help">Half-time goals settle the half markets; leave them blank to void those markets instead.</p>
+        <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Settle event</button></div>`);
+    $('#mGo').onclick = async () => {
+      try {
+        $('#mGo').disabled = true;
+        const body = cancel ? { home: 0, away: 0, cancelled: true } : { home: +$('#rH').value, away: +$('#rA').value, ...($('#rHH').value !== '' ? { htHome: +$('#rHH').value } : {}), ...($('#rHA').value !== '' ? { htAway: +$('#rHA').value } : {}) };
+        const r = await API.admin.result(ev, body); closeModal(); toast(cancel ? 'Event cancelled, bets refunded' : `Settled · ${r.settled || 0} bets closed`, 'ok'); render(true); if (state.drawer && state.drawer.type === 'event') openEvent(ev);
+      } catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+
+  /* ---------- Games ---------- */
+  PAGES.games = async main => {
+    const game = state.arg || '';
+    const [games, plays] = await Promise.all([API.admin.games(), API.admin.plays(game || undefined)]);
+    const cc = state.me.country;
+    const NAMES = { crash: 'Rocket Crash', dice: 'Lucky Dice', spin: 'Spin & Win', penalty: 'Penalty Kick', rush: 'Number Rush', keno: 'Keno', scratch: 'Scratch Cards', hilo: 'Hi-Lo', instant: 'Instant Football' };
+    const tot = games.reduce((a, g) => { a.s += g.staked; a.p += g.paid; a.n += g.plays; return a; }, { s: 0, p: 0, n: 0 });
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Games</h2><p>Instant games and Rocket Crash, last 24 hours. Results are drawn server-side from a cryptographic random source; use the round audit for disputes.</p></div>
+        <div class="page-actions"><button class="btn" id="crashAudit">Audit a crash round</button></div></div>
+      <div class="grid g-kpi"><div class="card kpi"><div class="k">Turnover 24h</div><div class="v num">${compact(tot.s, cc)}</div><div class="s"><b>${int(tot.n)}</b> plays</div></div><div class="card kpi"><div class="k">Paid out 24h</div><div class="v num">${compact(tot.p, cc)}</div></div><div class="card kpi ${tot.s - tot.p < 0 ? 'bad' : 'good'}"><div class="k">House result 24h</div><div class="v num">${compact(tot.s - tot.p, cc)}</div><div class="s">hold ${tot.s ? ((1 - tot.p / tot.s) * 100).toFixed(1) + '%' : '–'}</div></div></div>
+      <div class="grid g-2 mt">
+        <div class="card"><div class="card-h"><h3>Per game <span class="sub">24 hours</span></h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Game</th><th class="r">Plays</th><th class="r">Staked</th><th class="r">Paid</th><th class="r">Hold</th><th></th></tr></thead><tbody>
+          ${games.map(g => `<tr><td><b>${esc(NAMES[g.game] || g.game)}</b></td><td class="r">${int(g.plays)}</td><td class="r">${money(g.staked, cc)}</td><td class="r">${money(g.paid, cc)}</td><td class="r ${g.margin < 0 ? 'amt out' : ''}">${g.margin == null ? '–' : (g.margin * 100).toFixed(1) + '%'}</td><td><div class="acts"><a class="btn xs" href="#/games/${esc(g.game)}">Plays</a></div></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">No plays in the last 24 hours.</div></td></tr>'}
+        </tbody></table></div></div>
+        <div class="card"><div class="card-h"><h3>Recent plays ${game ? `<span class="sub">${esc(NAMES[game] || game)} · <a class="lnk" href="#/games">all games</a></span>` : ''}</h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Game</th><th>Player</th><th class="r">Stake</th><th class="r">Mult</th><th class="r">Payout</th><th>Status</th></tr></thead><tbody>
+          ${plays.slice(0, 60).map(p => `<tr><td class="muted">${when(p.created_at)}</td><td>${esc(NAMES[p.game] || p.game)}${p.round ? ` <span class="muted small">#${p.round}</span>` : ''}</td><td><span class="lnk" data-user-uid="${p.uid}">ID ${p.uid}</span></td><td class="r">${money(p.stake, cc)}</td><td class="r">${p.mult ? Number(p.mult).toFixed(2) + 'x' : '–'}</td><td class="r amt ${Number(p.payout) > 0 ? 'in' : ''}">${money(p.payout, cc)}</td><td>${pill(p.status, P_GAME)}</td></tr>`).join('') || '<tr><td colspan="7"><div class="empty">No plays yet.</div></td></tr>'}
+        </tbody></table></div></div>
+      </div>`;
+    $('#crashAudit').onclick = () => {
+      openModal(`<h3>Rocket Crash round audit</h3><p class="sub">Recomputes the crash point from the round's stored seed and checks it against the published hash.</p><label class="field"><span>Round number</span><input id="mRound" type="number" min="1" placeholder="e.g. 10234"></label><div id="auditOut"></div><div class="m-actions"><button class="btn" data-close-modal>Close</button><button class="btn primary" id="mGo">Verify</button></div>`);
+      $('#mGo').onclick = async () => { try { const r = await API.admin.crashVerify(+$('#mRound').value); $('#auditOut').innerHTML = `<dl class="kv" style="margin:6px 0 12px"><dt>Round</dt><dd>${r.id}</dd><dt>Crash point</dt><dd>${r.point}x</dd><dt>Recomputed</dt><dd>${r.check.point}x</dd><dt>Hash check</dt><dd>${r.check.hashOk ? pill('ok', { ok: ['ok', 'Matches'] }) : pill('bad', { bad: ['bad', 'MISMATCH'] })}</dd><dt>Seed</dt><dd class="mono">${esc(r.seed)}</dd><dt>Hash</dt><dd class="mono">${esc(r.hash)}</dd></dl>`; } catch (e) { $('#auditOut').innerHTML = `<p class="form-err">${esc(e.message === 'not_finished' ? 'That round has not finished (or does not exist).' : errMsg(e))}</p>`; } };
+    };
+  };
+
+  /* ---------- Jackpot ---------- */
+  PAGES.jackpot = async main => {
+    const [rounds, settings] = await Promise.all([API.admin.jackpot(), API.admin.settings()]);
+    const jp = settings.jackpot || {}; const cc = state.me.country;
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Weekly Jackpot</h2><p>Rounds of 12 fixtures. A round closes at its first kick-off and settles itself when all 12 are over; you can force settlement once the games have finished.</p></div>
+        <div class="page-actions"><a class="btn" href="#/settings">Prizes &amp; line price</a><button class="btn primary" id="jpSettle">Settle closed rounds now</button></div></div>
+      <div class="grid g-kpi">${['NG', 'GH'].map(c => jp[c] ? `<div class="card kpi"><div class="k">${flag(c)} Jackpot prize</div><div class="v num">${compact(jp[c].jackpot, c)}</div><div class="s">11 correct ${money(jp[c].t11, c)} · 10 correct ${money(jp[c].t10, c)} · line ${money(jp[c].line, c)}</div></div>` : '').join('')}</div>
+      <div class="card mt"><div class="card-h"><h3>Rounds</h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Round</th><th>Closes</th><th>Status</th><th class="r">Tickets</th><th class="r">Lines</th><th class="r">Sales</th><th class="r">Prizes paid</th><th>Winners</th><th></th></tr></thead><tbody>
+        ${rounds.map(r => { const s = r.summary || {}; const win = Object.entries(s).map(([c, t]) => `${c}: ${t.t12.lines}×12 · ${t.t11.lines}×11 · ${t.t10.lines}×10`).join(' | '); return `<tr><td><b>#${esc(r.code)}</b><div class="muted small">${r.games} games</div></td><td class="muted">${when(r.closes_at)}</td><td>${r.status === 'settled' ? pill('s', { s: ['ok', 'Settled ' + ago(r.settled_at)] }) : new Date(r.closes_at) > Date.now() ? pill('o', { o: ['info', 'Open for tickets'] }) : pill('c', { c: ['warn', 'Closed – awaiting results'] })}</td><td class="r">${int(r.tickets)}</td><td class="r">${int(r.lines)}</td><td class="r">${compact(r.sales, cc)}</td><td class="r amt ${r.prizes > 0 ? 'out' : ''}">${compact(r.prizes, cc)}</td><td class="small muted">${win || '–'}</td><td><div class="acts">${r.status === 'open' && new Date(r.closes_at) <= Date.now() ? `<button class="btn xs" data-jp-settle="${esc(r.code)}">Settle</button>` : ''}</div></td></tr>`; }).join('') || '<tr><td colspan="9"><div class="empty"><b>No rounds yet</b>A round is created when the first ticket is bought.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    const settle = async code => { try { const r = await API.admin.jackpotSettle(code); toast(r.settled.length ? `Settled round ${r.settled.join(', ')}` : 'No round could be settled yet – games still running', r.settled.length ? 'ok' : ''); render(true); } catch (e) { toast(errMsg(e), 'err'); } };
+    $('#jpSettle').onclick = () => settle();
+    $$('#main [data-jp-settle]').forEach(b => b.onclick = () => settle(b.dataset.jpSettle));
+  };
+
+  /* ---------- Ledger ---------- */
+  PAGES.finance = async main => {
+    const [type = '', q = ''] = (state.arg || '').split(':').map(decodeURIComponent);
+    const rows = await API.admin.transactions(type || undefined, q || undefined);
+    const TYPES = ['deposit', 'withdrawal', 'bet', 'win', 'refund', 'cashout', 'bonus', 'adjustment', 'game_bet', 'game_win', 'transfer_in', 'transfer_out', 'jackpot'];
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Ledger</h2><p>Every movement of player money, newest first. Balances are the running total after each entry, so the book always reconciles.</p></div></div>
+      <div class="card"><div class="toolbar"><div class="seg"><button class="${!type ? 'on' : ''}" data-t="">All</button>${TYPES.map(t => `<button class="${t === type ? 'on' : ''}" data-t="${t}">${t.replace('_', ' ')}</button>`).join('')}</div>
+        <form class="search" id="fq"><i>${IC.search}</i><input placeholder="Phone, player ID or reference" value="${esc(q)}"></form><span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Player</th><th>Type</th><th class="wrap">Reference / note</th><th class="r">Amount</th><th class="r">Balance after</th></tr></thead><tbody>
+        ${rows.map(x => `<tr><td class="muted">${when(x.created_at)}</td><td><div class="who"><b>${esc(phoneFmt(x.country, x.phone))}</b><small>ID ${x.uid}</small></div></td><td>${esc(x.type.replace('_', ' '))}</td><td class="wrap small"><span class="id">${esc(x.ref || '')}</span>${x.meta && (x.meta.reason || x.meta.method || x.meta.note) ? `<div class="muted">${esc(x.meta.reason || x.meta.method || x.meta.note)}</div>` : ''}</td><td class="r amt ${Number(x.amount) >= 0 ? 'in' : 'out'}">${Number(x.amount) >= 0 ? '+' : ''}${money(x.amount, x.country)}</td><td class="r">${money(x.balance_after, x.country)}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty"><b>No entries</b>Nothing matches this filter.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $$('#main [data-t]').forEach(b => b.onclick = () => { location.hash = `#/finance/${b.dataset.t}:${encodeURIComponent(q)}`; });
+    $('#fq').onsubmit = e => { e.preventDefault(); location.hash = `#/finance/${type}:${encodeURIComponent($('#fq input').value.trim())}`; };
+  };
+
+  /* ---------- Settings ---------- */
+  PAGES.settings = async main => {
+    const s = await API.admin.settings();
+    const cc2 = (key, title, desc, fields) => { const v = s[key] || {}; return `<div class="card set-card" data-set="${key}"><div class="card-b"><h4>${title}</h4><div class="desc">${desc}</div><div class="set-head"><span></span><span>${flag('NG')}Nigeria</span><span>${flag('GH')}Ghana</span></div>
+      ${fields.map(([f, l]) => `<div class="set-row"><label>${l}</label><input type="number" step="any" data-f="NG.${f}" value="${esc(v.NG ? v.NG[f] : '')}"><input type="number" step="any" data-f="GH.${f}" value="${esc(v.GH ? v.GH[f] : '')}"></div>`).join('')}
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="${key}">Save</button></div></div></div>`; };
+    const flat = (key, title, desc, fields) => { const v = s[key] || {}; return `<div class="card set-card" data-set="${key}"><div class="card-b"><h4>${title}</h4><div class="desc">${desc}</div>
+      ${fields.map(([f, l, step]) => `<div class="set-row one"><label>${l}</label><input type="number" step="${step || 'any'}" data-f="${f}" value="${esc(f === '' ? v : v[f])}"></div>`).join('')}
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="${key}">Save</button></div></div></div>`; };
+    const wb = s.welcome_bonus || {};
+    const boost = Array.isArray(s.boost) ? s.boost : [];
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Settings</h2><p>Live configuration of the book. Changes apply to new bets and new deposits immediately and are written to the audit log.</p></div></div>
+      <div class="set-grid">
+        ${flat('margin', 'Pricing margin', 'The payout ratio used to turn a probability into odds. 0.94 means a 6% theoretical margin on every market; lower it to widen the margin.', [['', 'Margin (0.80 – 0.99)', '0.01']])}
+        ${cc2('min_stake', 'Minimum stake', 'The smallest sports stake a player can place.', [])}
+        ${cc2('max_payout', 'Maximum payout', 'The most one ticket can win. Tickets above it are refused at placement.', [])}
+        ${cc2('games', 'Game stakes', 'Stake limits for instant games and Rocket Crash.', [['min', 'Minimum'], ['max', 'Maximum']])}
+        ${cc2('jackpot', 'Jackpot prizes', 'Prize money and the price of one line.', [['jackpot', '12 correct (shared)'], ['t11', '11 correct (per line)'], ['t10', '10 correct (per line)'], ['line', 'Line price']])}
+        ${cc2('welcome_bonus', 'Welcome bonus', `First-deposit bonus. Released after ${wb.times || 5}× turnover on multiples with every selection at ${wb.min_odds || 1.5}+ within ${wb.days || 14} days.`, [['pct', 'Bonus %'], ['max', 'Maximum bonus']])}
+        <div class="card set-card" data-set="boost"><div class="card-b"><h4>Accumulator win boost</h4><div class="desc">Extra percentage added to winnings by number of selections (each at odds 1.20 or more).</div>
+          <div class="boost-rows" id="boostRows">${boost.map(([n, p]) => `<div class="boost-row"><input type="number" min="2" value="${n}" placeholder="selections"><input type="number" min="0" value="${p}" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>`).join('')}</div>
+          <div class="set-foot"><button class="btn sm" id="boostAdd">Add tier</button><span class="spacer" style="flex:1"></span><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="boost">Save</button></div></div></div>
+        <div class="card set-card" data-set="referral"><div class="card-b"><h4>Refer &amp; Earn</h4><div class="desc">Reward paid to the referrer once the friend has staked the reward amount.</div><div class="set-head"><span></span><span>${flag('NG')}Nigeria</span><span>${flag('GH')}Ghana</span></div>
+          <div class="set-row"><label>Reward</label><input type="number" step="any" data-f="NG" value="${esc((s.referral || {}).NG ?? '')}"><input type="number" step="any" data-f="GH" value="${esc((s.referral || {}).GH ?? '')}"></div>
+          <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="referral">Save</button></div></div></div>
+        <div class="card set-card" data-set="raw"><div class="card-b"><h4>All settings (advanced)</h4><div class="desc">Raw JSON of every key. Edit a value here only when there is no form for it.</div>
+          <select id="rawKey" class="btn" style="margin-bottom:8px">${Object.keys(s).sort().map(k => `<option>${esc(k)}</option>`).join('')}</select>
+          <textarea class="json" id="rawVal"></textarea>
+          <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" id="rawSave">Save key</button></div></div></div>
+      </div>`;
+    // min_stake / max_payout are {NG: n, GH: n} (no sub-field): render their rows by hand
+    const simpleCC = (key, label) => { const card = $(`[data-set="${key}"] .card-b`); const v = s[key] || {}; card.querySelector('.set-head').insertAdjacentHTML('afterend', `<div class="set-row"><label>${label}</label><input type="number" step="any" data-f="NG" value="${esc(v.NG ?? '')}"><input type="number" step="any" data-f="GH" value="${esc(v.GH ?? '')}"></div>`); };
+    simpleCC('min_stake', 'Per bet'); simpleCC('max_payout', 'Per ticket');
+    const rawShow = () => { $('#rawVal').value = JSON.stringify(s[$('#rawKey').value], null, 2); }; rawShow(); $('#rawKey').onchange = rawShow;
+    $('#rawSave').onclick = async () => { try { const v = JSON.parse($('#rawVal').value); await API.admin.setSetting($('#rawKey').value, v); s[$('#rawKey').value] = v; toast('Saved', 'ok'); } catch (e) { toast(e instanceof SyntaxError ? 'That is not valid JSON' : errMsg(e), 'err'); } };
+    $('#boostAdd').onclick = () => $('#boostRows').insertAdjacentHTML('beforeend', '<div class="boost-row"><input type="number" min="2" placeholder="selections"><input type="number" min="0" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>');
+    main.onclick = e => { const rm = e.target.closest('[data-rm-row]'); if (rm) rm.parentElement.remove(); };
+    $$('#main [data-save]').forEach(b => b.onclick = async () => {
+      const key = b.dataset.save, card = b.closest('.set-card'); let value;
+      if (key === 'boost') value = $$('.boost-row', card).map(r => [+r.children[0].value, +r.children[1].value]).filter(x => x[0] >= 2 && x[1] >= 0).sort((a, b2) => a[0] - b2[0]);
+      else if (key === 'margin') value = +card.querySelector('input').value;
+      else { value = JSON.parse(JSON.stringify(s[key] || {})); $$('input[data-f]', card).forEach(i => { const path = i.dataset.f.split('.'); const num = i.value === '' ? null : +i.value; if (path.length === 1) value[path[0]] = num; else { value[path[0]] = value[path[0]] || {}; value[path[0]][path[1]] = num; } }); }
+      if (key === 'margin' && !(value >= 0.8 && value <= 0.99)) return toast('Margin must be between 0.80 and 0.99', 'err');
+      try { b.disabled = true; await API.admin.setSetting(key, value); s[key] = value; const ok = card.querySelector('.saved'); ok.hidden = false; setTimeout(() => ok.hidden = true, 2500); toast('Settings saved', 'ok'); } catch (e) { toast(errMsg(e), 'err'); } finally { b.disabled = false; }
+    });
+  };
+
+  /* ---------- Email ---------- */
+  PAGES.email = async main => {
+    const [st, log] = await Promise.all([API.admin.emailStatus(), API.admin.emailLog()]);
+    const P = { sent: ['ok', 'Sent'], logged: ['', 'Logged only'], failed: ['bad', 'Failed'] };
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Email</h2><p>Transactional email: sign-up codes, receipts, bet confirmations and settlements. Provider settings live in the server environment; this page shows whether delivery works.</p></div>
+        <div class="page-actions"><button class="btn" id="mailCheck">Test connection</button><button class="btn primary" id="mailTest">Send a test email</button></div></div>
+      <div class="card"><div class="card-b mail-status">
+        <div class="stat"><small>Provider</small><b>${esc(st.provider || 'console')}</b></div><div class="stat"><small>Status</small><b>${st.provider === 'console' ? pill('c', { c: ['warn', 'Console – nothing is delivered'] }) : st.ready ? pill('r', { r: ['ok', 'Ready'] }) : pill('n', { n: ['bad', 'Not ready'] })}</b></div><div class="stat"><small>Sender</small><b class="small">${esc(st.from || '–')}</b></div><div class="stat"><small>Server</small><b class="small">${esc(st.server || st.host || '–')}</b></div>${st.error ? `<div class="stat" style="grid-column:1/-1"><small>Last error</small><b class="small" style="color:var(--red)">${esc(st.error)}</b></div>` : ''}
+      </div></div>
+      <div class="card mt"><div class="card-h"><h3>Recent emails <span class="sub">last 100</span></h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Template</th><th class="wrap">Subject</th><th>To</th><th>Status</th><th class="wrap">Error</th></tr></thead><tbody>
+        ${log.map(m => `<tr><td class="muted">${when(m.sent_at)}</td><td>${esc(m.template)}</td><td class="wrap">${esc(m.subject)}</td><td>${m.email ? esc(m.email) : m.uid ? 'ID ' + m.uid : '–'}</td><td>${pill(m.status, P)}</td><td class="wrap small muted">${esc(m.error || '')}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">No emails sent yet.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $('#mailCheck').onclick = async () => { try { const r = await API.admin.emailStatus(true); toast(r.ready ? 'Connection OK' : 'Not ready: ' + (r.error || 'see status'), r.ready ? 'ok' : 'err'); render(true); } catch (e) { toast(errMsg(e), 'err'); } };
+    $('#mailTest').onclick = () => { openModal(`<h3>Send a test email</h3><p class="sub">A sample welcome email goes through the configured provider.</p><label class="field"><span>To</span><input id="mTo" type="email" value="${esc(state.me.email || '')}"></label><div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Send</button></div>`);
+      $('#mGo').onclick = async () => { try { $('#mGo').disabled = true; const r = await API.admin.emailTest($('#mTo').value.trim()); closeModal(); toast(`Sent via ${r.provider} (${r.status})`, 'ok'); render(true); } catch (e) { toast((e.data && e.data.error) || errMsg(e), 'err'); $('#mGo').disabled = false; } }; };
+  };
+
+  /* ---------- Audit log ---------- */
+  PAGES.audit = async main => {
+    const log = await API.admin.log();
+    const describe = l => { const a = l.action, m = l.meta || {}; if (/payments/.test(a)) return `${l.target && l.target.endsWith('approve') ? 'Approved' : 'Rejected'} payment ${esc((l.target || '').split('/')[0].slice(0, 8))}${m.reason ? ' – ' + esc(m.reason) : ''}`; if (/adjust/.test(a)) return `Balance adjustment ${m.amount > 0 ? '+' : ''}${m.amount} (${esc(m.type || 'adjustment')}) – ${esc(m.reason || '')}`; if (/users\/:id$/.test(a)) return `Updated player: ${esc(Object.entries(m).map(([k, v]) => k + '=' + v).join(', '))}`; if (/void/.test(a)) return `Voided ticket ${esc(l.target)}`; if (/markets/.test(a)) return `Market ${esc(l.target)}: ${m.suspended != null ? (m.suspended ? 'suspended' : 'reopened') : ''}${m.outcome ? ` price ${esc(m.outcome)} → ${m.price}` : ''}`; if (/suspend/.test(a)) return `${m.suspended ? 'Suspended' : 'Reopened'} all markets on event ${esc(l.target)}`; if (/result/.test(a)) return m.cancelled ? `Cancelled event ${esc(l.target)}` : `Result entered for event ${esc(l.target)}: ${m.home}–${m.away}${m.htHome != null ? ` (HT ${m.htHome}–${m.htAway})` : ''}`; if (/settings/.test(a)) return `Setting <span class="mono">${esc(l.target)}</span> = <span class="mono">${esc(JSON.stringify(m.value))}</span>`; if (/jackpot/.test(a)) return `Jackpot settlement${m.round ? ' of round ' + esc(m.round) : ''}`; if (/email\/test/.test(a)) return `Test email to ${esc(m.to || '')}`; return esc(a); };
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Audit log</h2><p>Every change made from this portal, by whom and when. Read-only.</p></div></div>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Administrator</th><th class="wrap">Action</th><th>Endpoint</th></tr></thead><tbody>
+        ${log.map(l => `<tr><td class="muted">${when(l.at)}<div class="small">${ago(l.at)}</div></td><td><div class="who"><b>${esc(l.full_name || 'Admin')}</b><small>ID ${l.uid}</small></div></td><td class="wrap">${describe(l)}</td><td class="mono muted">${esc(l.action)}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty"><b>Nothing yet</b>Actions taken in the portal appear here.</div></td></tr>'}
+      </tbody></table></div></div>`;
+  };
+
+  /* =====================================================
+     Charts – inline SVG, one y axis, hover tooltip, table view
+     ===================================================== */
+  const X = 44, R = 10, T = 12, B = 26, W = 640, H = 220;
+  const niceMax = v => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10; return m * p; };
+  const labelSet = n => { const step = n <= 8 ? 1 : Math.ceil(n / 7); const set = new Set(); for (let i = 0; i < n; i += step) set.add(i); const last = Math.max(...set); if (last !== n - 1) { if (n - 1 - last >= step / 2) set.add(n - 1); else { set.delete(last); set.add(n - 1); } } return set; };
+  const dayLbl = d => { const x = new Date(d + 'T00:00:00Z'); return x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); };
+  function frame({ id, title, sub, series, days, kind }) {
+    const legend = `<div class="legend">${series.map(s => `<span><i class="${kind === 'line' ? 'line' : ''}" style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>`;
+    const table = `<div class="viz-table"><table><thead><tr><th>Day</th>${series.map(s => `<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${days.map(d => `<tr><td>${dayLbl(d.d)}</td>${series.map(s => `<td>${(s.fmt || int)(d[s.key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return { legend, table, head: `<div class="viz-top"><div><h3 style="font-size:14px;font-weight:700">${title}</h3><div class="muted small">${sub}</div></div><div style="display:flex;gap:10px;align-items:center">${legend}<button class="btn xs" data-viz-table="${id}">Table</button></div></div>` };
+  }
+  function axes(mx, fmt) {
+    const ticks = [0, .25, .5, .75, 1].map(f => f * mx);
+    const f = mx <= 10 ? v => (fmt === int ? (Number.isInteger(v) ? int(v) : '') : fmt(v)) : fmt;
+    return ticks.map(v => { const y = T + (H - T - B) * (1 - v / mx); const lbl = f(v); return `<line class="grid" x1="${X}" x2="${W - R}" y1="${y}" y2="${y}"/>${lbl === '' ? '' : `<text x="${X - 6}" y="${y + 4}" text-anchor="end">${lbl}</text>`}`; }).join('');
+  }
+  function chartBars(o) {
+    const { days, series, cc } = o; const fmt = o.fmt || (v => compact(v, cc)); series.forEach(s => s.fmt = s.fmt || (v => o.fmt ? o.fmt(v) : money(v, cc)));
+    const mx = niceMax(Math.max(...days.flatMap(d => series.map(s => d[s.key])), 1));
+    const n = days.length, gw = (W - X - R) / n, bw = Math.max(3, (gw - 8) / series.length - 2);
+    const bars = days.map((d, i) => series.map((s, j) => { const v = d[s.key]; const h = Math.max(0, (H - T - B) * (v / mx)); const x = X + i * gw + 4 + j * (bw + 2); const y = H - B - h; const r = Math.min(3, h); return h ? `<path d="M${x} ${H - B}V${y + r}a${r} ${r} 0 0 1 ${r}-${r}h${bw - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}V${H - B}z" fill="${s.color}"/>` : ''; }).join('')).join('');
+    const show = labelSet(n); const xl = days.map((d, i) => show.has(i) ? `<text x="${X + i * gw + gw / 2}" y="${H - 8}" text-anchor="middle">${dayLbl(d.d)}</text>` : '').join('');
+    const hits = days.map((d, i) => `<rect class="hit" data-i="${i}" x="${X + i * gw}" y="${T}" width="${gw}" height="${H - T - B}"/>`).join('');
+    const f = frame({ ...o, kind: 'bar' });
+    return `<div class="viz" id="${o.id}" data-days='${JSON.stringify(days.map(d => ({ d: d.d, ...Object.fromEntries(series.map(s => [s.key, d[s.key]])) })))}' data-series='${JSON.stringify(series.map(s => ({ key: s.key, label: s.label, color: s.color })))}' data-cc="${cc || ''}" data-fmt="${o.fmt ? 'int' : 'money'}">${f.head}<div class="viz-wrap"><svg class="viz-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${axes(mx, fmt)}<line class="axis" x1="${X}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>${bars}${xl}<line class="cross" id="${o.id}-x" y1="${T}" y2="${H - B}"/>${hits}</svg><div class="viz-tip"></div></div>${f.table}</div>`;
+  }
+  function chartLines(o) {
+    const { days, series, cc } = o; const fmt = o.fmt || (v => compact(v, cc)); series.forEach(s => s.fmt = s.fmt || (v => o.fmt ? o.fmt(v) : money(v, cc)));
+    const mx = niceMax(Math.max(...days.flatMap(d => series.map(s => d[s.key])), 1));
+    const n = days.length, px = i => X + (n === 1 ? 0 : (W - X - R) * i / (n - 1)), py = v => H - B - (H - T - B) * (v / mx);
+    const lines = series.map(s => { const pts = days.map((d, i) => `${px(i).toFixed(1)},${py(d[s.key]).toFixed(1)}`); return `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.join(' ')}"/><circle cx="${px(n - 1)}" cy="${py(days[n - 1][s.key])}" r="4" fill="${s.color}" stroke="#fff" stroke-width="2"/>`; }).join('');
+    const show = labelSet(n); const xl = days.map((d, i) => show.has(i) ? `<text x="${px(i)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${dayLbl(d.d)}</text>` : '').join('');
+    const gw = (W - X - R) / Math.max(1, n - 1);
+    const hits = days.map((d, i) => `<rect class="hit" data-i="${i}" x="${px(i) - gw / 2}" y="${T}" width="${gw}" height="${H - T - B}"/>`).join('');
+    const marks = series.map(s => `<circle class="mark" data-s="${s.key}" r="4.5" fill="${s.color}" stroke="#fff" stroke-width="2" opacity="0"/>`).join('');
+    const f = frame({ ...o, kind: 'line' });
+    return `<div class="viz" id="${o.id}" data-days='${JSON.stringify(days.map(d => ({ d: d.d, ...Object.fromEntries(series.map(s => [s.key, d[s.key]])) })))}' data-series='${JSON.stringify(series.map(s => ({ key: s.key, label: s.label, color: s.color })))}' data-cc="${cc || ''}" data-fmt="${o.fmt ? 'int' : 'money'}" data-line="1">${f.head}<div class="viz-wrap"><svg class="viz-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${axes(mx, fmt)}<line class="axis" x1="${X}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>${lines}${xl}<line class="cross" y1="${T}" y2="${H - B}"/>${marks}${hits}</svg><div class="viz-tip"></div></div>${f.table}</div>`;
+  }
+  function bindCharts(root) {
+    $$('.viz', root).forEach(v => {
+      const days = JSON.parse(v.dataset.days), series = JSON.parse(v.dataset.series), cc = v.dataset.cc, isMoney = v.dataset.fmt === 'money';
+      const svg = $('svg', v), tip = $('.viz-tip', v), cross = $('.cross', v), marks = $$('.mark', v);
+      const mx = niceMax(Math.max(...days.flatMap(d => series.map(s => d[s.key])), 1));
+      const n = days.length, px = i => X + (n === 1 ? 0 : (W - X - R) * i / (n - 1)), py = val => H - B - (H - T - B) * (val / mx);
+      svg.addEventListener('mousemove', e => {
+        const hit = e.target.closest('.hit'); if (!hit) return; const i = +hit.dataset.i, d = days[i];
+        const r = svg.getBoundingClientRect(), sx = r.width / W;
+        const cx = v.dataset.line ? px(i) : X + i * ((W - X - R) / n) + ((W - X - R) / n) / 2;
+        cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.style.opacity = 1;
+        marks.forEach(m => { m.setAttribute('cx', cx); m.setAttribute('cy', py(d[m.dataset.s])); m.style.opacity = 1; });
+        tip.innerHTML = `<b>${dayLbl(d.d)}</b>${series.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.label)}</span><span>${isMoney ? money(d[s.key], cc) : int(d[s.key])}</span></div>`).join('')}`;
+        tip.style.opacity = 1; const left = cx * sx; tip.style.left = Math.min(r.width - 170, Math.max(0, left + 12)) + 'px'; tip.style.top = (e.clientY - r.top - 10) + 'px';
+      });
+      svg.addEventListener('mouseleave', () => { tip.style.opacity = 0; cross.style.opacity = 0; marks.forEach(m => m.style.opacity = 0); });
+      $('[data-viz-table]', v).onclick = e => { v.classList.toggle('show-table'); e.target.textContent = v.classList.contains('show-table') ? 'Chart' : 'Table'; };
+    });
+  }
+
+  /* =====================================================
+     Drawer, modal, global events
+     ===================================================== */
+  function openDrawer(html) { $('#drawerBody').innerHTML = html; $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false'); }
+  function closeDrawer() { $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); state.drawer = null; }
+  function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').classList.add('open'); $('#modal').setAttribute('aria-hidden', 'false'); const f = $('#modalBody input, #modalBody select'); if (f) setTimeout(() => f.focus(), 50); }
+  function closeModal() { $('#modal').classList.remove('open'); $('#modal').setAttribute('aria-hidden', 'true'); }
+
+  function adjustModal(id, cc) {
+    openModal(`<h3>Adjust balance</h3><p class="sub">A signed amount moves through the ledger with your name on it. Use a negative amount to take money off the wallet (never below zero).</p>
+      <div class="field-row"><label class="field"><span>Amount (${SYM[cc] || ''})</span><input id="mAmt" type="number" step="0.01" placeholder="e.g. 5000 or -1500"></label><label class="field sm" style="flex-basis:150px"><span>Type</span><select id="mType"><option value="adjustment">Adjustment</option><option value="bonus">Bonus</option></select></label></div>
+      <label class="field"><span>Reason (required, shown in the ledger)</span><input id="mWhy" placeholder="e.g. manual deposit confirmation, bank ref 12345"></label>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Apply</button></div>`);
+    $('#mGo').onclick = async () => {
+      const amount = +$('#mAmt').value, reason = $('#mWhy').value.trim(); if (!amount) return $('#mAmt').focus(); if (reason.length < 3) return $('#mWhy').focus();
+      try { $('#mGo').disabled = true; const r = await API.admin.adjust(id, { amount, reason, type: $('#mType').value }); closeModal(); toast(`Done – new balance ${money(r.balance, cc)}`, 'ok'); openUser(id); render(true); } catch (e) { toast(e.message === 'insufficient_funds' || /balance/.test(e.message) ? 'The wallet cannot go below zero' : errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+  function userSet(id, field, value) {
+    const v = value === 'true' ? true : value === 'false' ? false : value;
+    const needReason = field === 'verified' && v === false;
+    const titles = { verified: v ? 'Approve this player\'s identity?' : 'Revoke verification?', status: v === 'suspended' ? 'Suspend this player?' : 'Reactivate this player?', role: v === 'admin' ? 'Make this player an administrator?' : 'Remove administrator access?' };
+    const subs = { verified: v ? 'The player is told by email and can withdraw without further checks.' : 'The player is told by email and asked to verify again.', status: v === 'suspended' ? 'The player cannot sign in, bet or withdraw until reactivated.' : 'The player can sign in and play again.', role: v === 'admin' ? 'They get full access to this portal, including money and settings. Only do this for staff you trust.' : 'They keep their player account but lose access to this portal.' };
+    openModal(`<h3>${titles[field]}</h3><p class="sub">${subs[field]}</p>${needReason ? '<label class="field"><span>Reason shown to the player</span><input id="mReason" placeholder="e.g. document not readable"></label>' : ''}<div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${v === 'suspended' || v === false ? 'danger solid' : 'primary'}" id="mGo">Confirm</button></div>`);
+    $('#mGo').onclick = async () => { try { $('#mGo').disabled = true; await API.admin.updateUser(id, { [field]: v, ...(needReason ? { reason: $('#mReason').value.trim() } : {}) }); closeModal(); toast('Player updated', 'ok'); openUser(id); render(true); } catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; } };
+  }
+
+  function bind() {
+    window.addEventListener('hashchange', route);
+    $('#loginForm').onsubmit = async e => {
+      e.preventDefault(); const f = e.target, who = f.who.value.trim(), btn = f.querySelector('button'); btn.disabled = true; $('#loginErr').hidden = true;
+      try {
+        const u = await API.auth.login(f.country.value, /@/.test(who) ? { email: who } : who.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, ''), f.password.value);
+        if (u.role !== 'admin') { API.auth.logout(); throw new Error('admin_only'); }
+        enter(u);
+      } catch (err) { $('#loginErr').textContent = errMsg(err); $('#loginErr').hidden = false; } finally { btn.disabled = false; }
+    };
+    $('#logoutBtn').onclick = () => { API.auth.logout(); clearInterval(state.timer); location.hash = ''; showLogin(); };
+    $('#refreshBtn').onclick = () => { chips(); render(); };
+    $('#burger').onclick = () => document.body.classList.toggle('nav-open');
+    $('#scrim').onclick = () => document.body.classList.remove('nav-open');
+    $('#topSearch').onsubmit = e => { e.preventDefault(); const q = $('#topQ').value.trim(); if (q) { location.hash = '#/players/' + encodeURIComponent(q); $('#topQ').value = ''; } };
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('#modal').classList.contains('open')) closeModal(); else closeDrawer(); } });
+    document.addEventListener('click', e => {
+      const t = e.target;
+      if (t.closest('[data-close-modal]')) return closeModal();
+      if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
+      const b = t.closest('[data-pay],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      if (!b) return;
+      if (t.closest('a[href]') && !b.dataset.user) return;
+      e.preventDefault(); e.stopPropagation();
+      const d = b.dataset;
+      if (d.pay) return payAction(d.id, d.pay);
+      if (d.user) return openUser(d.user);
+      if (d.userUid) { location.hash = '#/players/' + d.userUid; return; }
+      if (d.bet) return openBet(d.bet).catch(err => toast(errMsg(err), 'err'));
+      if (d.event) return openEvent(d.event).catch(err => toast(errMsg(err), 'err'));
+      if (d.void) return voidBet(d.void);
+      if (d.adjust) return adjustModal(d.adjust, d.cc);
+      if (d.userSet) return userSet(d.userSet, d.field, d.value);
+      if (d.result) return resultModal(d.result, false);
+      if (d.cancel) return resultModal(d.cancel, true);
+      if (d.suspendAll) { API.admin.suspendEvent(d.suspendAll, d.v === 'true').then(() => { toast(d.v === 'true' ? 'All markets suspended' : 'All markets reopened', 'ok'); openEvent(d.suspendAll); render(true); }).catch(err => toast(errMsg(err), 'err')); return; }
+      if (d.mkSusp) { API.admin.market(d.ev, d.mkSusp, { suspended: d.v === 'true' }).then(() => { toast(d.v === 'true' ? 'Market suspended' : 'Market reopened', 'ok'); openEvent(d.ev); }).catch(err => toast(errMsg(err), 'err')); return; }
+      if (d.price) return priceModal(d.ev, d.mk, d.price, d.l, d.o);
+    });
+  }
+
+  boot();
+})();

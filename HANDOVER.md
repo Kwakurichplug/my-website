@@ -211,7 +211,7 @@ The site is wired end to end. The owner's next steps are **SMTP → payments →
      (send the payout through the provider's transfer API there) or rejects (refunds automatically).
    - Once a provider is live set `PAYMENTS_MODE` to it on production; keep `PAYMENTS_MODE=demo` only on a staging
      environment (demo credits deposits instantly).
-3. **Admin portal** – the API exists (`server/src/routes/admin.js`, every route needs `role=admin`):
+3. **Admin portal – DONE: `/admin.html`** (`betting/admin.html`, `admin.css`, `admin.js`; guide in `docs/ADMIN.md`). Overview with KPIs and 14-day charts, trading desk (suspend / price / result / cancel), bets, players (KYC, suspend, balance adjustment, roles), payments queue, ledger, games (crash audit), jackpot, settings forms, email status, audit log (`admin_log`). First admin: `cd server && node scripts/make-admin.js <phone-or-email>`. The API behind it (`server/src/routes/admin.js`, every route needs `role=admin`):
    `GET /overview` (KPIs), `GET /users`, `PATCH /users/:id` (status, KYC, role), `POST /users/:id/adjust` (manual
    balance correction through the ledger), `GET /payments?status=pending`, `POST /payments/:id/approve|reject`,
    `GET /bets`, `POST /bets/:id/void`, `POST /markets/:eventId/:key` (suspend/reopen), `POST /events/:id/result`
