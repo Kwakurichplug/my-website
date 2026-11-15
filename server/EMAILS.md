@@ -30,7 +30,7 @@ Subject lines lead with the fact ("Deposit received: ₦5,000.00"). Preheaders a
 
 ---
 
-## The emails (21)
+## The emails (22)
 
 | # | Template | Trigger | Subject | Key content |
 |---|---|---|---|---|
@@ -42,19 +42,20 @@ Subject lines lead with the fact ("Deposit received: ₦5,000.00"). Preheaders a
 | 6 | `kycVerified` | Admin verifies | Your account is verified | Progress complete; withdrawals open; **Go to my wallet** |
 | 7 | `kycRejected` | Admin rejects | We could not verify your documents | Reason in red callout; **Resubmit documents** |
 | 8 | `depositSuccess` | Deposit credited | Deposit received: ₦5,000.00 | Green hero amount + new balance; receipt card (method, reference, date, status); **Start betting** |
-| 9 | `depositFailed` | Provider declines | Your deposit did not go through | Reason; "no money was taken"; **Try again** |
-| 10 | `withdrawalRequested` | Withdrawal placed | Withdrawal request received: GH₵350.00 | Hero amount "to MTN MoMo"; progress step 2; reference, expected time |
-| 11 | `withdrawalPaid` | Admin approves | Paid: GH₵350.00 sent to you | Green hero; progress complete; receipt card; "keep as proof" |
-| 12 | `withdrawalRejected` | Admin rejects | Withdrawal returned to your balance | Reason; returned amount, balance now; **Update payout details** |
-| 13 | `betPlaced` | Bet accepted | Bet placed: ticket T7F3A9C2 | Potential win hero; selections list; ticket, type, time; **Follow my bet** |
-| 14 | `betWon` | Settled as won | You won ₦6,914.50! | Green winnings hero + balance; selections with WON tags; **Withdraw winnings** + gold **Place another bet** |
-| 15 | `betSettled` | Settled lost / void | Ticket T7F3A9C2 settled | Selections with WON/LOST tags; result row; responsible-gambling line |
-| 16 | `cashout` | Cashout taken | Cashed out: ₦2,410.00 | Green hero; original stake vs potential; **View bet history** |
-| 17 | `jackpotTicket` | Jackpot entry | Jackpot ticket J4K8M2 confirmed | 12 picks table; draw time; prize pool |
-| 18 | `bonusCredited` | Bonus added | Bonus added: ₦10,000.00 | Green hero; T&Cs callout; gold **Use my bonus** |
-| 19 | `limitsUpdated` | Limits saved | Your limits were updated | Deposit limit, reminder; "lower limits apply immediately" |
-| 20 | `selfExclusion` | Break requested | Your break has started | Pause date; helpline callout; cannot be reversed early |
-| 21 | `weeklySummary` | Monday 08:00 (scheduled) | Your week at LetBetAfrika | Bets, staked, won, deposits, withdrawals, balance |
+| 9 | `depositReceived` | Player taps "I have sent it" (manual bank / MoMo transfer) | We are checking your deposit of ₦5,000.00 | Amount; their reference (LB + account ID) in bold; request ID, date, status "Being checked"; reminder to put the reference in the narration |
+| 10 | `depositFailed` | Provider declines, or an admin rejects a manual transfer | Your deposit did not go through / We could not confirm your deposit | Reason; card/API: "no money was taken"; manual: "reply with your transfer receipt"; **Try again** |
+| 11 | `withdrawalRequested` | Withdrawal placed | Withdrawal request received: GH₵350.00 | Hero amount "to MTN MoMo"; progress step 2; reference, expected time |
+| 12 | `withdrawalPaid` | Admin approves | Paid: GH₵350.00 sent to you | Green hero; progress complete; receipt card; "keep as proof" |
+| 13 | `withdrawalRejected` | Admin rejects | Withdrawal returned to your balance | Reason; returned amount, balance now; **Update payout details** |
+| 14 | `betPlaced` | Bet accepted | Bet placed: ticket T7F3A9C2 | Potential win hero; selections list; ticket, type, time; **Follow my bet** |
+| 15 | `betWon` | Settled as won | You won ₦6,914.50! | Green winnings hero + balance; selections with WON tags; **Withdraw winnings** + gold **Place another bet** |
+| 16 | `betSettled` | Settled lost / void | Ticket T7F3A9C2 settled | Selections with WON/LOST tags; result row; responsible-gambling line |
+| 17 | `cashout` | Cashout taken | Cashed out: ₦2,410.00 | Green hero; original stake vs potential; **View bet history** |
+| 18 | `jackpotTicket` | Jackpot entry | Jackpot ticket J4K8M2 confirmed | 12 picks table; draw time; prize pool |
+| 19 | `bonusCredited` | Bonus added | Bonus added: ₦10,000.00 | Green hero; T&Cs callout; gold **Use my bonus** |
+| 20 | `limitsUpdated` | Limits saved | Your limits were updated | Deposit limit, reminder; "lower limits apply immediately" |
+| 21 | `selfExclusion` | Break requested | Your break has started | Pause date; helpline callout; cannot be reversed early |
+| 22 | `weeklySummary` | Monday 08:00 (scheduled) | Your week at LetBetAfrika | Bets, staked, won, deposits, withdrawals, balance |
 
 Admin-side notifications (large withdrawal pending, KYC queue, settlement failures)
 go to Slack/email for staff and are not part of this customer set.
@@ -66,7 +67,8 @@ go to Slack/email for staff and are not part of this customer set.
 | Template | File |
 |---|---|
 | welcome, passwordChanged, kycSubmitted, limitsUpdated, selfExclusion | `routes/auth.js` |
-| depositSuccess (demo mode), withdrawalRequested | `routes/wallet.js` |
+| depositSuccess (demo mode), depositReceived (manual transfer sent), withdrawalRequested | `routes/wallet.js` |
+| depositSuccess/Failed, withdrawalPaid/Rejected through the payment API (Paystack webhook or status check) | `payments/flows.js` |
 | betPlaced, cashout | `routes/bets.js` |
 | betWon, betSettled | `lib/settle.js` |
 | depositSuccess/Failed, withdrawalPaid/Rejected, kycVerified/Rejected | `routes/admin.js` (approve / reject / verify) |

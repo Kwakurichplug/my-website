@@ -23,7 +23,7 @@ const log = (...a) => console.log('•', ...a);
     await p.waitForFunction(() => /Test code: \d{6}/.test(document.querySelector('#toast').textContent));
     const code = (await p.textContent('#toast')).match(/(\d{6})/)[1];
     await p.waitForSelector('#otpBoxes'); await p.fill('#otpBoxes input >> nth=0', code); await p.waitForSelector('.au-done', { timeout: 8000 });
-    await go('deposit/opay'); await p.fill('#wlAmt', '20000'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 8000 });
+    await go('deposit/transfer'); await p.fill('#wlAmt', '20000'); await p.fill('input[name=sender]', 'Test Player'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 8000 });
   } else {
     await go('login'); await p.fill('#loginForm [name=phone]', '0' + phone); await p.fill('#loginForm [name=pw]', 'x'); await p.click('#loginBtn'); await p.waitForTimeout(1200);
   }
@@ -58,17 +58,18 @@ const log = (...a) => console.log('•', ...a);
   expect((await p.$$('#page-list .ev')).length > 0, 'filtered list has matches');
   await p.selectOption('[data-pg=elsort]', 'league'); await p.waitForTimeout(300);
   expect((await p.$$('#page-list .el-lg')).length >= 1, 'sort by league groups the list');
-  await p.click('#page-list [data-pg=eltab][data-v=out]'); await p.waitForTimeout(300);
-  if (LIVE) expect(/No outright markets/.test(await p.textContent('#page-list')), 'live: no invented outright prices (honest empty state until a season feed exists)');
-  else expect((await p.$$('#page-list .out-row')).length > 3, 'outrights tab lists winner prices');
+  if (LIVE) expect(!(await p.$('#page-list [data-pg=eltab][data-v=out]')), 'live: no Outrights tab (no feed has outright markets – no empty dead end, no invented prices)');
+  else { await p.click('#page-list [data-pg=eltab][data-v=out]'); await p.waitForTimeout(300); expect((await p.$$('#page-list .out-row')).length > 3, 'outrights tab lists winner prices'); }
 
   log('League page + add a bet');
   // a real league with a fixture well before kick-off (index 0 is the Virtual League in live mode – it has its own screen)
-  const lgIdx = await p.evaluate(() => { const m = window.LBA_APP.MATCHES.find(m => !m.virtual && !m.live && !m.finished && m.kick > Date.now() + 6e5 && m.sport === 'football'); return m ? m.lg : 0; });
-  await go('league/' + lgIdx);
-  const odd = await p.$('#page-league .ev .odd[data-mid]');
+  // bet on that fixture itself: the first row of a league can be a match in play whose market is briefly suspended
+  const pick = await p.evaluate(() => { const m = window.LBA_APP.MATCHES.find(m => !m.virtual && !m.live && !m.finished && m.kick > Date.now() + 6e5 && m.sport === 'football'); return m ? { lg: m.lg, id: m.id } : { lg: 0, id: '' }; });
+  await go('league/' + pick.lg);
+  const oddSel = pick.id ? `#page-league .ev .odd[data-mid="${pick.id}"]` : '#page-league .ev .odd[data-mid]';
+  const odd = await p.$(oddSel);
   await odd.click(); await p.waitForTimeout(300);
-  expect(await p.$eval('#page-league .ev .odd[data-mid]', e => e.classList.contains('sel')), 'odds button selects into the betslip');
+  expect(await p.$eval(oddSel, e => e.classList.contains('sel')), 'odds button selects into the betslip');
   await p.evaluate(() => document.querySelector('#slipPill')?.click()); await p.waitForTimeout(500);
   await p.fill('#bsStake', '500'); await p.click('#bsPlace'); await p.waitForTimeout(2500);
   await go('acct/bets', 1500);

@@ -49,39 +49,31 @@ async function otpFromToast(p) {
   expect(await p.isVisible('.au-done'), 'correct code creates the account');
   await shot(p, '04-register-done');
 
-  // ---------- Deposit: card ----------
-  log('Deposit card');
+  // ---------- Deposit: bank transfer (the only Nigerian way to pay until a payment partner is connected) ----------
+  log('Deposit bank transfer');
   await p.click('.au-done a[href="#/deposit"]'); await p.waitForTimeout(500);
   expect(p.url().includes('#/deposit'), 'Deposit Now opens deposit page');
   expect(await p.isVisible('.wx-bonus'), 'first-deposit welcome bonus banner shown');
-  await shot(p, '05-deposit-card');
+  expect(!(await p.$('[data-method="card"],[data-method="ussd"],[data-method="opay"],[data-method="palmpay"]')), 'no card / USSD / wallet methods (nothing that cannot complete)');
+  expect(await p.isVisible('.wx-payto') && /Your reference/.test(await p.textContent('.wx-payto')), 'the account to pay into and the player reference are shown');
+  await shot(p, '05-deposit-transfer');
   await p.click('[data-set="1000"]');
   expect(await p.inputValue('#wlAmt') === '1000', 'quick amount chip sets the amount (1000)');
   expect((await p.textContent('#wlHint')).includes('welcome bonus'), 'first-deposit bonus hint shown');
-  expect((await p.textContent('#depBtn')).includes('Deposit ₦1,000.00'), 'button shows the amount');
-  expect(!(await p.$('#page-deposit [name=num]')), 'no card number fields on our page (the payment partner takes them)');
+  await p.fill('[name=sender]', ''); await p.waitForTimeout(100);
+  expect((await p.textContent('#depBtn')).includes('sender') && await p.isDisabled('#depBtn'), 'asks for the sender name first');
+  await p.fill('[name=sender]', 'Chinedu Okafor'); await p.waitForTimeout(100);
+  expect((await p.textContent('#depBtn')).includes('I have sent ₦1,000.00'), 'button: I have sent ₦1,000.00');
   await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 }); await shot(p, '07-deposit-success');
-  expect((await p.textContent('.wl-res')).includes('Deposit successful'), 'card deposit succeeds');
+  expect((await p.textContent('.wl-res')).includes('Deposit successful'), 'demo deposit is credited');
   expect((await p.textContent('.wl-res')).includes('Welcome bonus'), 'welcome bonus shown on the first deposit');
   await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300);
   expect((await p.textContent('#wxRecent')).includes('+₦1,000.00'), 'recent deposits list shows it');
   expect(!(await p.isVisible('.wx-bonus')), 'bonus banner gone after the first deposit');
-
-  // ---------- other NG methods ----------
-  for (const t of ['transfer', 'ussd', 'opay', 'palmpay']) { await p.click(`[data-method="${t}"]`); await p.waitForTimeout(400); await shot(p, `08-deposit-${t}`); }
   expect(!(await p.evaluate(() => /TEST|SOON|Simulate|pretend|LetBet Wallet/.test(document.querySelector('#page-deposit').textContent))), 'no test or placeholder wording on the deposit page');
-  log('Deposit USSD');
-  await p.click('[data-method="ussd"]'); await p.waitForTimeout(300);
-  await p.fill('#wlAmt', '2000'); await p.waitForTimeout(100);
-  expect((await p.textContent('#depBtn')).includes('Select your bank') && await p.isDisabled('#depBtn'), 'USSD asks for the bank first');
-  await p.selectOption('[name=bank]', 'GTBank'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 });
-  await p.click('.wl-res [data-close-sheet]');
-  log('Deposit OPay');
-  await p.click('[data-method="opay"]'); await p.waitForTimeout(300);
   await p.fill('#wlAmt', '50'); await p.waitForTimeout(100);
   expect(await p.isDisabled('#depBtn') && (await p.textContent('#wlHint')).includes('Minimum'), 'below minimum blocked');
-  await p.fill('#wlAmt', '3000'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 });
-  await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300);
+  for (const v of ['2000', '3000']) { await p.fill('#wlAmt', v); await p.waitForTimeout(100); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 6000 }); await p.click('.wl-res [data-close-sheet]'); await p.waitForTimeout(300); }
   expect((await p.textContent('.wx-hero-amt')).includes('6,000.00'), 'balance card shows 1,000 + 2,000 + 3,000');
 
   // ---------- Withdraw (NG) ----------
@@ -155,9 +147,9 @@ async function otpFromToast(p) {
   await shot(p, '19-gh-momo-done');
   expect((await p.textContent('.wl-res')).includes('Mobile Money'), 'mobile money deposit succeeds');
   await p.click('.wl-res [data-close-sheet]');
-  await p.click('[data-method="card"]'); await p.waitForTimeout(300); await shot(p, '20-gh-deposit-card');
-  await p.goto(URL + '#/withdraw/bank'); await p.waitForTimeout(400); await shot(p, '21-gh-withdraw-bank');
-  expect(await p.isVisible('#addBank'), 'Ghana players can withdraw to a bank account');
+  expect(!(await p.$('[data-method="card"]')), 'Ghana: Mobile Money only (no card until a partner is connected)');
+  await p.goto(URL + '#/withdraw/bank'); await p.waitForTimeout(400); await shot(p, '21-gh-withdraw');
+  expect(!(await p.$('[data-method="bank"]')) && await p.isVisible('[data-method="momo"]'), 'Ghana players withdraw to Mobile Money');
   await p.goto(URL + '#/withdraw/momo'); await p.waitForTimeout(400); await shot(p, '22-gh-withdraw-momo');
 
   // ---------- desktop ----------
@@ -167,7 +159,7 @@ async function otpFromToast(p) {
   for (const r of ['register', 'deposit', 'withdraw']) { await d.goto(URL + '#/' + r); await d.waitForTimeout(700); await d.screenshot({ path: `${S}/e2e/30-desktop-${r}.png` }); }
   // horizontal overflow check on phone
   const ov = [];
-  for (const r of ['register', 'login', 'forgot', 'deposit/card', 'deposit/momo', 'withdraw/bank', 'withdraw/momo', 'withdraw/friend']) {
+  for (const r of ['register', 'login', 'forgot', 'deposit/transfer', 'deposit/momo', 'withdraw/bank', 'withdraw/momo', 'withdraw/friend']) {
     await p.goto(URL + '#/' + r); await p.waitForTimeout(250);
     if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) ov.push(r);
   }

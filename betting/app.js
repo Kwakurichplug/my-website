@@ -1152,7 +1152,9 @@
           ['Welcome to LetBetAfrika', `Your account is ready. Make your first deposit to get a 200% welcome bonus, up to ${whole(C.bonusMax)}.`],
           ['Acca Win Boost is on', 'Add 3 or more selections at odds 1.20+ to a multiple and get up to 1000% extra winnings.'],
           ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
-      verify: () => u.verified ? `<div class="empty"><b>Your account is verified ✔</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
+      verify: () => u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
+          ${u.limits?.kyc?.status === 'pending' ? `<div class="kyc-st pend"><b>We are checking your ID</b><span>Usually within 24 hours – we will let you know. You can send corrected details below.</span></div>`
+            : u.limits?.kyc?.status === 'rejected' ? `<div class="kyc-st bad"><b>Your ID check was not approved</b><span>${esc(u.limits.kyc.reason || 'Please check your details')}. Correct them and submit again.</span></div>` : ''}
           <p class="muted">Verify your identity to withdraw winnings.</p>
           <label>Full name<input name="name" required placeholder="As shown on your ID"></label>
           <label>Date of birth<input name="dob" type="date" required></label>
@@ -1599,7 +1601,7 @@
     if (d.hview) { state.homeView = d.hview; return renderHome(); }
     if (d.filter === 'today') { state.list = 'today'; $$('[data-list]').forEach(b => b.classList.toggle('active', b.dataset.list === 'today')); renderHome(); return $('.list-tabs').scrollIntoView({ behavior: 'smooth' }); }
     if (d.market) { state.market[d.msport] = d.market; return renderCurrent(true); }
-    if (d.bstype) { if (d.bstype === 'system') return toast('System bets are coming soon'); state.slipType = d.bstype; return renderSlip(); }
+    if (d.bstype) { state.slipType = d.bstype; return renderSlip(); }
     if (d.rm) {   // the row folds away, then the selection is removed
       const row = t.closest('.bs-item');
       if (!row || row.classList.contains('bs-out') || matchMedia('(prefers-reduced-motion: reduce)').matches) { state.slip.splice(+d.rm, 1); saveSlip(); return renderAfterSlipChange(); }
@@ -1758,8 +1760,9 @@
   /* ---------------- Init ---------------- */
   applyCountry();
   $('#yr').textContent = new Date().getFullYear();
-  $('#payRow').innerHTML = (CC === 'GH' ? ['MTN MoMo', 'Telecel Cash', 'AT Money', 'VISA', 'Mastercard', 'Bank'] : ['OPay', 'PalmPay', 'Quickteller', 'Verve', 'VISA', 'Mastercard']).map(x => `<span>${x}</span>`).join('');
-  $('#footLic').textContent = `Age 18 and above only. Betting can be addictive – please play responsibly. LetBetAfrika ${C.name} operates under licence from ${CC === 'GH' ? 'the Gaming Commission of Ghana' : 'the National Lottery Regulatory Commission of Nigeria'} (licence pending).`;
+  // only the ways players can really pay today (Ghana: Mobile Money on all three networks · Nigeria: bank transfer)
+  $('#payRow').innerHTML = (CC === 'GH' ? ['MTN MoMo', 'Telecel Cash', 'AT Money'] : ['Bank Transfer']).map(x => `<span>${x}</span>`).join('');
+  $('#footLic').textContent = 'Age 18 and above only. Betting can be addictive – please play responsibly.';
   if (window.Games) Games.initCrash({
     C, money, whole, toast, apiErr,
     live: () => LIVE,

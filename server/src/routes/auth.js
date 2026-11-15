@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ensureAdmins } from '../lib/admins.js';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { getSetting } from '../lib/settings.js';
 import { z } from 'zod';
@@ -71,6 +72,7 @@ r.post('/register', guard(10), async (req, res, next) => {
       );
       return rows[0];
     });
+    if (await ensureAdmins(user.id)) user.role = 'admin';   // ADMIN_EMAILS
     res.status(201).json({ token: sign(user), user: publicUser(user) });
     sendEmail('welcome', user);
   } catch (e) {
@@ -100,6 +102,7 @@ r.post('/login', guard(10), async (req, res, next) => {
     const u = email ? await findByEmail(email) : await findByPhone(cc, phone);
     if (!u || !(await verifyHash(password, u.password_hash))) return res.status(401).json({ error: 'bad_login' });
     if (u.status === 'suspended') return res.status(403).json({ error: 'suspended' });
+    if (await ensureAdmins(u.id)) u.role = 'admin';   // ADMIN_EMAILS
     res.json({ token: sign(u), user: publicUser(u) });
   } catch (e) { next(e); }
 });

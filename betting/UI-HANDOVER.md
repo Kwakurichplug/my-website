@@ -158,10 +158,8 @@ reads from `MATCHES`, `state` and `m.map` as today.
    and match it: 3-column layout exists already (`@media (min-width:1024px)`).
    Their desktop has a red top nav with a sports sub-nav, a left league list,
    a centre event table with goals dropdown, and a right betslip + promos column.
-2. **Deposit / withdraw flows** – full screens (not just a modal): amount →
-   method (card, bank transfer, USSD, OPay/PalmPay in NG; MTN MoMo, Telecel
-   Cash in GH) → confirmation → receipt. The backend will provide the
-   `POST /wallet/deposit` call; build the screens against the modal's current fields.
+2. **Deposit / withdraw flows** – DONE (full screens: Nigeria bank transfer confirmed by an admin, Ghana Mobile Money
+   through the payment API; see *Deposit & withdraw* below and `docs/ADMIN.md`).
 3. **Register / login as full pages** with OTP step (phone → 6-digit code →
    password). Backend will provide `POST /auth/otp` and `POST /auth/verify`.
 4. **Bet detail page** (`#/bet/:id`) from Bet History: legs, status per leg,
@@ -225,7 +223,7 @@ iPhone 13 size and placing it side-by-side (the environment allows
 
 | File | Purpose |
 |---|---|
-| `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<method>`: card, transfer, ussd, opay, palmpay · GH momo, card) and **withdraw** (`#/withdraw/<method>`: bank, momo, friend). Calls the API in live mode, simulates in demo mode. The provider contract is in `server/src/routes/wallet.js` (`PROVIDER:`). |
+| `account.js` | `window.Account`: full-page **sign up** (`#/register[/next]`, password rules, referral code, SMS code step), **login** (`#/login[/next]`, remember me), **forgot password** (`#/forgot`), **deposit** (`#/deposit/<method>`: NG `transfer` · GH `momo` – live mode offers what `GET /api/wallet/options` says is open) and **withdraw** (`#/withdraw/<method>`: NG `bank` · GH `momo` · `friend`). Calls the API in live mode, simulates in demo mode. Server side: `server/src/lib/payments.js`, `routes/wallet.js`. |
 | `pages.js` | `window.Pages`: screens rebuilt on the reference layout – **Live** (`#/live[/sport]`), **Sports filter** (`#/sports`), **event list** (`#/list/<sport>/<when>[/<lg,lg>\|out]`), **league** (`#/league/<idx>`), **Jackpot** (`#/jackpot[/results\|how\|tickets]`, live: server round + real results + ticket outcomes), **Promotions** (`#/promos[/tab]`, `#/promo/<id>`), **Results** (`#/results`), **Code Hub** (`#/codes`), **bet detail** (`#/bet/<id>`), **Instant Football** (`#/instant`). |
 | `dark.css` | **Generated** dark theme. Never edit by hand – run `python3 betting/tools/gen-dark.py` after changing `app.css`. |
 | `tools/gen-dark.py` | Maps every light surface / text / border colour in `app.css` to the dark palette. |
@@ -306,7 +304,12 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   details (MoMo number + `.wx-nets` network chips auto-picked from the prefix, USSD bank, saved bank accounts `.wx-acct`
   + `.wx-add`), `.wx-amount` (32px amount, `data-set` quick amounts / `data-frac` 25%·50%·Max, `#wlHint`), `.wx-cta`
   (names what is missing, else "Deposit ₦5,000.00"), `.wx-recent` (last 5 from `GET /api/wallet/payments`, status chips
-  `.wx-st ok|pend|bad`). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
+  `.wx-st ok|pend|bad`, "Being checked" for a transfer waiting for the admin, `.wx-why` = the rejection reason).
+  **Payments MVP** (styles at the end of `app.css`): the account to pay into is `.wx-payto` (`.wx-acct-dl` rows with a Copy button, the player's
+  reference `LB` + account ID in the narration note); a manual transfer asks for the sender's name and the button reads
+  "I have sent ₦5,000.00" → "Deposit being checked" sheet; Ghana's API MoMo shows "Approve on your phone" (polls
+  `GET /api/wallet/payments/:id` every 3 s) or the OTP sheet; a country with nothing open shows `.wx-closed` (no fake
+  method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
   (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
 - **Mobile number or email** (`v23`, `account.js`): register, login and forgot password have a *Mobile Number | Email*
   switch (`.au-via`, `data-via`); the email field (`.au-mail`) has a mail icon where the dial code sits. Only channels
@@ -346,6 +349,9 @@ Note: `localhost:<port>` is treated as "no server" by `api.js` – use `127.0.0.
 
 ### Still open
 
-- Payment provider (Paystack/Flutterwave, MoMo collections), SMS provider, KYC provider – the UI flows are ready; see `PROVIDER:` comments.
-- Outright **betting** (prices are shown; placing needs server markets).
-- Email delivery (set `EMAIL_PROVIDER=smtp` + `SMTP_*`, see `server/EMAILS.md`) and the admin portal screens (API ready).
+- Payments: Ghana goes live as soon as `PAYSTACK_SECRET_KEY` is set (the flow is built and tested on a mock); Nigeria
+  runs on bank transfers confirmed by an admin until a virtual-account provider is added (`HANDOVER.md` §7). SMS and
+  KYC providers: the UI flows are ready; see `PROVIDER:` comments.
+- Outright **betting**: needs a feed with outright markets. Until then the live site shows no Outrights tab (the offline
+  preview shows prices only), and the betslip offers Single and Multiple (no System bets).
+- Done since: email delivery (Spacemail SMTP, `server/EMAILS.md`) and the admin portal (`docs/ADMIN.md`).

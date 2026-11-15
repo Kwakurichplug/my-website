@@ -7,6 +7,9 @@
 > (Railway project `letbetafrika` → service `api`, source branch `claude/bold-mccarthy-71siq8`).
 > **Deploys are NOT automatic on push** – trigger them as described in §8.
 >
+> **Admin portal:** https://letbetafrika.online/admin.html – deposits, withdrawals, ID checks, payment details, players,
+> trading, settings (guide: `docs/ADMIN.md`).
+>
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
 > then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
 
@@ -42,6 +45,7 @@ Never copy another operator's brand assets – we match their quality and layout
 | `betting/img/games/` | Lobby thumbnails `thumb-<id>.webp` (captured from the real game scenes by `tools/assets/thumbs.js`), `rocket.webp`, `ball.webp` (our three.js renders). |
 | `betting/img/flags/` | flag-icons (MIT) – 270 country flags. |
 | `betting/UI-HANDOVER.md` | Detailed front-end guide (design tokens, screens, conventions). |
+| `betting/admin.html`, `admin.js`, `admin.css` | **Admin portal** (`/admin.html`): overview, trading desk, bets, players, payments, ID checks, payment settings, ledger, games, jackpot, settings, email, audit log. Guide: `docs/ADMIN.md`. |
 | `server/` | Node 20+ Express API + Postgres. `npm start` in repo root runs it and serves `betting/`. |
 | `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware): football, plus basketball, ice hockey, American football and baseball as the plan allows. Only touches its own `oa:` events. |
 | `server/src/feeds/demo.js` | Simulated feed for demos (`ODDS_PROVIDER=demo`). Only touches its own `demo:` events. |
@@ -50,9 +54,13 @@ Never copy another operator's brand assets – we match their quality and layout
 | `server/src/lib/logos.js` | Real club crests via TheSportsDB, cached in `team_logos`. |
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
 | `server/src/lib/bonus.js` | **Deposits + welcome bonus**: `creditDeposit()` (the ONLY way to credit a deposit – grants the bonus on the first one), `addTurnover()` (called by settlement), `expireBonuses()`. |
-| `server/src/emails/` | Transactional emails (21 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
-| `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash). |
-| `server/test/` | `grade.test.js`, `games.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js` (money-flow integration). |
+| `server/src/emails/` | Transactional emails (22 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
+| `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash), **payments** (Paystack webhook). |
+| `server/src/lib/payments.js` | **Ways to pay per country** (what the deposit page offers, limits, the bank account / MoMo wallet the admin sets, the player's reference `LB` + account ID). |
+| `server/src/payments/` | `paystack.js` (Paystack API: MoMo charge, OTP, verify, transfers, balance, webhook signature), `flows.js` (credit / fail a deposit, payout result – idempotent, one row lock). |
+| `server/src/lib/admins.js`, `server/scripts/make-admin.js` | Admin accounts: `ADMIN_EMAILS` at boot / sign-up / login; promote or demote from a shell. |
+| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js` (money-flow integration). |
+| `docs/ADMIN.md` | **Admin portal guide** – access, the daily deposit/withdrawal routine, every page. |
 | `docs/QUALITY-BAR.md` | **Definition of Done** – professional acceptance checklist for every area. |
 | `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
 | `tools/qa/` | Playwright QA scripts (incl. `e2e_games.js`, `e2e_games_demo.js`, `e2e_instant.js`), SportyBet side-by-side tool, mock Odds API. |
@@ -87,6 +95,18 @@ mailbox, Railway Pro allows outbound SMTP), `SMTP_PASS` (set in Railway only –
 (email buttons link there).
 `NODE_ENV=production` hides sign-up codes; outside production, a channel without a provider runs in test mode and
 shows the code on screen.
+
+**Payments** (§4 *Payments*): `PAYMENTS_MODE=live` on the live site (`demo` credits deposits instantly – local and
+test servers only, and it is ignored when `NODE_ENV=production`).
+- Nigeria – the account players transfer to: `NG_BANK_NAME`, `NG_BANK_ACCOUNT`, `NG_BANK_HOLDER` (**Railway variables
+  only, never in git**; the admin portal's *Payment settings* can change them and what an admin saves wins).
+- Ghana – `PAYSTACK_SECRET_KEY` (`sk_test_…` for testing, `sk_live_…` for real money) turns on Mobile Money deposits and
+  payouts; then paste the webhook URL `https://letbetafrika.online/api/payments/paystack/webhook` in Paystack →
+  Settings → API Keys & Webhooks. Optional manual fallback: `GH_MOMO_NETWORK`, `GH_MOMO_NUMBER`, `GH_MOMO_NAME`.
+  `PAYSTACK_BASE` is for tests only (the mock).
+- `ADMIN_EMAILS` – accounts with these emails become admins (live site: `info@letbetafrika.online`). `ADMIN_PASSWORD`
+  (Railway only) creates that account with this password if it does not exist; it is applied again only when the
+  variable changes, so a password changed in the app is kept (`ADMIN_COUNTRY` GH by default).
 
 Game limits and prizes live in the `settings` table (editable with `PUT /api/admin/settings/:key`):
 `games` = min/max stake per country (NG ₦100–₦500,000, GH GH₵1–GH₵5,000), `max_payout`, `jackpot` = jackpot,
@@ -156,16 +176,36 @@ Earn reward per country (₦1,000 / GH₵10).
 - **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
   pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
   and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).
-- **Deposit & withdraw pages** rebuilt to a professional standard: balance card, method tiles (NG: Card, Bank Transfer,
-  USSD, OPay, PalmPay · GH: Mobile Money, Card), big amount entry with quick amounts, a button that names what is
-  missing ("Select your bank", "Verify your ID to withdraw") or the exact amount, live welcome-bonus preview, and
-  recent deposits/withdrawals with real statuses. **No fake content**: no made-up bank or account number, no fake USSD
-  codes, no "simulate"/"TEST"/"SOON" wording, no card numbers typed on our pages (the payment partner's hosted
-  checkout takes them), no faked account-name check (the player types the account holder's name until the payout
-  partner's name enquiry is connected). Send money to a friend by mobile number **or email** (same country).
-- **Money**: register/login, deposit (demo provider), withdraw (admin approval), transfer to friend,
-  bets single/multiple with win boost, cashout, booking codes. Payout tests pass (exact to the cent, void legs,
-  refunds, cashout, no double pay, ledger = balance).
+- **Payments – real money, nothing that cannot complete** (`lib/payments.js`, `GET /api/wallet/options` tells the
+  deposit page what is open for the player's country, with the limits):
+  - **Nigeria – bank transfer, confirmed by an admin.** The deposit page shows the account from *Payment settings*
+    (copy button) and the player's reference `LB` + account ID for the narration; the player types the sender's name
+    and taps **I have sent ₦X** → a `pending` payment (provider `manual`, at most 3 at a time) + "we are checking"
+    email. The admin confirms the amount that arrived in the portal → `creditDeposit()` (welcome bonus included) +
+    receipt email; or rejects with a reason. No account set = Nigerian deposits closed (the page says so, the portal
+    warns).
+  - **Ghana – Mobile Money through Paystack.** With `PAYSTACK_SECRET_KEY`: Paystack Charge API (`mtn`, `vod`, `atl`) →
+    "approve the prompt on your phone" (or the OTP Paystack asks for), the page polls the payment, the webhook
+    (HMAC-SHA512 signature) or the status check credits it – idempotent, so a repeated webhook never pays twice. Admins
+    cannot confirm API deposits by hand. Without the key: a manual MoMo wallet if the admin set one, else closed.
+  - **Withdrawals**: Nigeria to a bank account, Ghana to Mobile Money; the balance is held when requested; the admin
+    marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
+    transfer fails), or rejects (refunded at once). ID check: players can request while it is waiting; the admin
+    approves or rejects it with a reason the player sees.
+  - **Clean start**: deposit requests left `pending` by the old demo flow are cancelled on boot (new status
+    `cancelled`), so no player sees a deposit stuck "pending".
+- **Deposit & withdraw pages** to a professional standard: balance card, method tiles (NG: Bank Transfer · GH: Mobile
+  Money; withdrawals NG bank / GH MoMo, plus *To a Friend*), big amount entry with quick amounts, a button that names
+  what is missing ("Enter the sender's name", "Verify your ID to withdraw") or the exact amount, live welcome-bonus
+  preview, and recent deposits/withdrawals with real statuses ("Being checked", "Successful", the rejection reason).
+  **No fake content**: no card, USSD or wallet tiles that cannot complete, no "simulate"/"TEST"/"SOON" wording, no
+  faked account-name check. Send money to a friend by mobile number **or email** (same country, from ₦100 / GH₵1).
+- **Admin portal** (`/admin.html`, `docs/ADMIN.md`): sign in with an admin account; overview per currency, payments
+  queue (confirm / mark paid / send via Paystack / reject with quick reasons), ID checks, payment settings (the bank
+  account and limits – editable), players (drawer with deposit reference, ID details, balance adjustment, suspend,
+  make admin), trading desk, bets, ledger, games, jackpot, settings, email, and an audit log in plain words.
+- **Money**: register/login, deposit, withdraw, transfer to friend, bets single/multiple with win boost, cashout,
+  booking codes. Payout tests pass (exact to the cent, void legs, refunds, cashout, no double pay, ledger = balance).
 - **All 11 games are live for real money** – see §6. Nothing simulated in live mode: Rocket Crash shows only real
   players' bets, the jackpot shows only real settled rounds.
 - **Game screens look and move like real casino games** (`scenes.js`): rolling 3D dice, a wheel that decelerates with a
@@ -257,30 +297,17 @@ The site is wired end to end. The owner's next steps are **SMTP → payments →
      KYC, password changes, limits, self-exclusion, jackpot tickets and the welcome bonus turning into cash.
    - Deliverability: Spaceship DNS for `letbetafrika.online` must have SPF, DKIM and DMARC (Spacemail sets them when
      the domain uses Spaceship DNS – check in the Spacemail dashboard).
-2. **Payments** (Paystack / Flutterwave cards + bank, MTN MoMo / Vodafone Cash for Ghana, OPay):
-   - `POST /api/wallet/deposit {amount, method, details}` creates a `payments` row (`details` = `{phone, network}` for
-     mobile money, `{bank}` for USSD); with `PAYMENTS_MODE` ≠ `demo` it stays `pending`. Create the provider charge there
-     and answer `{status:'pending', paymentId, balance, next}` – the deposit page already handles both shapes:
-     `next = {url}` → it redirects to the provider's hosted checkout (cards); `next = {message, rows:[[label, value]…]}`
-     → it shows them (bank-transfer account, USSD code, "approve the prompt on 024…"). See the `PROVIDER:` comment in
-     `server/src/routes/wallet.js`.
-   - Add `POST /api/payments/webhook/<provider>`: verify the signature, find the pending payment by reference, then in
-     **one transaction** (`SELECT … FOR UPDATE`, only if still `pending`) mark it `success` and call
-     **`creditDeposit(c, user, amount, paymentId, {method})`** from `server/src/lib/bonus.js` – the only function that may
-     credit a deposit (it also grants the welcome bonus on the first one). Webhooks repeat: make it idempotent.
-     `POST /api/admin/payments/:id/approve` already does exactly this for a manual approval – copy it.
-   - Withdrawals: the balance is debited at request time (`payments` kind `withdrawal`, `pending`); the admin approves
-     (send the payout through the provider's transfer API there) or rejects (refunds automatically).
-   - Once a provider is live set `PAYMENTS_MODE` to it on production; keep `PAYMENTS_MODE=demo` only on a staging
-     environment (demo credits deposits instantly).
-3. **Admin portal** – the API exists (`server/src/routes/admin.js`, every route needs `role=admin`):
-   `GET /overview` (KPIs), `GET /users`, `PATCH /users/:id` (status, KYC, role), `POST /users/:id/adjust` (manual
-   balance correction through the ledger), `GET /payments?status=pending`, `POST /payments/:id/approve|reject`,
-   `GET /bets`, `POST /bets/:id/void`, `POST /markets/:eventId/:key` (suspend/reopen), `POST /events/:id/result`
-   (manual result → settles), `GET/PUT /settings/:key` (stake limits, jackpot prizes, welcome bonus, referral),
-   `GET /feed` (odds credits), `GET /games` (turnover/payouts per game), `GET /games/crash/verify/:id` (round audit),
-   `POST /jackpot/settle`, `POST /email/test`. Build it as a separate page (e.g. `betting/admin.html`) on the same API,
-   behind admin login + 2FA; log every admin action.
+2. **Payments – MVP DONE** (§4 *Payments*). Next:
+   - **Ghana live**: create the Paystack account (Ghana business), set `PAYSTACK_SECRET_KEY` in Railway, paste the
+     webhook URL (shown in the portal's *Payment settings*) in Paystack, test with `sk_test_…`, then switch to
+     `sk_live_…`. Keep enough Paystack balance for payouts.
+   - **Nigeria automatic** (when volume grows): a dedicated virtual account per player (Paystack DVA / Monnify /
+     Flutterwave) – the transfer webhook calls `creditPaystack()`-style code in `payments/flows.js` (lock the row, only
+     if `pending`, `creditDeposit()`), so admins no longer confirm transfers by hand. Bank payouts through the same
+     provider's transfer API + name enquiry.
+   - Cards: a hosted checkout (`next = {url}` – the deposit page already redirects for it) once a provider is approved.
+3. **Admin portal – DONE** (`/admin.html`, `docs/ADMIN.md`). Next: two-factor sign-in for admins (TOTP), roles
+   (support vs finance vs trading), and alerts (email/Slack) for large withdrawals and a long payments queue.
 4. **10,000 concurrent users**:
    - Every route is already replica-safe (no server memory; Instant Football and Hi-Lo use signed/sealed tokens; the
      schedulers run on one elected leader).
@@ -335,6 +362,13 @@ production after QA.
   ~20 open football fixtures – the jackpot and past-posting tests skip with a message when the test database has run out).
   Covers every game, the crash audit (admin only), welcome bonus, referral, Code Hub, boost, payouts, the ledger, and
   email sign-up / login / reset / verified email change.
+- **Payments without demo shortcuts**: `node tools/qa/mock_paystack.js 9098 http://127.0.0.1:8096` (mock Paystack),
+  a server with `PORT=8096 PAYMENTS_MODE=live PAYSTACK_BASE=http://127.0.0.1:9098 PAYSTACK_SECRET_KEY=sk_test_mock` on a
+  fresh test database, then `PAY_API_URL=http://127.0.0.1:8096 DATABASE_URL=<that db> node --test test/payments-api.test.js test/payments-unit.test.js`
+  (manual bank deposit confirmed / corrected / rejected, withdrawals paid / refunded, ID checks, Ghana MoMo approve,
+  OTP, decline, webhook signature + replay, Paystack payout success / failure → refund, demo mode off in production)
+  and the browser walk-through `node tools/qa/e2e_admin.js <outDir> http://127.0.0.1:8096/ <dbUrl>` (portal sign-in,
+  bank account saved, player deposit → admin credit, ID approval, payout, Ghana MoMo, every portal page, audit log).
 - Browser (Playwright, pre-installed in cloud sessions): `tools/qa/smoke.js` (every route, demo + live: no JS errors,
   no horizontal scroll, no empty page), `e2e_games.js` (every game against the real API, server balance checked
   after each play), `e2e_games_demo.js`, `e2e_instant.js`, `e2e_email.js` (email sign-up, login, reset, email change –

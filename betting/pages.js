@@ -163,7 +163,9 @@
   function renderList(page, arg, keep) {
     const a = A(), el = root(page), f = parseList(page, arg);
     if (!f) return a.go('home');
-    if (f.out) EL.tab = 'out';
+    // outright prices exist only in the offline preview; the live feeds carry none, so no tab that can only be empty
+    const outs = !a.live;
+    EL.tab = outs && (f.out || EL.tab === 'out') ? 'out' : 'matches';
     const cfg = a.mktFor(f.sport), w = WHEN(f.when);
     let list = upcoming().filter(m => m.sport === f.sport && m.kick >= w.from && m.kick < w.to && (!f.lgs.length || f.lgs.includes(m.lg)));
     if (page === 'league') list = a.MATCHES.filter(m => m.lg === f.lgs[0] && !m.finished && !m.virtual);
@@ -193,7 +195,7 @@
     const y = keep ? window.scrollY : 0, mx = $('.mkt-tabs', el)?.scrollLeft || 0;
     el.innerHTML = `${head(title + (f.league ? `<small>${esc(a.sportOf(f.sport).name)} · ${esc(f.league.country)}</small>` : ''), searchBtn + homeBtn)}
       <a class="el-live" href="#/live/${f.sport}"><b>All Live</b><em>${liveN}</em>${I.right}</a>
-      <div class="pg-tabs"><button data-pg="eltab" data-v="matches" class="${EL.tab === 'matches' ? 'on' : ''}">Matches</button><button data-pg="eltab" data-v="out" class="${EL.tab === 'out' ? 'on' : ''}">Outrights</button></div>
+      ${outs ? `<div class="pg-tabs"><button data-pg="eltab" data-v="matches" class="${EL.tab === 'matches' ? 'on' : ''}">Matches</button><button data-pg="eltab" data-v="out" class="${EL.tab === 'out' ? 'on' : ''}">Outrights</button></div>` : ''}
       ${EL.tab === 'out' ? '' : `<div class="pg-sticky light">
         <div class="el-filters">
           <label><select data-pg="elwhen" aria-label="Time">${['all', 'today', 'tomorrow', '3h', 'h24', 'h72'].map(id => `<option value="${id}" ${f.when === id ? 'selected' : ''}>${id === 'all' ? 'Daily' : WHEN(id).label}</option>`).join('')}</select></label>

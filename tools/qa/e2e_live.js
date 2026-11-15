@@ -46,9 +46,9 @@ const rnd = () => '80' + String(Math.floor(1e7 + Math.random() * 9e7)).slice(0, 
   expect(!!token, 'session token stored');
 
   log('Deposit (live)');
-  await p.goto(URL + '#/deposit/opay'); await p.waitForTimeout(800);
+  await p.goto(URL + '#/deposit/transfer'); await p.waitForTimeout(800);
   await shot(p, 'deposit');
-  await p.fill('#wlAmt', '5000'); await p.click('#depBtn');
+  await p.fill('#wlAmt', '5000'); await p.fill('input[name=sender]', 'Test Player'); await p.click('#depBtn');
   await p.waitForSelector('.wl-res', { timeout: 10000 });
   expect((await p.textContent('.wl-res')).includes('Deposit successful'), 'deposit succeeds through the API');
   let w = await api('/wallet', null, token);

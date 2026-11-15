@@ -67,6 +67,9 @@
       // `who` is a phone number (string) or { email }
       transfer: (who, amount, note) => post('/wallet/transfer', { ...(typeof who === 'object' ? who : { phone: who }), amount, note }),
       bonuses: () => get('/wallet/bonuses'),
+      options: () => get('/wallet/options'),                                     // ways to pay open for this country
+      payment: id => get('/wallet/payments/' + encodeURIComponent(id)),           // { payment, balance }
+      otp: (id, otp) => post('/wallet/deposit/' + encodeURIComponent(id) + '/otp', { otp }),
     },
     jackpot: {
       round: () => get('/jackpot/round'),
@@ -105,18 +108,43 @@
       codes: sport => get('/bets/codes' + (sport && sport !== 'all' ? '?sport=' + sport : '')).then(r => r.codes),
     },
     admin: {
-      overview: () => get('/admin/overview'),
+      overview: cc => get('/admin/overview' + (cc ? '?cc=' + cc : '')),
       users: q => get('/admin/users' + (q ? '?q=' + encodeURIComponent(q) : '')).then(r => r.users),
       updateUser: (id, d) => patch('/admin/users/' + id, d),
       adjust: (id, d) => post(`/admin/users/${id}/adjust`, d),
       payments: status => get('/admin/payments?status=' + (status || 'pending')).then(r => r.payments),
-      payment: (id, action, reason) => post(`/admin/payments/${id}/${action}`, { reason }),
+      // approve: { amount (deposit: what arrived), reference (withdrawal: payout ref), note } · reject: { reason }
+      payment: (id, action, body) => post(`/admin/payments/${id}/${action}`, typeof body === 'string' ? { reason: body } : (body || {})),
+      payout: id => post(`/admin/payments/${id}/payout`, {}),        // Ghana MoMo payout through the payment API
+      kyc: () => get('/admin/kyc').then(r => r.users),
+      kycDecide: (id, approve, reason) => post(`/admin/users/${id}/kyc`, { approve, ...(reason ? { reason } : {}) }),
+      paymentSettings: () => get('/admin/payment-settings'),
+      savePaymentSettings: v => put('/admin/payment-settings', v),
       bets: status => get('/admin/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       voidBet: id => post(`/admin/bets/${id}/void`),
       market: (eventId, key, d) => post(`/admin/markets/${eventId}/${key}`, d),
       result: (eventId, d) => post(`/admin/events/${eventId}/result`, d),
       settings: () => get('/admin/settings'),
       setSetting: (key, value) => put('/admin/settings/' + key, { value }),
+      series: (days, cc) => get('/admin/series?days=' + (days || 14) + (cc ? '&cc=' + cc : '')).then(r => r.days),
+      user: id => get('/admin/users/' + id),
+      bet: id => get('/admin/bets/' + encodeURIComponent(id)),
+      paymentsQ: (status, kind) => get(`/admin/payments?status=${status || 'pending'}${kind ? '&kind=' + kind : ''}`).then(r => r.payments),
+      betsQ: (status, q) => get(`/admin/bets?${status ? 'status=' + status + '&' : ''}${q ? 'q=' + encodeURIComponent(q) : ''}`).then(r => r.bets),
+      events: (status, q) => get(`/admin/events?status=${status || 'open'}${q ? '&q=' + encodeURIComponent(q) : ''}`).then(r => r.events),
+      event: id => get('/admin/events/' + id),
+      suspendEvent: (id, suspended) => post(`/admin/events/${id}/suspend`, { suspended }),
+      feed: () => get('/admin/feed'),
+      emailStatus: check => get('/admin/email/status' + (check ? '?check=1' : '')),
+      emailLog: () => get('/admin/email/log').then(r => r.emails),
+      emailTest: to => post('/admin/email/test', { to }),
+      games: () => get('/admin/games').then(r => r.games),
+      plays: game => get('/admin/games/plays' + (game ? '?game=' + game : '')).then(r => r.plays),
+      crashVerify: id => get('/admin/games/crash/verify/' + id),
+      jackpot: () => get('/admin/jackpot').then(r => r.rounds),
+      jackpotSettle: round => post('/admin/jackpot/settle', round ? { round } : {}),
+      transactions: (type, q) => get(`/admin/transactions?${type ? 'type=' + type + '&' : ''}${q ? 'q=' + encodeURIComponent(q) : ''}`).then(r => r.transactions),
+      log: () => get('/admin/log').then(r => r.log),
     },
   };
   window.API = API;

@@ -16,6 +16,8 @@ import admin from './routes/admin.js';
 import jackpot from './routes/jackpot.js';
 import virtuals from './routes/virtuals.js';
 import games from './routes/games.js';
+import payments from './routes/payments.js';
+import { ensureAdmins, bootstrapAdmin, adminEmails } from './lib/admins.js';
 import { startGames, gamesStatus } from './games/index.js';
 import { startEmailChecks } from './emails/index.js';
 import { startFeeds } from './feeds/index.js';
@@ -25,7 +27,8 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true }));
-app.use(express.json({ limit: '64kb' }));
+// keep the raw body of provider callbacks: their signatures are computed over the exact bytes
+app.use(express.json({ limit: '64kb', verify: (req, _res, buf) => { if (req.url.startsWith('/api/payments/')) req.rawBody = buf; } }));
 app.use(pinoHttp({ logger: log, autoLogging: { ignore: r => r.url.startsWith('/img') || r.url === '/health' } }));
 app.use(attachUser);
 
@@ -38,6 +41,7 @@ app.use('/api/admin', admin);
 app.use('/api/jackpot', jackpot);
 app.use('/api/virtuals', virtuals);
 app.use('/api/games', games);
+app.use('/api/payments', payments);
 
 // Serve the front end from the same origin (betting/ folder one level up)
 const here = dirname(fileURLToPath(import.meta.url));
@@ -57,4 +61,5 @@ migrate().then(() => {
   startFeeds();
   startGames();
   startEmailChecks();
+  ensureAdmins().then(() => bootstrapAdmin()).then(r => { if (r !== 'off') log.info(`[admin] ${adminEmails()[0]}: ${r}`); }).catch(e => log.error(e, 'admin bootstrap'));
 }).catch(e => { log.error(e, 'migration failed'); process.exit(1); });

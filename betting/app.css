@@ -2775,6 +2775,38 @@ html:not([data-theme="dark"]) #page-match.pre .mk-search{background:#fff;border-
 html:not([data-theme="dark"]) #page-match.pre .mk-q{background:#f2f3f5;color:var(--mute)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q input{color:var(--ink)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q-x{color:var(--g)}
+/* deposits: where to send the money (admin-set account) + the player's reference; closed state; reasons */
+.wx-payto-h{font-size:var(--fs);font-weight:700;color:var(--ink);margin-bottom:8px}
+.wx-acct-dl{display:flex;flex-direction:column;border:1px solid #e3e6ea;border-radius:6px;overflow:hidden}
+.wx-acct-dl>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #eef0f2}
+.wx-acct-dl>div:last-child{border-bottom:0}
+.wx-acct-dl dt{font-size:var(--fs-s);color:var(--mute);flex:none}
+.wx-acct-dl dd{display:flex;align-items:center;gap:8px;min-width:0;font-weight:700;color:var(--ink);text-align:right}
+.wx-acct-dl dd span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wx-acct-dl .ref{background:#eef7f1}
+.wx-acct-dl .ref dd span{color:var(--g);letter-spacing:.5px}
+.wx-payto .wx-note{margin-top:10px}
+.wx-h.sm{font-size:var(--fs);margin:14px 0 6px}
+.wx-closed{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:28px 16px}
+.wx-closed svg{width:34px;height:34px;color:var(--mute)}
+.wx-closed b{font-size:var(--fs-t);color:var(--ink)}
+.wx-closed span{font-size:var(--fs);color:var(--mute);line-height:1.45}
+.wx-why{display:block;color:var(--live)!important;white-space:normal}
+.wl-verify.bad{border-color:#f3c5cd;background:#fdecef}
+.kyc-st{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:6px;margin-bottom:12px;font-size:var(--fs)}
+.kyc-st b{color:var(--ink)}
+.kyc-st span{color:var(--ink-2);line-height:1.4}
+.kyc-st.pend{background:#fff8e1;border:1px solid #f1d98a}
+.kyc-st.bad{background:#fdecef;border:1px solid #f3c5cd}
+html[data-theme="dark"] .wx-acct-dl{border-color:#2c3138}
+html[data-theme="dark"] .wx-acct-dl>div{border-color:#2c3138}
+html[data-theme="dark"] .wx-acct-dl dd,html[data-theme="dark"] .wx-payto-h,html[data-theme="dark"] .wx-closed b{color:#eef0f2}
+html[data-theme="dark"] .wx-acct-dl .ref{background:#183323}
+html[data-theme="dark"] .wx-acct-dl .ref dd span{color:#36d26e}
+html[data-theme="dark"] .wl-verify.bad,html[data-theme="dark"] .kyc-st.bad{background:#3a1f25;border-color:#5a2b35}
+html[data-theme="dark"] .kyc-st.pend{background:#3a3120;border-color:#5a4a20}
+html[data-theme="dark"] .kyc-st b{color:#eef0f2}
+html[data-theme="dark"] .kyc-st span{color:#c9cdd2}
 /* booking code share sheet */
 .sh-card{gap:12px}
 .sh-code{align-self:center;font:700 30px/1 Roboto,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:4px;color:var(--ink);background:#f2f3f5;border:1px dashed #c3c7cd;border-radius:6px;padding:12px 18px}
@@ -2799,3 +2831,8 @@ html[data-theme="dark"] .sh-btn.wa{color:#fff}
 .sf-quick a:last-child:nth-child(odd){grid-column:1/-1}
 /* desktop always shows the betslip column, so the floating slip button never shows there */
 @media (min-width:1024px){ .slip-pill,.slip-pill.show{display:none!important} }
+/* footer: the real payment methods only, centred however many there are; room under the text for the round betslip button */
+.foot-dark .pay-row{display:flex;flex-wrap:wrap;justify-content:center;max-width:320px}
+.foot-dark .pay-row span{flex:0 1 96px}
+.foot-dark{padding-bottom:100px}
+@media (min-width:1024px){ .foot-dark{padding-bottom:34px} }

@@ -105,12 +105,25 @@ export const templates = {
     text: text([`Deposit received: ${money(a, user.country)} via ${method}.`, `Reference ${ref(paymentId)}.`, `New balance ${money(balance, user.country)}.`]),
   }),
 
-  depositFailed: ({ user, amount: a, method, paymentId, reason }) => ({
-    subject: 'Your deposit did not go through',
-    preheader: 'No money was taken. Here is what to do next.',
+  depositReceived: ({ user, amount: a, method, paymentId, reference, when }) => ({
+    subject: `We are checking your deposit of ${money(a, user.country)}`,
+    preheader: 'Your balance updates as soon as the money is confirmed.',
+    html: wrap({ cc: user.country, title: 'Deposit being checked', body:
+      h1('We are checking your deposit') +
+      p(`Hi ${first(user)}, thanks – we have your ${method.toLowerCase()} deposit request. As soon as we see the money arrive, we add it to your balance and email you.`) +
+      amount('Amount', money(a, user.country), 'Usually confirmed within 15 minutes', 'green') +
+      details([['Method', method], ['Your reference', reference, { bold: true }], ['Request', ref(paymentId)], ['Date', fmtDate(when)], ['Status', 'Being checked', { bold: true }]], 'Request') +
+      p('Please make sure the transfer narration shows your reference, so we can match it quickly.', { muted: true }) }),
+    text: text([`We are checking your ${method} deposit of ${money(a, user.country)}.`, `Your reference: ${reference}.`, 'Your balance updates as soon as it is confirmed.']),
+  }),
+
+  depositFailed: ({ user, amount: a, method, paymentId, reason, manual }) => ({
+    subject: manual ? 'We could not confirm your deposit' : 'Your deposit did not go through',
+    preheader: manual ? 'Here is what to do next.' : 'No money was taken. Here is what to do next.',
     html: wrap({ cc: user.country, title: 'Deposit failed', body:
-      h1('Your deposit did not go through') +
-      p(`We could not complete your ${method} deposit of ${money(a, user.country)}. No money has been taken from you.`) +
+      h1(manual ? 'We could not confirm your deposit' : 'Your deposit did not go through') +
+      p(manual ? `We could not match your ${method.toLowerCase()} deposit of ${money(a, user.country)} to a payment we received. If you did send the money, reply to this email with your transfer receipt and we will sort it out.`
+        : `We could not complete your ${method} deposit of ${money(a, user.country)}. No money has been taken from you.`) +
       note(`<b>Reason:</b> ${reason || 'The payment was declined by your bank or provider.'}`, 'danger') +
       details([['Reference', ref(paymentId)], ['Method', method], ['Status', 'Failed', { color: B.red, bold: true }]]) +
       p('You can try again, or use another method such as bank transfer or mobile money.', { muted: true }) +

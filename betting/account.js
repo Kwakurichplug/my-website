@@ -33,21 +33,37 @@
   ];
   const PAY = {
     NG: {
-      curCode: 'NGN', depMin: 100, depMax: 9999999, wdMin: 100, wdMax: 9999999, chips: [500, 1000, 2000, 5000, 10000],
+      curCode: 'NGN', depMin: 100, depMax: 9999999, wdMin: 100, wdMax: 9999999, tfMin: 100, tfMax: 9999999, chips: [500, 1000, 2000, 5000, 10000],
       acctLen: [10, 10], banks: NG_BANKS,
-      dep: [{ id: 'card' }, { id: 'transfer' }, { id: 'ussd' }, { id: 'opay' }, { id: 'palmpay' }],
+      dep: [{ id: 'transfer' }],
       wd: [{ id: 'bank' }, { id: 'friend' }],
     },
     GH: {
-      curCode: 'GHS', depMin: 1, depMax: 100000, wdMin: 1, wdMax: 100000, chips: [5, 10, 20, 50, 100],
+      curCode: 'GHS', depMin: 1, depMax: 100000, wdMin: 1, wdMax: 100000, tfMin: 1, tfMax: 100000, chips: [5, 10, 20, 50, 100],
       acctLen: [10, 16], banks: GH_BANKS,
-      dep: [{ id: 'momo' }, { id: 'card' }],
-      wd: [{ id: 'momo' }, { id: 'bank' }, { id: 'friend' }],
+      dep: [{ id: 'momo' }],
+      wd: [{ id: 'momo' }, { id: 'friend' }],
     },
   };
 
   /* ---------------- Helpers ---------------- */
-  const P = () => PAY[app().CC];
+  // live: what the server has open for this country (GET /api/wallet/options) – ways to pay, limits, the bank / MoMo
+  // details the admin set and the player's reference. Refreshed at most every 30 s.
+  const opt = { data: null, at: 0, busy: false };
+  function loadOptions(force) {
+    if (!live() || opt.busy || (!force && opt.data && Date.now() - opt.at < 30000)) return;
+    opt.busy = true;
+    API.wallet.options().then(o => { opt.data = o; opt.at = Date.now(); }).catch(() => {})
+      .finally(() => { opt.busy = false; if (['deposit', 'withdraw'].includes(app().state.route)) rerender(); });
+  }
+  const P = () => {
+    const p = PAY[app().CC], L = live() && opt.data && opt.data.limits;
+    return L ? { ...p, depMin: L.minDeposit, depMax: L.maxDeposit, wdMin: L.minWithdraw, wdMax: L.maxWithdraw } : p;
+  };
+  // deposit ways: live from the server (null while loading), demo from PAY
+  const depWays = () => !live() ? P().dep.map(t => ({ ...t, mode: 'demo' }))
+    : opt.data ? opt.data.deposit.map(x => ({ ...x, id: x.method === 'bank_transfer' ? 'transfer' : 'momo' })) : null;
+  const refCode = () => (live() && opt.data ? opt.data.reference : 'LB' + String(user().uid || 0).padStart(6, '0'));
   const user = () => app().state.user;
   const fmt = n => Number(n || 0).toLocaleString(app().C.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const ref = p => p + Date.now().toString(36).toUpperCase().slice(-6) + Math.random().toString(36).slice(2, 5).toUpperCase();
@@ -519,11 +535,12 @@
   const wl = { dep: null, wd: null, busy: false, hasDeposit: null, amt: { dep: '', wd: '' }, recent: null, recentAt: 0 };
   const METHOD = {
     card: { name: 'Card', sub: cc => (cc === 'GH' ? 'Visa and Mastercard · instant' : 'Visa, Mastercard and Verve · instant'), icon: 'card', api: 'card' },
-    transfer: { name: 'Bank Transfer', sub: () => 'From any Nigerian bank app · instant', icon: 'bank', api: 'bank_transfer' },
+    transfer: { name: 'Bank Transfer', sub: () => 'From any Nigerian bank app to our account · credited once it arrives', icon: 'bank', api: 'bank_transfer' },
     ussd: { name: 'USSD', sub: () => 'Dial a short code – no data needed', icon: 'hash', api: 'ussd' },
     opay: { name: 'OPay', sub: () => 'Pay from your OPay wallet · instant', mark: 'O', color: '#1dcf9f', api: 'opay' },
     palmpay: { name: 'PalmPay', sub: () => 'Pay from your PalmPay wallet · instant', mark: 'P', color: '#6c2bd9', api: 'palmpay' },
     momo: { name: 'Mobile Money', sub: () => 'MTN MoMo, Telecel Cash and AirtelTigo Money', icon: 'phone', api: 'mobile_money' },
+    // (card, USSD, OPay and PalmPay return when a payment partner is connected for them)
     bank: { name: 'Bank Account', sub: () => 'Paid to a bank account in your name', icon: 'bank', api: 'bank_transfer' },
     friend: { name: 'To a Friend', sub: () => 'Send to another LetBetAfrika player · instant and free', icon: 'send' },
   };
@@ -563,7 +580,7 @@
     </div>`;
   }
   function bindAmount(form, kind, onChange) {
-    const p = P(), a = app(), dep = kind === 'dep', min = dep ? p.depMin : p.wdMin, max = dep ? p.depMax : p.wdMax, key = dep ? 'dep' : 'wd';
+    const p = P(), a = app(), dep = kind === 'dep', tf = kind === 'tf', min = dep ? p.depMin : tf ? p.tfMin : p.wdMin, max = dep ? p.depMax : tf ? p.tfMax : p.wdMax, key = dep ? 'dep' : 'wd';
     const inp = $('#wlAmt', form), hint = $('#wlHint', form), clr = $('[data-clear]', form);
     const get = () => +String(inp.value).replace(/,/g, '') || 0;
     const base = dep ? `Min ${a.whole(min)} · Max ${a.whole(max)} · No fees` : kind === 'tf' ? `Min ${a.whole(min)} · Instant and free` : `Min ${a.whole(min)} · No fees`;
@@ -606,18 +623,18 @@
   }
 
   /* ----- recent activity (live: the server's payment records; demo: local history) ----- */
-  const ST = { success: ['Successful', 'ok'], pending: ['Processing', 'pend'], rejected: ['Rejected', 'bad'], failed: ['Failed', 'bad'] };
+  const ST = { success: ['Successful', 'ok'], pending: ['Processing', 'pend'], rejected: ['Rejected', 'bad'], failed: ['Failed', 'bad'], cancelled: ['Cancelled', 'bad'] };
   function recentRows(kind) {
     const a = app(), dep = kind === 'dep';
     if (live() && wl.recent == null) return `<p class="wx-empty"><i class="spin"></i>Loading…</p>`;
     const list = (live()
-      ? wl.recent.filter(x => x.kind === (dep ? 'deposit' : 'withdrawal')).map(x => ({ amt: +x.amount, method: API_NAME[x.method] || x.method, at: new Date(x.created_at).getTime(), st: x.status }))
+      ? wl.recent.filter(x => x.kind === (dep ? 'deposit' : 'withdrawal')).map(x => ({ amt: +x.amount, method: API_NAME[x.method] || x.method, at: new Date(x.created_at).getTime(), st: x.status, why: x.reason }))
       : a.state.tx.filter(t => t.type === (dep ? 'Deposit' : 'Withdrawal')).map(t => ({ amt: Math.abs(t.amt), method: t.method, at: t.at, st: t.status || 'success' }))).slice(0, 5);
     if (!list.length) return `<p class="wx-empty">No ${dep ? 'deposits' : 'withdrawals'} yet.</p>`;
     return list.map(x => {
-      const [label, cls] = ST[x.st] || [x.st, ''];
+      const [label, cls] = dep && x.st === 'pending' ? ['Being checked', 'pend'] : ST[x.st] || [x.st, ''];
       return `<div class="wx-tx"><span class="wx-tx-i ${kind}">${dep ? ICON.down : ICON.up}</span>
-        <span class="wx-tx-m"><b>${a.esc(x.method || (dep ? 'Deposit' : 'Withdrawal'))}</b><small>${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></span>
+        <span class="wx-tx-m"><b>${a.esc(x.method || (dep ? 'Deposit' : 'Withdrawal'))}</b><small>${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${x.why && x.st !== 'success' ? `<small class="wx-why">${a.esc(x.why)}</small>` : ''}</span>
         <span class="wx-tx-r"><b>${dep ? '+' : '−'}${a.money(x.amt)}</b><em class="wx-st ${cls}">${label}</em></span></div>`;
     }).join('');
   }
@@ -706,11 +723,35 @@
   /* =========================================================
      DEPOSIT
      ========================================================= */
+  /** Where to send the money for a manual deposit (admin-set bank account or MoMo number) + the player's reference. */
+  function payToHTML(way) {
+    const a = app(), bank = way.id === 'transfer', rc = refCode();
+    const acc = way.account || (bank ? { bank: 'Demo Bank', number: '0000000000', name: 'LETBETAFRIKA (DEMO)' } : { networkName: 'MTN MoMo', number: '000000000', name: 'LETBETAFRIKA (DEMO)' });
+    const rows = bank ? [['Bank', acc.bank], ['Account number', acc.number, true], ['Account name', acc.name]]
+      : [['Network', acc.networkName || 'MTN MoMo'], ['MoMo number', '0' + acc.number, true], ['Name', acc.name]];
+    return `<div class="wx-sub wx-payto">
+      <p class="wx-payto-h">${bank ? 'Transfer to this account from your bank app' : 'Send to this MoMo number'}</p>
+      <dl class="wx-acct-dl">${rows.map(([k, v, c]) => `<div><dt>${k}</dt><dd><span>${a.esc(v || '')}</span>${c ? copyBtn(v) : ''}</dd></div>`).join('')}
+        <div class="ref"><dt>Your reference</dt><dd><span>${rc}</span>${copyBtn(rc)}</dd></div></dl>
+      <p class="wx-note">${ICON.shield}<span>Put <b>${rc}</b> in the ${bank ? 'transfer narration (description)' : 'MoMo reference'} so we can match the money to your account.${acc.note ? ' ' + a.esc(acc.note) : ''}</span></p>
+    </div>`;
+  }
+  function closedHTML() {
+    return `<section class="wx-card wx-closed">${ICON.bank}<b>Deposits are not available right now</b><span>Please try again a little later, or contact us at <a href="mailto:info@letbetafrika.online">info@letbetafrika.online</a>.</span></section>`;
+  }
   function renderDeposit(tab) {
-    const a = app(), p = P(), el = root('deposit'), u = user();
+    const a = app(), el = root('deposit'), u = user();
     if (!u) return a.go('login/deposit' + (tab ? encodeURIComponent('/' + tab) : ''));
     migratePrefs();
-    if (!p.dep.find(t => t.id === tab)) { const lastUsed = prefs.get().lastDep; tab = p.dep.find(t => t.id === lastUsed) ? lastUsed : p.dep[0].id; }
+    loadOptions();
+    const ways = depWays();
+    if (!ways || !ways.length) {
+      el.innerHTML = `${pageHead('Deposit', { help: true })}<div class="wx">${heroHTML('dep')}${!ways ? '<section class="wx-card"><p class="wx-empty"><i class="spin"></i>Loading payment options…</p></section>' : closedHTML() + recentHTML('dep')}</div>`;
+      if (ways) loadRecent('dep');
+      return;
+    }
+    if (!ways.find(t => t.id === tab)) { const lastUsed = prefs.get().lastDep; tab = ways.find(t => t.id === lastUsed) ? lastUsed : ways[0].id; }
+    const way = ways.find(t => t.id === tab), manual = way.mode === 'manual' || (way.mode === 'demo' && tab === 'transfer');
     wl.dep = tab;
     if (live() && wl.hasDeposit == null) {
       wl.hasDeposit = undefined;
@@ -726,13 +767,15 @@
         <form class="wx-form" id="depForm" novalidate>
           <section class="wx-card">
             <h2 class="wx-h">Payment method</h2>
-            ${methodsHTML(p.dep, tab, 'Payment method')}
-            ${tab === 'momo' ? momoHTML() : ''}
-            ${tab === 'ussd' ? `<div class="wx-sub"><label class="wx-l">Your bank<select name="bank"><option value="">Select your bank</option>${Object.keys(NG_USSD).map(b => `<option>${b}</option>`).join('')}</select></label></div>` : ''}
+            ${methodsHTML(ways, tab, 'Payment method')}
+            ${manual ? payToHTML(way) : tab === 'momo' ? momoHTML() : ''}
           </section>
-          <section class="wx-card">${amountHTML('dep')}</section>
+          <section class="wx-card">${amountHTML('dep')}
+            ${manual && tab === 'transfer' ? `<label class="wx-l">Name on the account you are sending from<input name="sender" maxlength="80" autocomplete="name" value="${a.esc(prefs.get().sender || u.fullName || '')}" placeholder="e.g. ADA OBI"></label>` : ''}
+            ${manual && tab === 'momo' ? `<h3 class="wx-h sm">The MoMo number you are sending from</h3>${momoHTML()}` : ''}
+          </section>
           <button class="au-btn wx-cta" id="depBtn" disabled>Deposit</button>
-          <p class="wx-secure">${ICON.lock}<span>${tab === 'card' ? 'You confirm card payments with your bank (3-D Secure). We never store your card details.' : 'Secure payment · credited to your balance instantly'}</span></p>
+          <p class="wx-secure">${ICON.lock}<span>${manual ? `We add it to your balance as soon as the money arrives – ${a.esc(way.eta || 'usually within 15 minutes')}. We email you too.` : 'You approve the payment on your phone with your MoMo PIN. Credited as soon as it is approved.'}</span></p>
         </form>
         ${recentHTML('dep')}
       </div>`;
@@ -742,30 +785,32 @@
     // the button says what is still missing, then the exact amount
     const sync = () => {
       if (!amt) return;
-      const need = !mm() ? 'Enter your mobile money number' : tab === 'ussd' && !f.bank.value ? 'Select your bank' : '';
+      const need = !mm() ? 'Enter your mobile money number' : manual && tab === 'transfer' && f.sender.value.trim().length < 3 ? 'Enter the sender’s name' : '';
       btn.disabled = !amt.valid() || !!need;
-      btn.textContent = !amt.valid() ? 'Deposit' : need || `Deposit ${a.money(amt.get())}`;
+      btn.textContent = !amt.valid() ? (manual ? 'I have sent the money' : 'Deposit') : need || (manual ? `I have sent ${a.money(amt.get())}` : `Deposit ${a.money(amt.get())}`);
     };
     if (tab === 'momo') mm = bindMomo(f, u, sync);
     amt = bindAmount(f, 'dep', sync);
-    f.addEventListener('change', sync); sync();
+    f.addEventListener('input', sync); f.addEventListener('change', sync); sync();
     f.addEventListener('submit', async e => {
       e.preventDefault();
       const v = amt.get(); if (btn.disabled || limitBlocked(v)) return;
-      const details = tab === 'momo' ? { phone: mm(), network: f.querySelector('input[name=prov]:checked').value } : tab === 'ussd' ? { bank: f.bank.value } : {};
+      const details = tab === 'momo' ? { phone: mm(), network: f.querySelector('input[name=prov]:checked').value } : {};
+      if (manual && tab === 'transfer') { details.sender = f.sender.value.trim(); prefs.set({ sender: details.sender }); }
       if (tab === 'momo' && !u.phone) prefs.set({ momo: details.phone });
       prefs.set({ lastDep: tab });
-      processingSheet('Processing your deposit…', `${m.name} · ${a.money(v)}`);
-      try { await deposit(v, tab, details); } catch (x) { failSheet(x, m.name); }
+      processingSheet(manual ? 'Sending your deposit…' : 'Starting your payment…', `${m.name} · ${a.money(v)}`);
+      try { await deposit(v, tab, details, way); } catch (x) { failSheet(x, m.name); }
     });
   }
 
-  async function deposit(amount, tab, details) {
+  async function deposit(amount, tab, details, way) {
     const a = app(), u = user(), m = METHOD[tab], first = firstDeposit(), bonus = first ? Math.min(amount * 2, a.C.bonusMax) : 0, t0 = Date.now();
-    let r, status = 'success', next = null;
+    let r, status = 'success', next = null, res = null;
     if (live()) {
-      const res = await API.wallet.deposit(amount, m.api, details);
-      u.balance = res.balance; status = res.status; next = res.next || null; r = String(res.paymentId).slice(0, 8).toUpperCase();
+      res = await API.wallet.deposit(amount, m.api, details);
+      if (res.balance != null) u.balance = res.balance;
+      status = res.status; next = res.next || null; r = res.reference || String(res.paymentId).slice(0, 8).toUpperCase();
       if (status === 'success') wl.hasDeposit = true;
       wl.recentAt = 0;
     } else {
@@ -776,31 +821,80 @@
     await sleep(Math.max(0, 700 - (Date.now() - t0)));   // let the processing state register
     wl.amt.dep = '';
     saveUser(); refresh(); rerender();
-    if (next && next.url) { location.href = next.url; return; }   // PROVIDER: hosted checkout
+    if (status === 'failed') return resultSheet({ ok: 'fail', title: 'Payment not approved', rows: [['Reason', a.esc(res.message || 'The payment was declined')], ['Method', m.name]], note: 'No money was taken. You can try again.', secondary: 'Close' });
+    if (next && next.otp) return otpSheet(res.paymentId, amount, m, next.message);
+    if (next && next.poll) return approveSheet(res.paymentId, amount, m, next.message);
     if (status !== 'success') {
-      return resultSheet({ ok: 'pending', title: 'Complete your payment', amount,
-        note: a.esc((next && next.message) || 'Approve the payment with your bank or wallet. Your balance updates automatically as soon as it is confirmed.'),
-        rows: [['Method', m.name], ...((next && next.rows) || []).map(([k, v]) => [a.esc(k), a.esc(v)]), ['Reference', r]],
-        primary: ['View transactions', '#/acct/tx'], secondary: 'Done' });
+      return resultSheet({ ok: 'pending', title: 'Deposit being checked', amount,
+        note: a.esc((next && next.message) || 'We add it to your balance as soon as the money arrives.'),
+        rows: [['Method', m.name], ['Your reference', a.esc(r)], ['Status', '<em class="wx-st pend">Being checked</em>']],
+        primary: ['Keep browsing', '#/home'], secondary: 'Done' });
     }
+    depositDone(amount, m, r, bonus);
+  }
+  function depositDone(amount, m, r, bonus) {
+    const a = app(), u = user();
     if (window.Motion && Motion.confetti) Motion.confetti();
     resultSheet({ ok: 'ok', title: 'Deposit successful', amount,
-      rows: [['Method', m.name], ['Reference', r], ['New balance', a.money(u.balance)], ...(bonus ? [['Welcome bonus', `<b class="gold">+${a.whole(bonus)}</b> · unlocks as you play`]] : [])],
+      rows: [['Method', m.name], ['Reference', a.esc(r)], ['New balance', a.money(u.balance)], ...(bonus ? [['Welcome bonus', `<b class="gold">+${a.whole(bonus)}</b> · unlocks as you play`]] : [])],
       primary: ['Start betting', '#/home'], secondary: 'Done' });
+  }
+  /** Mobile Money through the payment API: wait for the player to approve the prompt on their phone. */
+  async function approveSheet(id, amount, m, msg) {
+    const a = app(), u = user(), first = wl.hasDeposit === false;
+    wl.busy = true;
+    const s = sheet(`<div class="wl-proc"><i class="spin big"></i><h3>Approve on your phone</h3><p>${a.esc(msg || 'Approve the payment prompt with your MoMo PIN.')}</p>
+      <p class="wl-p"><b>${a.money(amount)}</b> · ${m.name}</p><p class="wx-note" id="apWait">Waiting for your approval…</p>
+      <div class="wl-sheet-btns col"><button class="au-btn ghost" data-close-sheet>Close – I will approve later</button></div></div>`);
+    let closed = false;
+    $$('[data-close-sheet]', s).forEach(b => b.onclick = () => { closed = true; wl.busy = false; closeSheet(); });
+    for (let i = 0; i < 60 && !closed; i++) {
+      await sleep(3000);
+      if (closed || !s.classList.contains('open')) return;
+      let st; try { st = await API.wallet.payment(id); } catch { continue; }
+      if (st.payment.status === 'success') { u.balance = st.balance; wl.hasDeposit = true; wl.recentAt = 0; saveUser(); refresh(); rerender(); return depositDone(Number(st.payment.amount), m, String(id).slice(0, 8).toUpperCase(), first ? Math.min(amount * 2, a.C.bonusMax) : 0); }
+      if (st.payment.status !== 'pending') { wl.recentAt = 0; rerender(); return resultSheet({ ok: 'fail', title: 'Payment not approved', rows: [['Method', m.name], ['Amount', a.money(amount)]], note: 'No money was taken. You can try again.', secondary: 'Close' }); }
+    }
+    if (!closed) resultSheet({ ok: 'pending', title: 'Still waiting for approval', amount, note: 'If you approve the prompt later, your balance updates by itself.', rows: [['Method', m.name]], secondary: 'Done' });
+  }
+  /** Telecel Cash: the code sent to the player's phone. */
+  function otpSheet(id, amount, m, msg) {
+    const a = app();
+    wl.busy = false;
+    const s = sheet(`<h3>Enter the code</h3><p class="wl-p">${a.esc(msg || 'Enter the code sent to your phone to approve the payment.')}</p>
+      <form id="otpForm" class="wx-sheetform" novalidate><label class="wx-l">Code<input name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6-digit code"></label>
+      <p class="wl-resolve bad" id="otpErr" hidden></p>
+      <div class="wl-sheet-btns"><button type="button" class="au-btn ghost" data-no>Cancel</button><button class="au-btn" id="otpGo">Approve ${a.money(amount)}</button></div></form>`);
+    const f = $('#otpForm', s);
+    $('[data-no]', s).onclick = closeSheet;
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const code = digits(f.otp.value); if (code.length < 4) return;
+      const done = spin($('#otpGo', s), 'Approving…');
+      try {
+        const r = await API.wallet.otp(id, code);
+        if (r.status === 'success') { user().balance = r.balance; wl.hasDeposit = true; wl.recentAt = 0; saveUser(); refresh(); rerender(); return depositDone(amount, m, String(id).slice(0, 8).toUpperCase(), 0); }
+        if (r.next && r.next.poll) return approveSheet(id, amount, m, r.next.message);
+        if (r.status === 'failed') return resultSheet({ ok: 'fail', title: 'Payment not approved', rows: [['Method', m.name]], note: 'No money was taken. You can try again.', secondary: 'Close' });
+        done();
+      } catch (x) { done(); const e2 = $('#otpErr', s); e2.textContent = x.status === 400 ? 'That code is not right – check it and try again.' : err(x, 'Could not approve'); e2.hidden = false; }
+    });
   }
 
   /* =========================================================
      WITHDRAW
      ========================================================= */
   // live: the server holds payouts for admin approval; demo: they pay out after a few seconds
-  const kyc = u => live() ? (u.verified ? 'ok' : u.limits?.kyc?.status === 'pending' ? 'pending' : 'none') : (u.verified ? 'ok' : 'none');
-  const canWithdraw = () => kyc(user()) !== 'none';
+  const kyc = u => live() ? (u.verified ? 'ok' : u.limits?.kyc?.status === 'pending' ? 'pending' : u.limits?.kyc?.status === 'rejected' ? 'rejected' : 'none') : (u.verified ? 'ok' : 'none');
+  const canWithdraw = () => ['ok', 'pending'].includes(kyc(user()));
+  const wdEta = () => (live() ? (opt.data && opt.data.withdraw[0] && opt.data.withdraw[0].eta) || 'within 24 hours' : 'Within minutes');
   function renderWithdraw(tab) {
     const a = app(), p = P(), el = root('withdraw'), u = user();
     if (!u) return a.go('login/withdraw' + (tab ? encodeURIComponent('/' + tab) : ''));
     migratePrefs();
     if (!p.wd.find(t => t.id === tab)) tab = p.wd[0].id;
     wl.wd = tab;
+    loadOptions();
     loadRecent('wd');
     const k = kyc(u), friend = tab === 'friend';
     el.innerHTML = `${pageHead('Withdraw', { help: true })}
@@ -808,6 +902,7 @@
         ${heroHTML('wd')}
         ${k === 'none' && !friend ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
         ${k === 'pending' && !friend ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
+        ${k === 'rejected' && !friend ? `<a class="wl-verify bad" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Your ID check was not approved</b>${a.esc(u.limits?.kyc?.reason || 'Please check your details')} – tap to submit it again.</span>${ICON.chev}</a>` : ''}
         <form class="wx-form" id="wdForm" novalidate>
           <section class="wx-card">
             <h2 class="wx-h">${friend ? 'Send to' : 'Withdraw to'}</h2>
@@ -847,7 +942,7 @@
     wl.amt.wd = '';
     saveUser(); refresh(); rerender();
     resultSheet({ ok: 'pending', title: 'Withdrawal submitted', amount,
-      rows: [['To', to], ['Reference', r], ['Status', '<em class="wx-st pend">Processing</em>'], ['Usually arrives', kyc(u) === 'pending' ? 'After your ID is approved' : 'Within minutes']],
+      rows: [['To', to], ['Reference', r], ['Status', '<em class="wx-st pend">Processing</em>'], ['Usually arrives', kyc(u) === 'pending' ? 'After your ID is approved' : wdEta()]],
       primary: ['View transactions', '#/acct/tx'], secondary: 'Done' });
   }
   function settleWithdrawal(r) {
@@ -930,7 +1025,7 @@
       e.preventDefault(); if (btn.disabled) return;
       const num = mm(); if (!u.phone) prefs.set({ momo: num });
       const m = GH_MOMO.find(x => x.id === f.querySelector('input[name=prov]:checked').value);
-      payout({ amount: amt.get(), method: m.name, apiMethod: 'mobile_money', details: { account: `${m.name} · 0${num}`, net: m.short, phone: num },
+      payout({ amount: amt.get(), method: m.name, apiMethod: 'mobile_money', details: { account: `${m.name} · 0${num}`, network: m.id, phone: num, name: u.fullName || '' },
         to: `${m.name}<br><small>${fmtPhone(num)}</small>`, ms: 4000 });
     });
   }

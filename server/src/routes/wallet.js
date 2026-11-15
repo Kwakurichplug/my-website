@@ -6,12 +6,20 @@ import { move, debit } from '../lib/wallet.js';
 import { creditDeposit, bonusesOf } from '../lib/bonus.js';
 import { getSetting } from '../lib/settings.js';
 import { sendEmail } from '../emails/index.js';
+import { options, demoMode, methodName, referenceOf, NETWORKS } from '../lib/payments.js';
+import * as paystack from '../payments/paystack.js';
+import { creditPaystack, failPaystack, checkPaystack } from '../payments/flows.js';
 
 const r = Router();
 r.use(requireUser);
 
-const MIN = { NG: 100, GH: 1 };
+const MIN = { NG: 100, GH: 1 };   // transfers between players
 const METHODS = ['card', 'bank_transfer', 'ussd', 'mobile_money', 'opay', 'palmpay'];
+const fail = (res, status, error, extra) => res.status(status).json({ error, ...extra });
+const phone9 = z.string().transform(s => s.replace(/\D/g, '').replace(/^233/, '').replace(/^0/, '')).refine(s => s.length === 9, 'bad_phone');
+
+// what this player can use to pay in and out right now (country, limits, bank / MoMo details, their reference)
+r.get('/options', async (req, res, next) => { try { res.json(await options(req.user)); } catch (e) { next(e); } });
 
 r.get('/', (req, res) => res.json({ balance: Number(req.user.balance), currency: req.user.country === 'GH' ? 'GHS' : 'NGN' }));
 
@@ -25,36 +33,104 @@ r.get('/transactions', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Deposit. PAYMENTS_MODE=demo credits at once (pre-launch testing).
-// PROVIDER: with a payment provider (Paystack / Flutterwave / MoMo), create the charge here and answer
-//   { status: 'pending', paymentId, balance, next } where next is ONE of
-//     { url }             – hosted checkout (cards: card details are never typed on our pages), the app redirects;
-//     { message, rows }   – what to do now: bank-transfer account (rows: Bank, Account number, Account name),
-//                           USSD code, or "approve the prompt on 024…" for mobile money; the app shows them.
-//   The provider's webhook then credits the deposit with creditDeposit() (lib/bonus.js) – see HANDOVER.md §7.
-// `details` carries what the method needs: { phone, network } for mobile money, { bank } for USSD.
+// Deposit – only through a way of paying that is open for the player's country (GET /options):
+//   manual (Nigeria bank transfer, Ghana MoMo without the API): recorded as pending with the player's reference;
+//          an admin confirms the money arrived and the deposit is credited (admin.js → approve).
+//   api    (Ghana MoMo with PAYSTACK_SECRET_KEY): the charge starts now; the player approves it on their phone
+//          (or types the code Telecel sends: POST /deposit/:id/otp); the webhook or GET /payments/:id credits it.
+//   demo   (automated tests only, never in production): credited at once.
 r.post('/deposit', async (req, res, next) => {
-  const p = z.object({ amount: z.number().positive(), method: z.enum(METHODS).default('card'),
-    details: z.object({ phone: z.string().max(15).optional(), network: z.string().max(20).optional(), bank: z.string().max(60).optional() }).optional() }).safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: 'invalid' });
-  const { amount, method } = p.data, details = p.data.details || {};
-  if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
-  const lim = req.user.limits?.deposit?.amount;
+  const p = z.object({ amount: z.number().positive().max(1e8), method: z.enum(METHODS),
+    details: z.object({ phone: z.string().max(15).optional(), network: z.string().max(20).optional(), sender: z.string().trim().max(80).optional(), bank: z.string().max(60).optional() }).optional() }).safeParse(req.body);
+  if (!p.success) return fail(res, 400, 'invalid');
+  const { method } = p.data, amount = Math.round(p.data.amount * 100) / 100, details = p.data.details || {};
   try {
+    const opt = await options(req.user), way = opt.deposit.find(x => x.method === method), demo = demoMode();
+    if (!way && !demo) return fail(res, 400, 'method_closed');
+    if (amount < opt.limits.minDeposit) return fail(res, 400, 'below_minimum', { min: opt.limits.minDeposit });
+    if (amount > opt.limits.maxDeposit) return fail(res, 400, 'above_maximum', { max: opt.limits.maxDeposit });
+    const lim = req.user.limits?.deposit?.amount;
     if (lim) {
-      const { rows } = await q(`SELECT coalesce(sum(amount),0)::numeric AS s FROM transactions WHERE user_id=$1 AND type='deposit' AND created_at > now() - interval '1 day'`, [req.user.id]);
-      if (Number(rows[0].s) + amount > lim) return res.status(400).json({ error: 'deposit_limit', limit: lim });
+      const { rows } = await q(`SELECT coalesce(sum(amount),0)::numeric AS s FROM payments WHERE user_id=$1 AND kind='deposit' AND status IN ('success','pending') AND created_at > now() - interval '1 day'`, [req.user.id]);
+      if (Number(rows[0].s) + amount > lim) return fail(res, 400, 'deposit_limit', { limit: lim });
     }
-    const demo = (process.env.PAYMENTS_MODE || 'demo') === 'demo';
-    const out = await tx(async c => {
-      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,$4,$5,$6) RETURNING id`,
-        [req.user.id, amount, method, demo ? 'demo' : 'pending', demo ? 'success' : 'pending', details]);
-      const pid = rows[0].id;
-      const balance = demo ? await creditDeposit(c, req.user, amount, pid, { method }) : Number(req.user.balance);
-      return { paymentId: pid, balance, status: demo ? 'success' : 'pending' };
-    });
-    res.json(out);
-    if (out.status === 'success') sendEmail('depositSuccess', req.user, { amount, method, paymentId: out.paymentId, balance: out.balance, when: new Date() });
+    const momo = method === 'mobile_money';
+    const ph = momo && phone9.safeParse(details.phone || req.user.phone || '');
+    if (momo && !demo && (!ph.success || !NETWORKS[details.network])) return fail(res, 400, 'momo_details');
+    const mode = demo ? 'demo' : way.mode;
+
+    if (mode === 'demo') {
+      const out = await tx(async c => {
+        const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,'demo','success',$4) RETURNING id`, [req.user.id, amount, method, details]);
+        return { paymentId: rows[0].id, balance: await creditDeposit(c, req.user, amount, rows[0].id, { method }), status: 'success' };
+      });
+      res.json(out);
+      return sendEmail('depositSuccess', req.user, { amount, method: methodName(method), paymentId: out.paymentId, balance: out.balance, when: new Date() });
+    }
+
+    if (mode === 'manual') {
+      if (!momo && (details.sender || '').length < 3) return fail(res, 400, 'sender_required');
+      const { rows: open } = await q(`SELECT count(*)::int AS n FROM payments WHERE user_id=$1 AND kind='deposit' AND provider='manual' AND status='pending'`, [req.user.id]);
+      if (open[0].n >= 3) return fail(res, 409, 'too_many_pending');
+      const reference = referenceOf(req.user);
+      const keep = momo ? { phone: ph.data, network: details.network, sender: details.sender || null } : { sender: details.sender };
+      const { rows } = await q(`INSERT INTO payments (user_id, kind, amount, method, provider, provider_ref, status, details) VALUES ($1,'deposit',$2,$3,'manual',$4,'pending',$5) RETURNING id`,
+        [req.user.id, amount, method, reference, keep]);
+      res.json({ status: 'pending', paymentId: rows[0].id, reference, balance: Number(req.user.balance), mode: 'manual',
+        next: { message: `We are checking your ${momo ? 'MoMo transfer' : 'transfer'}. Your balance updates as soon as it is confirmed – ${way.eta}.`, rows: [['Reference', reference]] } });
+      return sendEmail('depositReceived', req.user, { amount, method: methodName(method), paymentId: rows[0].id, reference, when: new Date() });
+    }
+
+    // api: Ghana Mobile Money through Paystack
+    const { rows } = await q(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,'paystack','pending',$4) RETURNING id`,
+      [req.user.id, amount, method, { phone: ph.data, network: details.network }]);
+    const id = rows[0].id, reference = 'LB' + String(id).replace(/-/g, '');
+    await q('UPDATE payments SET provider_ref=$2 WHERE id=$1', [id, reference]);
+    let ch;
+    try { ch = await paystack.chargeMomo({ reference, amount, email: req.user.email || `player${req.user.uid}@letbetafrika.online`, phone: ph.data, network: details.network }); }
+    catch (e) { await failPaystack(reference, e.message); return fail(res, 502, 'payment_failed', { message: e.message }); }
+    return res.json(await chargeAnswer(req.user, id, reference, ch));
+  } catch (e) { next(e); }
+});
+
+/** Turn a Paystack charge state into the app's answer: credited, approve on your phone, type the code, or failed. */
+async function chargeAnswer(user, id, reference, ch) {
+  if (ch.status === 'success') {
+    const done = await creditPaystack(reference, { via: 'charge' });
+    return { status: 'success', paymentId: id, balance: done ? done.balance : Number(user.balance) };
+  }
+  if (ch.status === 'failed') { await failPaystack(reference, ch.display || 'The payment was declined'); return { status: 'failed', paymentId: id, message: ch.display || 'The payment was declined' }; }
+  if (ch.status === 'send_otp') return { status: 'pending', paymentId: id, balance: Number(user.balance), next: { otp: true, message: ch.display || 'Enter the code sent to your phone' } };
+  return { status: 'pending', paymentId: id, balance: Number(user.balance), next: { poll: true, message: ch.display || 'Approve the payment prompt on your phone with your MoMo PIN.' } };
+}
+
+// Telecel Cash: the code the player receives
+r.post('/deposit/:id/otp', async (req, res, next) => {
+  const p = z.object({ otp: z.string().trim().min(3).max(12) }).safeParse(req.body);
+  if (!p.success) return fail(res, 400, 'invalid');
+  try {
+    const { rows } = await q(`SELECT * FROM payments WHERE id=$1 AND user_id=$2 AND kind='deposit' AND provider='paystack'`, [req.params.id, req.user.id]);
+    const pay = rows[0]; if (!pay) return fail(res, 404, 'not_found');
+    if (pay.status !== 'pending') return res.json({ status: pay.status, paymentId: pay.id, balance: Number(req.user.balance) });
+    let ch; try { ch = await paystack.submitOtp(pay.provider_ref, p.data.otp); } catch (e) { return fail(res, 400, 'bad_code', { message: e.message }); }
+    res.json(await chargeAnswer(req.user, pay.id, pay.provider_ref, ch));
+  } catch (e) { next(e); }
+});
+
+// One payment's status; a pending API charge is checked with Paystack (at most every 8 s) in case the webhook is late
+const lastCheck = new Map();
+r.get('/payments/:id', async (req, res, next) => {
+  try {
+    const one = async () => (await q('SELECT id, kind, amount, method, provider, status, created_at, updated_at FROM payments WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id])).rows[0];
+    let pay = await one(); if (!pay) return fail(res, 404, 'not_found');
+    if (pay.status === 'pending' && pay.provider === 'paystack' && paystack.enabled() && Date.now() - (lastCheck.get(pay.id) || 0) > 8000) {
+      lastCheck.set(pay.id, Date.now());
+      const full = (await q('SELECT * FROM payments WHERE id=$1', [pay.id])).rows[0];
+      await checkPaystack(full).catch(() => {});
+      pay = await one();
+    }
+    const bal = (await q('SELECT balance FROM users WHERE id=$1', [req.user.id])).rows[0].balance;
+    res.json({ payment: pay, balance: Number(bal) });
   } catch (e) { next(e); }
 });
 
@@ -65,21 +141,37 @@ r.get('/bonuses', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Withdraw – Nigeria to a bank account, Ghana to Mobile Money. The money leaves the balance now and an admin pays it
+// (manually, or for Ghana through the payment API) or rejects it (the money goes back).
 r.post('/withdraw', async (req, res, next) => {
-  const p = z.object({ amount: z.number().positive(), method: z.enum(METHODS).default('bank_transfer'), details: z.record(z.string(), z.any()).default({}) }).safeParse(req.body);
+  const p = z.object({ amount: z.number().positive().max(1e8), method: z.enum(METHODS).default('bank_transfer'), details: z.record(z.string(), z.any()).default({}) }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
-  const { amount, method, details } = p.data;
-  if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
+  const { method } = p.data, amount = Math.round(p.data.amount * 100) / 100;
   if (!req.user.verified && (process.env.REQUIRE_KYC || 'false') === 'true') return res.status(403).json({ error: 'kyc_required' });
+  let details;
   try {
+    const opt = await options(req.user);
+    if (!opt.withdraw.some(x => x.method === method) && !demoMode()) return res.status(400).json({ error: 'method_closed' });
+    if (amount < opt.limits.minWithdraw) return res.status(400).json({ error: 'below_minimum', min: opt.limits.minWithdraw });
+    if (amount > opt.limits.maxWithdraw) return res.status(400).json({ error: 'above_maximum', max: opt.limits.maxWithdraw });
+    const d = p.data.details, name = String(d.name || req.user.full_name || '').trim().slice(0, 80);
+    if (method === 'mobile_money') {
+      const ph = phone9.safeParse(String(d.phone || '')), net = String(d.network || '').toLowerCase();
+      if (!ph.success || !NETWORKS[net]) return res.status(400).json({ error: 'momo_details' });
+      details = { phone: ph.data, network: net, name, account: `${NETWORKS[net]} · 0${ph.data}` };
+    } else {
+      const acct = String(d.acct || '').replace(/\D/g, ''), bank = String(d.bank || '').trim().slice(0, 60);
+      if (!bank || acct.length < 10 || acct.length > 16 || name.length < 3) return res.status(400).json({ error: 'bank_details' });
+      details = { bank, acct, name, account: `${bank} · ${acct} · ${name}` };
+    }
     // Funds leave the balance now; admin approves or rejects (rejection refunds).
     const out = await tx(async c => {
-      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, status, details) VALUES ($1,'withdrawal',$2,$3,'pending',$4) RETURNING id`, [req.user.id, amount, method, details]);
+      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'withdrawal',$2,$3,'manual','pending',$4) RETURNING id`, [req.user.id, amount, method, details]);
       const balance = await debit(c, req.user.id, 'withdrawal', amount, rows[0].id, { method });
       return { paymentId: rows[0].id, balance, status: 'pending' };
     });
     res.json(out);
-    sendEmail('withdrawalRequested', req.user, { amount, method, paymentId: out.paymentId, account: details.account, when: new Date() });
+    sendEmail('withdrawalRequested', req.user, { amount, method: methodName(method), paymentId: out.paymentId, account: details.account, when: new Date() });
   } catch (e) { next(e); }
 });
 
@@ -114,7 +206,7 @@ r.post('/transfer', async (req, res, next) => {
 
 r.get('/payments', async (req, res, next) => {
   try {
-    const { rows } = await q('SELECT id, kind, amount, method, status, created_at FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100', [req.user.id]);
+    const { rows } = await q(`SELECT id, kind, amount, method, provider, status, created_at, details->>'reason' AS reason FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
     res.json({ payments: rows });
   } catch (e) { next(e); }
 });

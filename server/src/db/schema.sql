@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS payments (
   method      text NOT NULL,
   provider    text,
   provider_ref text,
-  status      text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','success','failed','rejected')),
+  status      text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','success','failed','rejected','cancelled')),
   details     jsonb NOT NULL DEFAULT '{}',
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
@@ -318,3 +318,30 @@ ALTER TABLE email_log ADD COLUMN IF NOT EXISTS error text;
 
 -- market set v2 (markets.js): the two legacy European handicap rows are replaced by the 'eh' table on open events
 DELETE FROM markets WHERE key IN ('eh-1','eh+1') AND event_id IN (SELECT id FROM events WHERE status IN ('scheduled','live'));
+
+-- ---------------------------------------------------------------------------------------------------------
+-- Payments MVP: manual deposits (admin confirms), Ghana Mobile Money through the payment API, admin action log
+-- ---------------------------------------------------------------------------------------------------------
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_status_check' AND pg_get_constraintdef(oid) LIKE '%cancelled%') THEN
+    ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+    ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('pending','success','failed','rejected','cancelled'));
+  END IF;
+END $$;
+-- a provider reference belongs to one charge / payout
+CREATE UNIQUE INDEX IF NOT EXISTS payments_paystack_ref_key ON payments (provider_ref) WHERE provider = 'paystack';
+CREATE INDEX IF NOT EXISTS payments_pending_idx ON payments (kind, created_at) WHERE status = 'pending';
+-- deposits started before manual / API payments existed never reached a provider and took no money: close them
+UPDATE payments SET status = 'cancelled', updated_at = now(), details = details || '{"reason":"Not completed – no money was taken"}'::jsonb
+  WHERE kind = 'deposit' AND status = 'pending' AND coalesce(provider, 'pending') = 'pending';
+-- admin portal: every change an admin makes (who, which endpoint, on which record, with which values)
+CREATE TABLE IF NOT EXISTS admin_log (
+  id        bigserial PRIMARY KEY,
+  admin_id  uuid NOT NULL REFERENCES users(id),
+  action    text NOT NULL,
+  target    text,
+  meta      jsonb NOT NULL DEFAULT '{}',
+  at        timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE admin_log ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS admin_log_at ON admin_log (at DESC);
