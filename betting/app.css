@@ -2775,6 +2775,24 @@ html:not([data-theme="dark"]) #page-match.pre .mk-search{background:#fff;border-
 html:not([data-theme="dark"]) #page-match.pre .mk-q{background:#f2f3f5;color:var(--mute)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q input{color:var(--ink)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q-x{color:var(--g)}
+/* booking code share sheet */
+.sh-card{gap:12px}
+.sh-code{align-self:center;font:700 30px/1 Roboto,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:4px;color:var(--ink);background:#f2f3f5;border:1px dashed #c3c7cd;border-radius:6px;padding:12px 18px}
+.sh-sum{margin-top:-4px;text-align:center;font-size:var(--fs);color:var(--mute)}
+.sh-link{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:4px;background:#f2f3f5;font-size:var(--fs);color:var(--ink-2);min-width:0}
+.sh-link svg{width:18px;height:18px;flex:none;color:var(--mute)}
+.sh-link span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sh-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border:1px solid var(--line-2);border-radius:4px;font-size:var(--fs-t);font-weight:500;color:var(--ink)}
+.sh-btn svg{width:20px;height:20px}
+.sh-btn.wa{background:var(--g);border-color:var(--g);color:#fff}
+.sh-btn[hidden]{display:none}
+.sh-btns .sh-btn.wa:only-child,.sh-btns:has(#shShare[hidden]) .sh-btn.wa{grid-column:1/-1}
+.sh-note{font-size:var(--fs-s);color:var(--mute);text-align:center;line-height:1.4}
+html[data-theme="dark"] .sh-code{background:#262a31;border-color:#3a4049;color:#eef0f2}
+html[data-theme="dark"] .sh-link{background:#262a31;color:#c9cdd2}
+html[data-theme="dark"] .sh-btn{border-color:#3a4049;color:#eef0f2}
+html[data-theme="dark"] .sh-btn.wa{color:#fff}
 /* virtual sports: set / game / leg scores under the score rows */
 .mh-sets{margin-top:6px;font-size:var(--fs-s);color:#c9ccd2;letter-spacing:.2px;font-variant-numeric:tabular-nums}
 /* Sports page quick links: a lone last link spans the row */

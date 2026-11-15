@@ -147,9 +147,17 @@ r.post('/book', async (req, res, next) => {
   const p = z.object({ selections: z.array(selSchema.pick({ eventId: true, market: true, outcome: true })).min(1).max(30) }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   try {
-    const cd = code();
-    await q('INSERT INTO booking_codes (code, selections, user_id) VALUES ($1,$2,$3)', [cd, JSON.stringify(p.data.selections), req.user ? req.user.id : null]);
-    res.status(201).json({ code: cd });
+    // only selections that exist and can be bet now go into a code
+    const { rows: ok } = await q(`SELECT e.id, m.key, m.outcomes FROM events e JOIN markets m ON m.event_id = e.id AND NOT m.suspended
+      WHERE e.id = ANY($1) AND (e.status = 'live' OR (e.status = 'scheduled' AND e.kickoff > now()))`, [p.data.selections.map(x => x.eventId)]);
+    const open = new Set(ok.flatMap(r => Object.entries(r.outcomes || {}).filter(([, o]) => o && o.o != null).map(([k]) => `${r.id}|${r.key}|${k}`)));
+    if (!p.data.selections.every(x => open.has(`${x.eventId}|${x.market}|${x.outcome}`))) return res.status(409).json({ error: 'selection_unavailable' });
+    for (let i = 0; i < 6; i++) {   // ~1M codes: on the rare clash, draw another
+      const cd = code();
+      try { await q('INSERT INTO booking_codes (code, selections, user_id) VALUES ($1,$2,$3)', [cd, JSON.stringify(p.data.selections), req.user ? req.user.id : null]); return res.status(201).json({ code: cd }); }
+      catch (e) { if (e.code !== '23505') throw e; }
+    }
+    throw new Error('no free booking code');
   } catch (e) { next(e); }
 });
 
@@ -183,13 +191,15 @@ r.get('/book/:code', async (req, res, next) => {
     const { rows } = await q('SELECT selections FROM booking_codes WHERE code=$1', [req.params.code.toUpperCase()]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
     q('UPDATE booking_codes SET uses = uses + 1 WHERE code=$1', [req.params.code.toUpperCase()]).catch(() => {});
-    const out = [];
+    // today's price for every selection that can still be bet; the rest (started, finished, closed) are counted
+    const out = []; let expired = 0;
     for (const s of rows[0].selections) {
-      const m = (await q('SELECT e.home, e.away, e.status, mk.name, mk.outcomes, mk.suspended FROM events e JOIN markets mk ON mk.event_id=e.id AND mk.key=$2 WHERE e.id=$1', [s.eventId, s.market])).rows[0];
+      const m = (await q('SELECT e.home, e.away, e.status, e.kickoff, mk.name, mk.outcomes, mk.suspended FROM events e JOIN markets mk ON mk.event_id=e.id AND mk.key=$2 WHERE e.id=$1', [s.eventId, s.market])).rows[0];
       const o = m?.outcomes?.[s.outcome];
-      if (m && o && o.o != null && !m.suspended && m.status !== 'finished') out.push({ ...s, odd: o.o, label: o.l, marketName: m.name, match: `${m.home} vs ${m.away}`, live: m.status === 'live' });
+      const open = m && o && o.o != null && !m.suspended && (m.status === 'live' || (m.status === 'scheduled' && new Date(m.kickoff) > new Date()));
+      if (open) out.push({ ...s, odd: o.o, label: o.l, marketName: m.name, match: `${m.home} vs ${m.away}`, live: m.status === 'live' }); else expired++;
     }
-    res.json({ selections: out });
+    res.json({ code: req.params.code.toUpperCase(), selections: out, expired });
   } catch (e) { next(e); }
 });
 

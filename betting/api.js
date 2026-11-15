@@ -101,7 +101,7 @@
       list: status => get('/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       cashout: id => post(`/bets/${id}/cashout`),
       book: selections => post('/bets/book', { selections }).then(r => r.code),
-      load: code => get('/bets/book/' + encodeURIComponent(code)).then(r => r.selections),
+      load: code => get('/bets/book/' + encodeURIComponent(code)),   // { selections, expired }
       codes: sport => get('/bets/codes' + (sport && sport !== 'all' ? '?sport=' + sport : '')).then(r => r.codes),
     },
     admin: {

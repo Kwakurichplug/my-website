@@ -127,6 +127,14 @@ Earn reward per country (₦1,000 / GH₵10).
   score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
   were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
   covered by `test/grade.test.js`.
+- **Booking codes – load anywhere, share anywhere**: *Book Bet* opens a share sheet (big code, total odds, the link,
+  WhatsApp, the phone's own Share menu, Copy link, Copy code). Links look like `https://letbetafrika.online/#/code/LB7K2Q`
+  (`?code=LB7K2Q` works too): opening one lands on the home page with the code in the betslip. Loading a code fetches
+  every match in full, so picks from any market (correct score, handicaps, HT/FT…) arrive live – before, anything
+  outside the main list showed as suspended, also after a page reload (fixed for every betslip). Games that have
+  started are left out and counted (`GET /api/bets/book/:code` → `{ code, selections, expired }`); `POST /book` only
+  accepts selections that can be bet right now and retries on the rare code clash. Code Hub *Share* uses the same
+  sheet. Test: `tools/qa/e2e_codes.js`.
 - **Virtual sports** (`server/src/games/vsports.js`): vBasketball, vTennis, vIce Hockey, vVolleyball, vTable Tennis,
   vHandball, vDarts – a round of 4 matches every 3 minutes per sport, all day, with fictional teams and players and
   leagues named *Virtual …* under *LetBet Virtuals*. Winner (1X2 for handball) / Handicap / Total are priced from the

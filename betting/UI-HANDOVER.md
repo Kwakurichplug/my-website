@@ -287,6 +287,11 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Line columns** (`linesOf`, `pairOf`, `lineTxt`): fixed `cfg.lines` (football O/U) or `lines: 'auto'` (two-way Handicap
   and Total – the lines come from each match's keys). Handicap pairs are `<line>|1` / `<line>|2`, shown signed (`+3.5`).
   The picker header (`#lineHead`) follows the market (Goals/Points/Runs | Over | Under, or Home line | Home | Away).
+- **Booking codes** (`app.js`): `shareCode(code, n, odds)` fills `#shareModal` (`#shCode`, `#shSum`, `#shLinkTxt`,
+  `#shWa` wa.me link, `[data-sh="share|link|code"]`; Share hides without `navigator.share`; `copyText` falls back to
+  `execCommand`). `codeLink(code)` = `<origin>/#/code/<code>`; `route()` turns `#/code/X` and `?code=X` into `loadCode()`
+  on the home page. `refreshSlipEvents(force)` fetches slip matches in full (`API.events.one`) when a pick's market is
+  outside `LIST_KEYS` or missing – on boot, in `loadCode`, and at most every 15 s per match in `liveRefresh`.
 - **Virtual sports** (`app.js`): `SPORTS` has `vbasketball … vdarts` after the real sports (names *vBasketball* etc.; icons
   fall back to the real sport's in `icons.js`). `VS` set → `m.vs`; `m.period` (server `period`: Q1–Q4, P1–P3, halves,
   *Set n*, *Game n*, *Leg n*) is the live label; `m.sets` (server `stats.sets`) shows under the score rows (`.mh-sets`).

@@ -702,6 +702,16 @@
     saveSlip(); renderAfterSlipChange();
   }
 
+  // the 5-second list only carries the main markets; a slip pick from any other market (correct score, Asian
+  // handicap, HT/FT…) needs its match in full, or it would show as suspended (booking codes, page reloads)
+  const LIST_KEYS = new Set(['1x2', 'dc', 'ou', 'gg', 'hou', 'aou', 'win', 'hcp', 'spr', 'tot']);
+  const detailAt = {};
+  async function refreshSlipEvents(force) {
+    if (!LIVE || !state.slip.length) return;
+    const ids = [...new Set(state.slip.filter(x => { const m = byId(x.mid); return force || !m || !m.map[x.mk]?.[x.ok] || !LIST_KEYS.has(x.mk); }).map(x => x.mid))]
+      .filter(id => force || Date.now() - (detailAt[id] || 0) > 15000).slice(0, 20);
+    await Promise.all(ids.map(async id => { detailAt[id] = Date.now(); const e = await API.events.one(id).catch(() => null); if (e) mapEvent(e); }));
+  }
   function syncSlipOdds() {
     let changed = false;
     state.slip.forEach(s => {
@@ -801,12 +811,36 @@
 
   function bookCode() {
     if (state.slip.some(s => s.susp)) return toast('Remove suspended selections first', 'err');
-    if (LIVE) { API.bets.book(state.slip.map(s => ({ eventId: s.mid, market: s.mk, outcome: s.ok }))).then(code => { navigator.clipboard?.writeText(code).catch(() => {}); toast(`Booking code ${code} copied – share it with friends`); }).catch(e => toast(apiErr(e), 'err')); return; }
+    const n = state.slip.length, odds = state.slip.reduce((p, x) => p * x.odd, 1);
+    if (LIVE) { API.bets.book(state.slip.map(s => ({ eventId: s.mid, market: s.mk, outcome: s.ok }))).then(code => shareCode(code, n, odds)).catch(e => toast(apiErr(e), 'err')); return; }
     const code = 'LB' + Math.random().toString(36).slice(2, 6).toUpperCase();
     const codes = store.get('codes', {}); codes[code] = state.slip.map(({ mid, mk, ok }) => ({ mid, mk, ok })); store.set('codes', codes);
-    navigator.clipboard?.writeText(code).catch(() => {});
-    toast(`Booking code ${code} copied – share it with friends`);
+    shareCode(code, n, odds);
   }
+  const codeLink = code => `${location.origin}${location.pathname}#/code/${encodeURIComponent(code)}`;
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+    const t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand('copy'); } catch {} t.remove(); return ok;
+  }
+  /** Share sheet for a booking code: anyone opening the link gets the same selections in their betslip. */
+  function shareCode(code, n, odds) {
+    const link = codeLink(code), text = `My LetBetAfrika booking code: ${code}${n ? ` – ${n} selection${n === 1 ? '' : 's'}${odds > 1 ? `, odds ${odds.toFixed(2)}` : ''}` : ''}. Load it here: ${link}`;
+    $('#shCode').textContent = code;
+    $('#shSum').textContent = n ? `${n} selection${n === 1 ? '' : 's'}${odds > 1 ? ` · Total odds ${odds.toFixed(2)}` : ''}` : '';
+    $('#shLinkTxt').textContent = link.replace(/^https?:\/\//, '');
+    $('#shWa').href = 'https://wa.me/?text=' + encodeURIComponent(text);
+    $('#shShare').hidden = !navigator.share;
+    const m = $('#shareModal'); m.dataset.code = code; m.dataset.text = text; m.dataset.link = link;
+    openModal('shareModal');
+  }
+  $('#shareModal').addEventListener('click', async e => {
+    const b = e.target.closest('[data-sh]'); if (!b) return;
+    const m = $('#shareModal'), k = b.dataset.sh;
+    if (k === 'share') { try { await navigator.share({ title: 'LetBetAfrika booking code', text: m.dataset.text, url: m.dataset.link }); } catch {} return; }
+    const ok = await copyText(k === 'link' ? m.dataset.link : m.dataset.code);
+    toast(ok ? (k === 'link' ? 'Link copied' : `Code ${m.dataset.code} copied`) : 'Could not copy – press and hold to copy', ok ? 'ok' : 'err');
+  });
 
   function cashoutValue(b) {
     let cur = 1;
@@ -1295,7 +1329,8 @@
       const evs = await API.events.list({ limit: 400 });
       const seen = new Set(evs.map(e => e.id));
       evs.forEach(mapEvent);
-      MATCHES.forEach(m => { if (!m.virtual && !seen.has(m.id) && !m.finished && m.kick < Date.now() + 36e5) { m.live = false; m.finished = true; m.ft = m.score; } });
+      await refreshSlipEvents();
+      MATCHES.forEach(m => { if (!m.virtual && !seen.has(m.id) && !state.slip.some(x => x.mid === m.id) && !m.finished && m.kick < Date.now() + 36e5) { m.live = false; m.finished = true; m.ft = m.score; } });
       if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) mapEvent(e); }
       if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > 30000)) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
       syncSlipOdds(); updateLiveBadges();
@@ -1383,6 +1418,10 @@
   let firstRoute = true;
   function route() {
     const [r, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
+    // shared booking code links: #/code/LB7K2Q or ?code=LB7K2Q – the page opens with the code in the betslip
+    const qCode = firstRoute && new URLSearchParams(location.search).get('code');
+    if (qCode) { history.replaceState(null, '', location.pathname + location.hash); setTimeout(() => loadCode(qCode), 80); }
+    if (r === 'code') { if (arg) setTimeout(() => loadCode(decodeURIComponent(arg)), 80); return location.replace('#/home'); }
     if (r === 'league' && LEAGUES[+arg] && LEAGUES[+arg].sport === 'vfootball') return location.replace('#/virtuals');   // the Virtual League has its own screen
     const h = location.hash || '#/home';
     let dir = 'fade';
@@ -1653,10 +1692,13 @@
     if (!code) return toast('Enter a booking code', 'err');
     if (LIVE) {
       try {
-        const list = await API.bets.load(code);
-        if (!list.length) return toast('Booking code not found or expired', 'err');
+        const { selections: list, expired = 0 } = await API.bets.load(code);
+        if (!list.length) return toast(expired ? 'Every game in this code has already started' : 'Booking code not found or expired', 'err');
         state.slip = list.map(s => ({ mid: s.eventId, mk: s.market, ok: s.outcome, odd: s.odd, label: s.label, mname: s.marketName, match: s.match, live: s.live, stake: C.defStake }));
-        saveSlip(); closeModals(); await liveRefresh(); renderAfterSlipChange(); openSlip(); toast(`Loaded ${state.slip.length} selection(s)`);
+        state.slipType = list.length > 1 ? 'multi' : 'single';
+        await refreshSlipEvents(true); syncSlipOdds();
+        saveSlip(); closeModals(); renderAfterSlipChange(); openSlip();
+        toast(`Loaded ${list.length} selection${list.length === 1 ? '' : 's'} from ${code}` + (expired ? ` · ${expired} already started` : ''));
       } catch (err) { toast(apiErr(err, 'Booking code not found'), 'err'); }
       return;
     }
@@ -1731,6 +1773,7 @@
   });
   (async () => {
     const live = await liveInit().catch(() => false);
+    if (live) await refreshSlipEvents(true);
     if (!live) seedResults();
     if (live) { VR.endsAt = 0; VR.ids = []; vSync(); } else vNewRound();
     syncSlipOdds();
@@ -1742,7 +1785,7 @@
   window.LBA_APP = { state, C, CC, store, money, whole, esc, toast, saveUser, addTx, renderAuth, renderMe, go, openModal, r2,
     get live() { return LIVE; }, exHead, apiErr, mapUser, liveBets, liveUser,
     MATCHES, LEAGUES, SPORTS, RESULTS, VISIBLE, sportOf, byId, listMarkets, mktFor, matchRow, oddBtn, crest, fmtKick, fmtDay, liveLabel, isHot,
-    saveSlip, saveBets, renderSlip, openSlip, renderCurrent, renderAfterSlipChange, openSearch, loadCode, legResult, cashoutValue, naira, closeModals, betsHTML };
+    saveSlip, saveBets, renderSlip, openSlip, renderCurrent, renderAfterSlipChange, openSearch, loadCode, shareCode, legResult, cashoutValue, naira, closeModals, betsHTML };
   setInterval(() => {
     tickCountdown(); vTick();
     const sec = Math.floor(Date.now() / 1000);

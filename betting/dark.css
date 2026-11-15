@@ -202,6 +202,9 @@ html[data-theme="dark"] .au-via button.on{background:#1d2127}
 html[data-theme="dark"] .mk-info h2{color:#eef0f2}
 html[data-theme="dark"] .ln-row b{color:#eef0f2}
 html[data-theme="dark"] .ln-row.on{background:#183323}
+html[data-theme="dark"] .sh-code{color:#eef0f2;background:#15181c;border:1px dashed #3a4049}
+html[data-theme="dark"] .sh-link{background:#15181c}
+html[data-theme="dark"] .sh-btn{color:#eef0f2}
 @media (min-width:1024px){
 html[data-theme="dark"] .left-rail{background:#1d2127}
 html[data-theme="dark"] .icon-row{background:#1d2127}

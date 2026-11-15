@@ -678,7 +678,7 @@
       case 'chfollow': { CH.follow.has(v) ? CH.follow.delete(v) : CH.follow.add(v); store.set('follows', [...CH.follow]); a.toast(CH.follow.has(v) ? `Following ${v}` : `Unfollowed ${v}`); return renderCodes(); }
       case 'chfollowing': return a.toast(CH.follow && CH.follow.size ? `You follow ${[...CH.follow].join(', ')}` : 'Follow tipsters to see their codes first');
       case 'chadd': { const c = (CH.codes || []).find(x => x.code === v); if (!c) return; if (a.live) return a.loadCode(c.code); const n = toSlip(c.legs); return a.toast(n ? `Added ${n} selection${n === 1 ? '' : 's'} from ${c.code}` : 'These selections are already in your betslip'); }
-      case 'chshare': { const c = (CH.codes || []).find(x => x.code === v); return share('LetBetAfrika booking code', `Booking code ${v} on LetBetAfrika – ${c.legs.length} folds, odds ${c.odds.toFixed(2)}. Load it in the app: ${location.origin}${location.pathname}#/codes`); }
+      case 'chshare': { const c = (CH.codes || []).find(x => x.code === v); return a.shareCode(v, c ? c.legs.length : 0, c ? c.odds : 0); }
       case 'vipick': { const i = +t.dataset.m, o = t.dataset.o; if (VI.picks[i] === o) delete VI.picks[i]; else VI.picks[i] = o; return renderInstant(); }
       case 'vitype': VI.type = v; return renderInstant();
       case 'vichip': VI.stake = (VI.stake ?? A().C.defStake * 5) + +v; return renderInstant();
