@@ -14,6 +14,8 @@ const shape = (e, markets) => ({
 });
 
 const EV_SELECT = `SELECT e.*, l.name AS lname, l.country AS lcountry, l.flag AS lflag, l.top AS ltop FROM events e JOIN leagues l ON l.id=e.league_id`;
+// on a real feed, fixtures from the built-in demo generator are never listed (they are not real matches)
+const REAL = (process.env.ODDS_PROVIDER || 'demo') !== 'demo' ? ` AND coalesce(e.ext_id, '') NOT LIKE 'demo:%'` : '';
 
 async function withMarkets(events, keys) {
   if (!events.length) return [];
@@ -27,13 +29,13 @@ async function withMarkets(events, keys) {
 
 r.get('/leagues', async (_req, res, next) => {
   // only leagues that have something to bet on right now
-  try { const { rows } = await q(`SELECT id, sport, name, country, flag, top FROM leagues l WHERE EXISTS (SELECT 1 FROM events e WHERE e.league_id=l.id AND e.status IN ('scheduled','live')) ORDER BY top DESC, country, name`); res.json({ leagues: rows }); } catch (e) { next(e); }
+  try { const { rows } = await q(`SELECT id, sport, name, country, flag, top FROM leagues l WHERE EXISTS (SELECT 1 FROM events e WHERE e.league_id=l.id AND e.status IN ('scheduled','live')${REAL}) ORDER BY top DESC, country, name`); res.json({ leagues: rows }); } catch (e) { next(e); }
 });
 
 // GET /events?sport=football&status=scheduled|live&league=3&from=&to=&limit=
 r.get('/', async (req, res, next) => {
   const { sport, status, league, day, limit = 200, markets } = req.query;
-  const where = ["e.status <> 'cancelled'"], params = [];
+  const where = ["e.status <> 'cancelled'" + REAL], params = [];
   if (sport) { params.push(sport); where.push(`e.sport = $${params.length}`); }
   if (status) { params.push(status); where.push(`e.status = $${params.length}`); }
   if (league) { params.push(+league); where.push(`e.league_id = $${params.length}`); }
@@ -43,7 +45,7 @@ r.get('/', async (req, res, next) => {
   params.push(Math.min(+limit || 200, 500));
   try {
     const { rows } = await q(`${EV_SELECT} WHERE ${where.join(' AND ')} ORDER BY (e.status='live') DESC, e.kickoff LIMIT $${params.length}`, params);
-    const keys = markets ? String(markets).split(',') : ['1x2', 'dc', 'ou', 'gg', 'hou', 'aou', 'win', 'hcp', 'tot'];
+    const keys = markets ? String(markets).split(',') : ['1x2', 'dc', 'ou', 'gg', 'hou', 'aou', 'win', 'hcp', 'spr', 'tot'];
     res.json({ events: await withMarkets(rows, keys) });
   } catch (e) { next(e); }
 });
@@ -51,7 +53,7 @@ r.get('/', async (req, res, next) => {
 r.get('/results', async (req, res, next) => {
   try {
     // virtual rounds finish every 2 minutes – only returned when asked for (sport=vfootball)
-    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished' ${req.query.sport ? 'AND e.sport=$1' : "AND e.sport <> 'vfootball'"} ORDER BY e.updated_at DESC LIMIT ${req.query.sport === 'vfootball' ? 30 : 300}`, req.query.sport ? [req.query.sport] : []);
+    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished'${REAL} ${req.query.sport ? 'AND e.sport=$1' : "AND e.sport <> 'vfootball'"} ORDER BY e.updated_at DESC LIMIT ${req.query.sport === 'vfootball' ? 30 : 300}`, req.query.sport ? [req.query.sport] : []);
     res.json({ events: rows.map(e => shape(e)) });
   } catch (e) { next(e); }
 });
@@ -60,7 +62,7 @@ r.get('/search', async (req, res, next) => {
   const s = String(req.query.q || '').trim();
   if (s.length < 2) return res.json({ events: [] });
   try {
-    const { rows } = await q(`${EV_SELECT} WHERE e.status <> 'finished' AND (e.home ILIKE $1 OR e.away ILIKE $1 OR l.name ILIKE $1 OR l.country ILIKE $1) ORDER BY e.kickoff LIMIT 30`, ['%' + s + '%']);
+    const { rows } = await q(`${EV_SELECT} WHERE e.status <> 'finished'${REAL} AND (e.home ILIKE $1 OR e.away ILIKE $1 OR l.name ILIKE $1 OR l.country ILIKE $1) ORDER BY e.kickoff LIMIT 30`, ['%' + s + '%']);
     res.json({ events: rows.map(e => shape(e)) });
   } catch (e) { next(e); }
 });

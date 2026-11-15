@@ -9,7 +9,7 @@ export const tickEvery = 4000;
 
 const MARGIN = 0.94;
 const r2 = n => Math.round(n * 100) / 100;
-const price = p => (p < 0.005 || p > 0.985 ? null : Math.max(1.01, r2(MARGIN / p)));
+export const price = p => (p < 0.005 || p > 0.985 ? null : Math.max(1.01, r2(MARGIN / p)));
 const pois = (l, n) => { const a = []; let p = Math.exp(-l); for (let k = 0; k <= n; k++) { a.push(p); p *= l / (k + 1); } return a; };
 const R = Math.random;
 const samplePois = l => { let k = 0, p = Math.exp(-l), s = p; const u = R(); while (u > s && k < 12) { k++; p *= l / k; s += p; } return k; };
@@ -49,7 +49,9 @@ function twoWayMarkets(m) {
   const d0 = m.status === 'live' ? m.score[0] - m.score[1] : 0, mu = d0 + m.mu * rem, sd = P.msd * Math.sqrt(rem);
   const pw = 1 - ncdf(-mu / sd);
   add('win', 'Winner', 'Main', 2, [['1', 'Home', pw], ['2', 'Away', 1 - pw]]);
-  add('hcp', 'Handicap', 'Handicap', 2, P.hl.flatMap((h, i) => { const p = 1 - ncdf((-h - mu) / sd); return [[`h${i}1`, `Home (${h})`, p], [`h${i}2`, `Away (+${-h})`, 1 - p]]; }));
+  // handicap keys carry the home line ("<line>|1" / "<line>|2"), like the live feed and football's Asian Handicap
+  const sg = x => (x > 0 ? '+' : '') + x;
+  add('spr', 'Handicap', 'Handicap', 2, P.hl.flatMap(h => { const p = 1 - ncdf((-h - mu) / sd); return [[`${h}|1`, `Home (${sg(h)})`, p], [`${h}|2`, `Away (${sg(-h)})`, 1 - p]]; }));
   const tm = (m.status === 'live' ? m.score[0] + m.score[1] : 0) + P.T * rem, tsd = P.sd * Math.sqrt(rem);
   add('tot', `Total ${P.unit}`, 'Totals', 2, P.tl.flatMap(l => { const p = 1 - ncdf((l - tm) / tsd); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
   return out;

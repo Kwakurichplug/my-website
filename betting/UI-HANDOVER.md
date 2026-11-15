@@ -279,6 +279,17 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   Over/Under line cell (`.odd.lsel`) is a neutral grey picker: tap opens `#lineModal` (rows `.ln-row`, `data-lpick=
   "<mid>|<mk>|<line>"`, current line `.on`) listing every open line with its Over/Under prices; picking sets
   `m.uiLine[mk]` and re-renders the row. Desktop never shows `#slipPill` (the betslip column is always there).
+- **Match header, market search, Teams** (`v27`, `app.js`): `#mdLeague` shows *Home vs Away* (`.vs`, ellipsis) with the
+  favourite star, `[data-search-open]` (site search) and a home link. The group row starts with `.gsearch`
+  (`data-mksearch`) → `#mdSearch` holds `#mkQ`; typing re-renders only `#mdMarkets` (`mdMarketsHTML`, matches market
+  name or group), *Cancel* closes it, and it resets when another match opens. *Teams* (after *Goals*) = every market
+  whose name has a team in it (`isTeamMk`), football only.
+- **Line columns** (`linesOf`, `pairOf`, `lineTxt`): fixed `cfg.lines` (football O/U) or `lines: 'auto'` (two-way Handicap
+  and Total – the lines come from each match's keys). Handicap pairs are `<line>|1` / `<line>|2`, shown signed (`+3.5`).
+  The picker header (`#lineHead`) follows the market (Goals/Points/Runs | Over | Under, or Home line | Home | Away).
+- **Sports lists** (`SPORTS_ON`, `openIn`): sport tabs, A–Z, desktop rail and the Sports page count open matches only and
+  skip sports/leagues with none. New sports `americanfootball` and `baseball` (icons in `icons.js`). `m.noScore` (server
+  `stats.noScore`) = a two-way game in play without a score yet: rows show `–` and *LIVE*; no *GOAL!* pop-up outside football.
 - **Deposit & withdraw** (`v24`, `account.js`, classes `.wx-*`): `.wx-hero` balance card (gradient, Withdraw/Deposit +
   Transactions links), `.wx-bonus` first-deposit banner, `.wx-card` sections, `.wx-methods` tile grid (`data-method`, a
   check badge on the selected one; switching keeps the typed amount and uses `location.replace`), `.wx-sub` method

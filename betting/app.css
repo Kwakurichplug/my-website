@@ -2752,5 +2752,30 @@ html[data-theme="dark"] .ln-row{border-color:#3a4049;color:#c9cdd2}
 html[data-theme="dark"] .ln-row b{color:#eef0f2}
 html[data-theme="dark"] .ln-row.on{border-color:#36d26e;background:#183323;box-shadow:inset 3px 0 0 #36d26e}
 html[data-theme="dark"] .ln-row.on b{color:#36d26e}
+/* match header: the match name (ellipsis), search and home like the reference */
+#page-match .sh-mid{flex:1;min-width:0}
+#page-match .sub-head h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#page-match .sub-head h1 .vs{font-style:normal;font-size:.72em;opacity:.85;margin:0 1px}
+#page-match .sub-head .icon-btn{flex:none}
+/* market search: icon first in the group row, a field under it */
+.group-chips .gsearch{padding:0 12px 0 0;display:grid;place-items:center;color:inherit}
+.group-chips .gsearch svg{width:19px;height:19px}
+.group-chips .gsearch.active{color:var(--live-g)}
+.group-chips .gsearch.active::after{display:none}
+html:not([data-theme="dark"]) #page-match.pre .group-chips .gsearch{color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .group-chips .gsearch.active{color:var(--g)}
+.mk-search{display:flex;align-items:center;gap:8px;padding:8px var(--side);background:var(--ink);border-bottom:1px solid #2d313a}
+.mk-search[hidden]{display:none}
+.mk-q{flex:1;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:4px;background:rgba(234,236,239,.12);color:#c9ccd2}
+.mk-q svg{width:18px;height:18px;flex:none}
+.mk-q input{flex:1;min-width:0;height:100%;border:0;outline:0;background:none;color:#fff;font-size:var(--fs-t)}
+.mk-q input::placeholder{color:#9ca0ab}
+.mk-q-x{color:#fff;font-size:var(--fs);font-weight:700;padding:0 2px}
+html:not([data-theme="dark"]) #page-match.pre .mk-search{background:#fff;border-bottom-color:#eaecef}
+html:not([data-theme="dark"]) #page-match.pre .mk-q{background:#f2f3f5;color:var(--mute)}
+html:not([data-theme="dark"]) #page-match.pre .mk-q input{color:var(--ink)}
+html:not([data-theme="dark"]) #page-match.pre .mk-q-x{color:var(--g)}
+/* Sports page quick links: a lone last link spans the row */
+.sf-quick a:last-child:nth-child(odd){grid-column:1/-1}
 /* desktop always shows the betslip column, so the floating slip button never shows there */
 @media (min-width:1024px){ .slip-pill,.slip-pill.show{display:none!important} }

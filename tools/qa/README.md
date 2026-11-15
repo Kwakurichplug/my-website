@@ -11,6 +11,7 @@ base URL. Paths inside assume the repo at `/home/user/my-website` – change `fi
 | `e2e_live.js` | Same flows against the real API + database, checks server balances (the Verify ID form needs an email) | `node e2e_live.js tools/qa` (server on :8080) |
 | `e2e_pages.js` | Live, sports filter, lists, outrights, bet detail + rebet, jackpot purchase, promos, results, Code Hub | `node e2e_pages.js tools/qa <baseUrl>` |
 | `e2e_email.js` | Sign up, log in, reset password and change email **with an email address** (live test mode, demo, or production mode reading codes from a local SMTP sink folder) | `node e2e_email.js tools/qa <baseUrl> [mailboxDir]` |
+| `e2e_sports.js` | Real-feed sports end to end on the mock: NBA arrives with Winner / Handicap / Total, no tennis, betting closes at tip-off, four bets settle from the 110-104 result | `node e2e_sports.js <baseUrl> <dbUrl>` (server on the mock, fresh DB) |
 | `e2e_slip.js` | Betslip sheet gestures with real touch events: swipe up on the pill, drag back, drag/pull down to close, rows fold away, page locked | `node e2e_slip.js tools/qa [baseUrl]` |
 | `e2e_instant.js` | Instant Football incl. server replay protection and tampered-round rejection | `node e2e_instant.js tools/qa <baseUrl>` |
 | `e2e_games.js` | **Every game against the real API**: lobby, 7 instant games (server balance checked after each play), Hi-Lo replay, Rocket Crash auto + manual cash-out, a real Virtual League bet, a jackpot ticket | `node e2e_games.js tools/qa <baseUrl>` (server with `PAYMENTS_MODE=demo`) |
@@ -23,7 +24,7 @@ base URL. Paths inside assume the repo at `/home/user/my-website` – change `fi
 | `darkshots.js`, `theme_t.js` | Dark mode screenshots / toggle persistence | |
 | `desk.js` | Desktop 1440px reference vs ours | |
 | `offline_t.js` | Offline banner | |
-| `mock_oddsapi.js` + `fixtures/` | **Mock of The Odds API** from a real EPL sample (no credits). One match in play, one finished. | `node mock_oddsapi.js tools/qa 9099` then start the server with `ODDS_PROVIDER=oddsapi ODDS_API_KEY=mock ODDS_API_BASE=http://127.0.0.1:9099/v4` |
+| `mock_oddsapi.js` + `fixtures/` | **Mock of The Odds API** from a real EPL sample (no credits). One match in play, one finished. Also an NBA slate (h2h, spreads, totals from 4 books; `POST /__state {"nbaDone":true}` finishes the first game 110-104) and the free `/v4/sports` list. | `node mock_oddsapi.js tools/qa 9099` then start the server with `ODDS_PROVIDER=oddsapi ODDS_API_KEY=mock ODDS_API_BASE=http://127.0.0.1:9099/v4` |
 
 The reference site needs network access to `www.sportybet.com`, `s.sporty.net`, `cdn.sporty.net`.
 

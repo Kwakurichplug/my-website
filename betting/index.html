@@ -138,6 +138,8 @@
         <button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
         <div class="sh-mid"><small class="muted" id="mdSport"></small><h1 id="mdLeague"></h1></div>
         <button class="icon-btn fav" id="mdFav" aria-label="Favourite"><svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg></button>
+        <button class="icon-btn" data-search-open aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
+        <a class="icon-btn" href="#/home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg></a>
       </div>
       <div class="md-hero" id="mdHero"></div>
       <div class="md-tabs" id="mdTabs">
@@ -147,6 +149,7 @@
       </div>
       <div id="mdMarketsWrap">
         <div class="group-chips" id="mdGroups"></div>
+        <div class="mk-search" id="mdSearch" hidden></div>
         <div id="mdMarkets"></div>
       </div>
       <div id="mdStats" class="md-panel" hidden></div>
@@ -394,7 +397,7 @@
     <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
     <h2 id="mkInfoTitle"></h2>
     <p class="mk-guide" id="mkInfoBody"></p>
-    <p class="mk-guide small">Unless the market name says otherwise, football markets settle on the result after 90 minutes plus stoppage time. Extra time and penalties do not count. A match abandoned or postponed and not completed within 48 hours is void.</p>
+    <p class="mk-guide small" id="mkInfoRule">Unless the market name says otherwise, football markets settle on the result after 90 minutes plus stoppage time. Extra time and penalties do not count. A match abandoned or postponed and not completed within 48 hours is void.</p>
   </div>
 </div>
 <div class="modal" id="lineModal">
@@ -402,7 +405,7 @@
     <button type="button" class="modal-x" data-close style="color:var(--muted)">×</button>
     <h2 id="lineTitle">Over/Under</h2>
     <p class="ln-sub" id="lineSub"></p>
-    <div class="ln-head"><span>Goals</span><span>Over</span><span>Under</span></div>
+    <div class="ln-head" id="lineHead"><span>Goals</span><span>Over</span><span>Under</span></div>
     <div class="ln-list" id="lineList"></div>
   </div>
 </div>

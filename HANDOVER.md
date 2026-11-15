@@ -43,7 +43,7 @@ Never copy another operator's brand assets – we match their quality and layout
 | `betting/img/flags/` | flag-icons (MIT) – 270 country flags. |
 | `betting/UI-HANDOVER.md` | Detailed front-end guide (design tokens, screens, conventions). |
 | `server/` | Node 20+ Express API + Postgres. `npm start` in repo root runs it and serves `betting/`. |
-| `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware). Only touches its own `oa:` events. |
+| `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware): football, plus basketball, ice hockey, American football and baseball as the plan allows. Only touches its own `oa:` events. |
 | `server/src/feeds/demo.js` | Simulated feed for demos (`ODDS_PROVIDER=demo`). Only touches its own `demo:` events. |
 | `server/src/games/` | **Game engines**: `crash.js` (Rocket Crash rounds), `virtual.js` (Virtual League rounds), `jackpot.js` (rounds, grading, payouts), `rng.js` (CSPRNG + shared rules), `index.js` (schedulers). |
 | `server/src/lib/leader.js` | Picks ONE replica (Postgres advisory lock) to run the game schedulers. |
@@ -74,7 +74,7 @@ Opening `betting/index.html` as a file runs a full **demo mode** (everything sim
 plus for real data:
 - `ODDS_PROVIDER=oddsapi`
 - `ODDS_API_KEY=<The Odds API key>` – **set it in Railway variables only, never in git** (the owner has it)
-- `ODDS_LEAGUES` (optional, comma list of sport keys, default top 5 leagues + UCL), `ODDS_REGION` (default `uk`), `ODDS_LIVE_FRESH_SEC` (default 90)
+- `ODDS_LEAGUES` (optional, comma list of sport keys; overrides the automatic choice – default top 5 leagues + UCL + NBA, more on bigger plans, see §5), `ODDS_REGION` (default `uk`), `ODDS_LIVE_FRESH_SEC` (default 90)
 - `THESPORTSDB_KEY` (optional; free key `123` is the default)
 - `GAMES=off` (optional) stops the game schedulers on a replica (e.g. a worker that must not run them).
 
@@ -104,6 +104,16 @@ Earn reward per country (₦1,000 / GH₵10).
   Credits spread evenly over the month. Live markets **suspended unless score is fresh** (anti-exploitation).
   Finished → settled automatically; postponed → cancelled/refunded. Admin: `GET /api/admin/feed`.
   **No past-posting:** a pre-match price is refused once the game has kicked off.
+- **Other sports on the real feed** (`oddsapi.js` → `syncTwoWay`): NBA, NCAAB, WNBA, NHL, NFL, NCAAF, MLB. One call per
+  league for h2h + spreads + totals (3 credits). Winner / Handicap / Total come straight from the bookmakers' own lines
+  (de-vigged median per line; a line is offered when ≥30% of the books on the most popular line quote it), with our
+  margin. Handicap keys carry the home line (`-5.5|1` home, `-5.5|2` away – the same format as football's Asian
+  Handicap). Betting closes at the start (no in-play for these sports); the result comes from the scores call once the
+  night's slate should be over; settled on the final score **including overtime**, a result on the line is refunded,
+  a level game refunds Winner bets. Tennis, MMA and boxing are **not** offered: the feed has no results for them.
+- **Only real fixtures are listed**: on a real feed, matches left over from the built-in demo generator are hidden from
+  lists, results and search (`events.js` `REAL`); players keep their own bet history. The Sports page, A–Z menu and
+  desktop rail list only sports and leagues that have a match to bet on.
 - **Real crests** for clubs (TheSportsDB thumbnails, cached, pinned IDs for ambiguous names) and **real flags** everywhere.
 - **Accounts**: sign up / log in / reset the password with a **mobile number or an email address** – a 6-digit code by
   SMS or by email. The app asks `GET /api/auth/methods` which channels can deliver a code right now and offers only
@@ -117,6 +127,12 @@ Earn reward per country (₦1,000 / GH₵10).
   score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
   were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
   covered by `test/grade.test.js`.
+- **More sports, no empty spots**: NBA basketball from the real feed (more sports switch on with a bigger odds plan,
+  §5); sports and leagues without a match are no longer listed (the empty Tennis tab is gone); old demo results are
+  hidden on the live site. Lists show Winner | Handicap | Total, with the same line picker as football's Over/Under.
+- **Match page like the reference**: the header shows *Home vs Away* with search and home buttons; a market search
+  (magnifier first in the group row); a *Teams* group with every market about one team. Bookings, shots, player and
+  minute markets are not offered: the feed has no data to settle them.
 - **Match page on our design**: green header bar, our tab style, market groups stay pinned under the header while
   scrolling, line icons for info and favourites, and the list's Over/Under line cell opens a picker with every open
   line and its prices. Desktop shows only the betslip column (no floating betslip button).
@@ -153,8 +169,12 @@ Earn reward per country (₦1,000 / GH₵10).
 
 ## 5. The Odds API – important facts
 
-- Owner's key is on the **FREE plan: 500 credits/month**. Odds refresh roughly daily for 6 leagues; live scores
-  ~every 10–30 min, so live betting stays suspended. **Upgrading the plan speeds everything up automatically**
+- Owner's key is on the **FREE plan: 500 credits/month**. With the NBA added, prices refresh about every 1–2 days for
+  the 6 football leagues + NBA; live scores ~every 10–30 min, so live betting stays suspended. **Upgrading the plan
+  speeds everything up and switches more sports on automatically** – no code change, same key:
+  daily allowance (credits left ÷ days left) ≥ 60 → + NHL, NFL, Europa League, AFCON, Championship, Eredivisie,
+  Primeira Liga, Süper Lig, Saudi Pro League; ≥ 400 → + NCAAF, NCAAB, MLB, WNBA and 15 more football leagues;
+  ≥ 2000 → every league in `LEAGUES`. Out-of-season sports are skipped (the free `/v4/sports` list, checked twice a day).
   ($30 = 20K credits, $59 = 100K credits per month – confirm on the-odds-api.com).
 - It has **no crests, no flags, no match minute, no NPFL / Ghana Premier League**. Minute is estimated from kick-off.
 - Test without spending credits: run the mock (`ODDS_API_BASE=http://127.0.0.1:9099/v4`) – see §9.

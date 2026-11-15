@@ -17,6 +17,7 @@ export function gradeLeg(leg, ev) {
   const st = ev.stats || {};
   // two-way sports (basketball, tennis…)
   if (mk === 'win') return d === 0 ? 'void' : (d > 0 ? '1' : '2') === ok ? 'won' : 'lost';
+  if (mk === 'spr') { const [line, pick] = String(ok).split('|'), v = d + parseFloat(line); if (!Number.isFinite(v) || !['1', '2'].includes(pick)) return 'void'; return v === 0 ? 'void' : (pick === '1' ? v > 0 : v < 0) ? 'won' : 'lost'; }
   if (mk === 'hcp') { const hl = st.handicapLines || [-1.5, -3.5, -7.5]; const cover = d + hl[+ok[1]] > 0; return (ok.endsWith('1') ? cover : !cover) ? 'won' : 'lost'; }
   if (mk === 'tot') { const tot = st.total ?? t, L = parseFloat(ok.slice(1)); if (tot === L) return 'void'; return (ok[0] === 'o' ? tot > L : tot < L) ? 'won' : 'lost'; }
   // football: every market key the engine offers (unknown keys are void, never paid)

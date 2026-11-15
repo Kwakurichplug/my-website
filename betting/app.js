@@ -72,6 +72,8 @@
     { id: 'basketball', name: 'Basketball', em: '🏀' },
     { id: 'tennis', name: 'Tennis', em: '🎾' },
     { id: 'icehockey', name: 'Ice Hockey', em: '🏒' },
+    { id: 'americanfootball', name: 'American Football', em: '🏈' },
+    { id: 'baseball', name: 'Baseball', em: '⚾' },
     { id: 'volleyball', name: 'Volleyball', em: '🏐' },
     { id: 'tabletennis', name: 'Table Tennis', em: '🏓' },
     { id: 'esports', name: 'eSports', em: '🎮' },
@@ -85,6 +87,9 @@
   ];
   SPORTS.forEach(sp => { sp.em = LBA.sport(sp.id); });
   const VISIBLE = () => SPORTS.filter(s => !s.hidden);
+  // sports and leagues are only listed while they have a match to bet on (no empty "(0)" spots)
+  const openIn = (f) => MATCHES.filter(m => !m.finished && f(m));
+  const SPORTS_ON = () => VISIBLE().filter(s => MATCHES.some(m => m.sport === s.id && !m.finished));
   const sportOf = id => SPORTS.find(s => s.id === id);
   // Two-way model parameters: T = expected total, sd = total sd, msd = margin sd
   const TW = {
@@ -93,6 +98,8 @@
     icehockey: { T: 5.5, sd: 1.8, msd: 1.6, hl: [-1.5], tl: [4.5, 5.5, 6.5], unit: 'Goals' },
     handball: { T: 56.5, sd: 5, msd: 4, hl: [-1.5, -3.5], tl: [54.5, 56.5, 58.5], unit: 'Goals' },
     volleyball: { T: 182.5, sd: 18, msd: 10, hl: [-2.5, -4.5], tl: [176.5, 182.5, 188.5], unit: 'Points' },
+    americanfootball: { T: 44.5, sd: 13, msd: 13, hl: [-3.5, -6.5], tl: [40.5, 44.5, 48.5], unit: 'Points' },
+    baseball: { T: 8.5, sd: 3, msd: 3, hl: [-1.5], tl: [7.5, 8.5, 9.5], unit: 'Runs' },
     default: { T: 20.5, sd: 4, msd: 3, hl: [-1.5], tl: [18.5, 20.5, 22.5], unit: 'Points' },
   };
   const LEAGUES = [
@@ -209,7 +216,8 @@
     const tm = t0 + P.T * m.tf * rem, tsd = P.sd * Math.sqrt(rem);
     const pw = 1 - ncdf(-mu / sd);
     add('win', 'Winner', 'Main', 2, [['1', 'Home', pw], ['2', 'Away', 1 - pw]]);
-    add('hcp', 'Handicap', 'Handicap', 2, P.hl.flatMap((h, i) => { const p = 1 - ncdf((-h - mu) / sd); return [[`h${i}1`, `1 (${h})`, p], [`h${i}2`, `2 (+${-h})`, 1 - p]]; }));
+    const sg = x => (x > 0 ? '+' : '') + x;
+    add('spr', 'Handicap', 'Handicap', 2, P.hl.flatMap(h => { const p = 1 - ncdf((-h - mu) / sd); return [[`${h}|1`, `Home (${sg(h)})`, p], [`${h}|2`, `Away (${sg(-h)})`, 1 - p]]; }));
     add('tot', `Total ${P.unit}`, 'Totals', 2, P.tl.flatMap(l => { const p = 1 - ncdf((l - tm) / tsd); return [[`o${l}`, `Over ${l}`, p], [`u${l}`, `Under ${l}`, 1 - p]]; }));
     return out;
   }
@@ -229,11 +237,11 @@
       { id: 'ou', name: 'O/U 2.5', mk: 'ou', outs: ['o2.5', 'u2.5'], lab: ['Over', 'Under'] },
       { id: 'gg', name: 'GG/NG', mk: 'gg', outs: ['gg', 'ng'], lab: ['GG', 'NG'] },
     ];
-    const P = TW[sport] || TW.default, mid = P.tl[Math.floor(P.tl.length / 2)];
+    const P = TW[sport] || TW.default;
     return [
       { id: 'win', name: 'Winner', mk: 'win', outs: ['1', '2'], lab: ['1', '2'] },
-      { id: 'hcp', name: `Handicap ${P.hl[0]}`, mk: 'hcp', outs: ['h01', 'h02'], lab: ['1', '2'] },
-      { id: 'tot', name: `Total ${mid}`, mk: 'tot', outs: [`o${mid}`, `u${mid}`], lab: ['Over', 'Under'] },
+      { id: 'spr', name: 'Handicap', mk: 'spr', outs: ['1', '2'], n: 3, lines: 'auto', lab: ['', '1', '2'] },
+      { id: 'tot', name: 'Total', mk: 'tot', outs: ['o', 'u'], n: 3, lines: 'auto', lab: ['', 'Over', 'Under'], unit: P.unit },
     ];
   }
 
@@ -268,6 +276,7 @@
   const LOCK = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const isSel = (id, mk, ok) => state.slip.some(s => s.mid === id && s.mk === mk && s.ok === ok);
   const liveLabel = m => {
+    if (m.noScore) return 'LIVE';
     if (!m.two) return m.minute >= 90 ? "90+'" : m.minute === 45 ? 'HT' : m.minute + "'";
     if (m.sport === 'basketball') return 'Q' + Math.min(4, 1 + Math.floor(m.prog * 4));
     if (m.sport === 'tennis') return 'Set ' + (m.score[0] + m.score[1] + 1);
@@ -289,11 +298,11 @@
 
   /* ---------------- Lists ---------------- */
   function renderSportTabs(el, active, liveOnly) {
-    let list = VISIBLE();
+    let list = SPORTS_ON();
     if (liveOnly) list = [{ id: 'all', name: 'All', em: LBA.sport('all') }, ...VISIBLE().filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
     const x = el.scrollLeft;
     el.innerHTML = list.map(s => {
-      const n = s.id === 'all' ? MATCHES.filter(m => m.live).length : MATCHES.filter(m => m.sport === s.id && (!liveOnly || m.live)).length;
+      const n = s.id === 'all' ? MATCHES.filter(m => m.live).length : openIn(m => m.sport === s.id && (!liveOnly || m.live)).length;
       return `<button data-sport="${s.id}" class="${s.id === active ? 'active' : ''}"><span class="em">${s.em}</span>${s.name}<i>${n}</i></button>`;
     }).join('');
     el.scrollLeft = x;
@@ -310,16 +319,16 @@
       : `${isHot(m) ? '<span class="hot">HOT</span>' : ''}<span>${new Date(m.kick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span><span>ID ${m.id}</span>`;
     const lg = LEAGUES[m.lg];
     const n = m.mk.reduce((acc, x) => acc + x.outs.filter(o => o.k).length, 0);
-    const line = cfg.lines ? rowLine(m, cfg) : null;
+    const line = cfg.lines ? rowLine(m, cfg) : null, pr = line == null ? null : pairOf(cfg, line);
     const oddsHTML = cfg.lines
-      ? `<button class="odd lsel" data-lcycle="${m.id}|${cfg.mk}" aria-label="Change line"><b>${line}</b><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>${oddBtn(m, cfg.mk, 'o' + line)}${oddBtn(m, cfg.mk, 'u' + line)}`
+      ? (pr ? `<button class="odd lsel" data-lcycle="${m.id}|${cfg.mk}" aria-label="Change line"><b>${lineTxt(cfg, line)}</b><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>${oddBtn(m, cfg.mk, pr[0])}${oddBtn(m, cfg.mk, pr[1])}` : '<span class="odd void"></span>'.repeat(3))
       : cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('');
     return `<div class="ev${m.live ? ' is-live' : ''}${m.live && recentGoal(m) ? ' goal' : ''}" style="--n:${cfg.n || cfg.outs.length}">
       <div class="ev-meta">${meta}${withLeague ? `<span class="ev-lg">${esc(lg.country)} - ${esc(lg.name)}</span>` : ''}${state.favs.includes(m.id) ? '<span class="star">★</span>' : ''}</div>
       <div class="ev-body">
         <a class="ev-teams" href="#/match/${m.id}">
-          <span><i>${esc(m.home)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 0 ? 'pop' : ''}">${m.score[0]}</b>` : ''}</span>
-          <span><i>${esc(m.away)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 1 ? 'pop' : ''}">${m.score[1]}</b>` : ''}</span>
+          <span><i>${esc(m.home)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 0 ? 'pop' : ''}">${m.noScore ? '–' : m.score[0]}</b>` : ''}</span>
+          <span><i>${esc(m.away)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 1 ? 'pop' : ''}">${m.noScore ? '–' : m.score[1]}</b>` : ''}</span>
           <small>+${n} ›</small>
         </a>
         <div class="ev-odds">${oddsHTML}</div>
@@ -329,10 +338,21 @@
   }
 
   // list O/U columns: the player's pick for that row, else the line priced closest to even (the reference's "Near odds")
+  // line columns: Over/Under keys are o<L>/u<L>; handicap keys are <home line>|1 and <home line>|2
+  const isSpr = cfg => cfg.mk === 'spr';
+  const pairOf = (cfg, L) => (isSpr(cfg) ? [`${L}|1`, `${L}|2`] : ['o' + L, 'u' + L]);
+  const lineTxt = (cfg, L) => (isSpr(cfg) && L > 0 ? '+' + L : String(L));
+  function linesOf(m, cfg) {
+    if (cfg.lines !== 'auto') return cfg.lines;
+    const ks = Object.keys(m.map[cfg.mk] || {});
+    return [...new Set(ks.map(k => parseFloat(isSpr(cfg) ? k.split('|')[0] : k.slice(1))).filter(Number.isFinite))].sort((a, b) => a - b);
+  }
   function rowLine(m, cfg) {
-    const pick = m.uiLine && m.uiLine[cfg.mk]; if (pick) return pick;
-    const mk = m.map[cfg.mk] || {}; let best = cfg.def, gap = Infinity;
-    cfg.lines.forEach(L => { const o = mk['o' + L], u = mk['u' + L]; if (o && u && o.o && u.o) { const g = Math.abs(o.o - u.o); if (g < gap) { gap = g; best = L; } } });
+    const lines = linesOf(m, cfg), pick = m.uiLine && m.uiLine[cfg.mk];
+    if (pick != null && lines.includes(pick)) return pick;
+    if (!lines.length) return null;
+    const mk = m.map[cfg.mk] || {}; let best = lines.includes(cfg.def) ? cfg.def : lines[lines.length >> 1], gap = Infinity;
+    lines.forEach(L => { const [ka, kb] = pairOf(cfg, L), o = mk[ka], u = mk[kb]; if (o && u && o.o && u.o) { const g = Math.abs(o.o - u.o); if (g < gap) { gap = g; best = L; } } });
     return best;
   }
   // the line cell in a list row opens a sheet with every open line and its prices
@@ -340,11 +360,12 @@
     const [mid, mk] = key.split('|'), m = byId(mid), cfg = m && listMarkets(m.sport).find(x => x.mk === mk);
     if (!cfg) return;
     const map = m.map[mk] || {}, cur = rowLine(m, cfg), px = o => (o && o.o ? o.o.toFixed(2) : '–');
-    const open = cfg.lines.filter(L => map['o' + L]?.o || map['u' + L]?.o);
+    const open = linesOf(m, cfg).filter(L => { const [ka, kb] = pairOf(cfg, L); return map[ka]?.o || map[kb]?.o; });
     if (open.length < 2) return toast('Only one line is open for this match');
-    $('#lineTitle').textContent = { hou: 'Home Over/Under', aou: 'Away Over/Under' }[mk] || 'Over/Under';
+    $('#lineTitle').textContent = isSpr(cfg) ? 'Handicap' : { hou: 'Home Over/Under', aou: 'Away Over/Under' }[mk] || (cfg.unit ? `Total ${cfg.unit}` : 'Over/Under');
     $('#lineSub').textContent = `${m.home} v ${m.away}`;
-    $('#lineList').innerHTML = open.map(L => `<button class="ln-row${L === cur ? ' on' : ''}" data-lpick="${m.id}|${mk}|${L}" aria-pressed="${L === cur}"><b>${L}</b><span>${px(map['o' + L])}</span><span>${px(map['u' + L])}</span></button>`).join('');
+    $('#lineHead').innerHTML = (isSpr(cfg) ? ['Home line', 'Home', 'Away'] : [cfg.unit || 'Goals', 'Over', 'Under']).map(h => `<span>${h}</span>`).join('');
+    $('#lineList').innerHTML = open.map(L => { const [ka, kb] = pairOf(cfg, L); return `<button class="ln-row${L === cur ? ' on' : ''}" data-lpick="${m.id}|${mk}|${L}" aria-pressed="${L === cur}"><b>${lineTxt(cfg, L)}</b><span>${px(map[ka])}</span><span>${px(map[kb])}</span></button>`; }).join('');
     openModal('lineModal');
   }
   // desktop shows Over/Under 2.5 next to 1X2, like the reference's wide table (hidden on phones by CSS)
@@ -465,19 +486,19 @@
   }
 
   function renderRails() {
-    $('#leagueRail').innerHTML = LEAGUES.filter(l => l.top).map(l => `<li><a href="#/league/${l.idx}">${l.flag} ${esc(l.name)}${l.country === 'England' || l.country === 'Nigeria' ? ` <small class="muted">${l.country}</small>` : ''}</a></li>`).join('');
-    $('#sportRail').innerHTML = VISIBLE().map(s => `<li><a href="#/sport/${s.id}">${s.em} ${s.name}<i>${MATCHES.filter(m => m.sport === s.id).length}</i></a></li>`).join('');
+    $('#leagueRail').innerHTML = LEAGUES.filter(l => l.top && MATCHES.some(m => m.lg === l.idx && !m.finished)).map(l => `<li><a href="#/league/${l.idx}">${l.flag} ${esc(l.name)}${l.country === 'England' || l.country === 'Nigeria' ? ` <small class="muted">${l.country}</small>` : ''}</a></li>`).join('');
+    $('#sportRail').innerHTML = SPORTS_ON().map(s => `<li><a href="#/sport/${s.id}">${s.em} ${s.name}<i>${openIn(m => m.sport === s.id).length}</i></a></li>`).join('');
   }
 
   function renderAZ(q = '') {
     q = q.trim().toLowerCase();
-    $('#azList').innerHTML = VISIBLE().sort((a, b) => a.name.localeCompare(b.name)).map(s => {
-      const lgs = LEAGUES.filter(l => l.sport === s.id && (!q || s.name.toLowerCase().includes(q) || l.full.toLowerCase().includes(q)));
+    $('#azList').innerHTML = SPORTS_ON().sort((a, b) => a.name.localeCompare(b.name)).map(s => {
+      const lgs = LEAGUES.filter(l => l.sport === s.id && MATCHES.some(m => m.lg === l.idx && !m.finished) && (!q || s.name.toLowerCase().includes(q) || l.full.toLowerCase().includes(q)));
       if (!lgs.length) return '';
       const open = q || state.azOpen.has(s.id);
       return `<div class="az-item ${open ? 'open' : ''}">
-        <button class="az-head" data-az="${s.id}"><span class="em">${s.em}</span>${s.name}<span class="cnt">${MATCHES.filter(m => m.sport === s.id).length}</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-        <div class="az-body">${lgs.map(l => `<a href="#/league/${l.idx}"><span>${l.flag} ${esc(l.full)}</span><span class="cnt">${MATCHES.filter(m => m.lg === l.idx).length}</span></a>`).join('')}</div>
+        <button class="az-head" data-az="${s.id}"><span class="em">${s.em}</span>${s.name}<span class="cnt">${openIn(m => m.sport === s.id).length}</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="az-body">${lgs.map(l => `<a href="#/league/${l.idx}"><span>${l.flag} ${esc(l.full)}</span><span class="cnt">${openIn(m => m.lg === l.idx).length}</span></a>`).join('')}</div>
       </div>`;
     }).join('') || `<div class="empty">No results for “${esc(q)}”</div>`;
   }
@@ -489,7 +510,8 @@
     const pre = !m.live && !m.finished;
     const pg = $('#page-match'); pg.classList.toggle('pre', pre); pg.classList.toggle('lv', !pre);
     $('#mdSport').innerHTML = `${sp.em} ${sp.name} · ${esc(lg.country)}`;
-    $('#mdLeague').innerHTML = pre ? 'Details' : `<a href="#/league/${lg.idx}">${esc(lg.name)}</a>`;
+    $('#mdLeague').innerHTML = `<span>${esc(m.home)}</span> <i class="vs">vs</i> <span>${esc(m.away)}</span>`;
+    if (state.mkQFor !== m.id) { state.mkQ = null; state.mkQFor = m.id; }
     $('#mdFav').classList.toggle('on', state.favs.includes(m.id));
 
     // Hero
@@ -517,7 +539,7 @@
           <div class="mh-when"><span>${dd}</span><span>${wd}</span><em>${kt}</em></div>
           <div class="mh-team">${crest(m.away, 1, m.sport)}<b>${esc(m.away)}</b></div>
         </div>
-        <div class="mh-meta">Game ID ${m.id}<span class="dot"></span>Live In-Play Available</div>`;
+        <div class="mh-meta">Game ID ${m.id}${m.two ? '' : '<span class="dot"></span>Live In-Play Available'}</div>`;
     } else {
       const clock = m.live
         ? `<span class="mh-clock">${m.two ? liveLabel(m) : `<b data-clk="${m.id}">${String(m.minute).padStart(2, '0')}:00</b> ${m.minute <= 45 ? 'H1' : 'H2'}`}</span>`
@@ -525,7 +547,7 @@
       const bar2 = (name, sc, side) => `<div class="mh-row"><span class="mh-name">${crest(name, 0, m.sport)}<i>${esc(name)}</i></span>${m.live || m.finished ? `<b class="mh-sc${recentGoal(m) && m.goalSide === side ? ' pop' : ''}">${sc}</b>` : ''}</div>`;
       $('#mdHero').innerHTML = `<a class="mh-lg" href="#/league/${lg.idx}">${esc(sp.name)} - ${esc(lg.country)} - ${esc(lg.name)}</a>
         <div class="mh-clockrow">${m.finished ? '<span class="mh-clock">Ended</span>' : clock}<span class="mh-id">ID ${m.id}</span></div>
-        ${bar2(m.home, m.score[0], 0)}${bar2(m.away, m.score[1], 1)}
+        ${bar2(m.home, m.noScore ? '–' : m.score[0], 0)}${bar2(m.away, m.noScore ? '–' : m.score[1], 1)}
         ${bar}`;
     }
 
@@ -537,16 +559,32 @@
     if (state.mdTab === 'markets') {
       const present = new Set(m.mk.map(x => x.group));
       const groups = ['All', ...(window.LBAMarkets ? LBAMarkets.GROUPS.slice(1) : []).filter(g => present.has(g)), ...[...present].filter(g => !LBAMarkets.GROUPS.includes(g))];
+      if (!m.two && m.mk.some(x => isTeamMk(m, x))) groups.splice(Math.max(1, groups.indexOf('Goals') + 1), 0, 'Teams');
       if (!groups.includes(state.mdGroup) && state.mdGroup !== '★') state.mdGroup = 'All';
-      $('#mdGroups').innerHTML = `<button class="gstar ${state.mdGroup === '★' ? 'active' : ''}" data-group="★" aria-label="Favourite markets">${STAR}</button>` + groups.map(g => `<button data-group="${g}" class="${g === state.mdGroup ? 'active' : ''}">${g}</button>`).join('');
-      const show = m.mk.filter(x => state.mdGroup === 'All' ? true : state.mdGroup === '★' ? state.favMk.includes(x.key) : x.group === state.mdGroup);
-      $('#mdMarkets').innerHTML = show.length ? show.map(x => marketHTML(m, x)).join('') : `<div class="empty"><span class="big">★</span>${state.mdGroup === '★' ? 'Tap the star on any market to keep it here.' : 'No markets in this group right now.'}</div>`;
+      const searching = state.mkQ != null;
+      $('#mdGroups').innerHTML = `<button class="gsearch ${searching ? 'active' : ''}" data-mksearch aria-label="Search markets" aria-pressed="${searching}">${SEARCH}</button><button class="gstar ${state.mdGroup === '★' && !searching ? 'active' : ''}" data-group="★" aria-label="Favourite markets">${STAR}</button>` + groups.map(g => `<button data-group="${g}" class="${g === state.mdGroup && !searching ? 'active' : ''}">${g}</button>`).join('');
+      const box = $('#mdSearch'); box.hidden = !searching;
+      if (searching && !box.firstChild) box.innerHTML = `<label class="mk-q">${SEARCH}<input id="mkQ" type="search" placeholder="Search markets, e.g. corners, half, both teams" autocomplete="off" enterkeyhint="search"></label><button class="mk-q-x" data-mksearch aria-label="Close search">Cancel</button>`;
+      if (!searching) box.innerHTML = '';
+      $('#mdMarkets').innerHTML = mdMarketsHTML(m);
     }
     if (state.mdTab === 'stats') $('#mdStats').innerHTML = statsHTML(m);
     if (state.mdTab === 'info') $('#mdInfo').innerHTML = infoHTML(m);
     if (!keepScroll) window.scrollTo(0, 0);
   }
 
+  // markets about one team (its goals, clean sheet, win to nil, corners, cards…) – the "Teams" group
+  const isTeamMk = (m, x) => !m.two && (x.name.includes(m.home) || x.name.includes(m.away));
+  function mdMarketsHTML(m) {
+    const q = (state.mkQ || '').trim().toLowerCase();
+    if (state.mkQ != null && q) {
+      const hit = m.mk.filter(x => x.name.toLowerCase().includes(q) || (x.group || '').toLowerCase().includes(q));
+      return hit.length ? hit.map(x => marketHTML(m, x)).join('') : `<div class="empty">No market matches “${esc(state.mkQ.trim())}”.</div>`;
+    }
+    const g = state.mdGroup, show = m.mk.filter(x => g === 'All' || state.mkQ != null ? true : g === '★' ? state.favMk.includes(x.key) : g === 'Teams' ? isTeamMk(m, x) : x.group === g);
+    return show.length ? show.map(x => marketHTML(m, x)).join('') : `<div class="empty"><span class="big">★</span>${g === '★' ? 'Tap the star on any market to keep it here.' : 'No markets in this group right now.'}</div>`;
+  }
+  const SEARCH = '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>';
   // the same line icons as the rest of the site (header star, empty-state info icon)
   const STAR = '<svg viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>';
   const INFO = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>';
@@ -573,6 +611,9 @@
     const m = byId(+state.arg), x = m && m.mk.find(y => y.key === key);
     $('#mkInfoTitle').textContent = x ? x.name : 'Market';
     $('#mkInfoBody').textContent = window.LBAMarkets ? LBAMarkets.guide(key) : '';
+    $('#mkInfoRule').textContent = m && m.two
+      ? 'Results include overtime and extra innings. A game that is not completed within 48 hours of its start is void.'
+      : 'Unless the market name says otherwise, football markets settle on the result after 90 minutes plus stoppage time. Extra time and penalties do not count. A match abandoned or postponed and not completed within 48 hours is void.';
     openModal('mkInfoModal');
   }
 
@@ -866,6 +907,7 @@
     const P = TW[m.sport] || TW.default;
     if (l.mk === 'win') return d === 0 ? 'void' : (d > 0 ? '1' : '2') === ok ? 'won' : 'lost';
     if (l.mk === 'hcp') { const cover = d + P.hl[+ok[1]] > 0; return (ok.endsWith('1') ? cover : !cover) ? 'won' : 'lost'; }
+    if (l.mk === 'spr') { const [line, pick] = ok.split('|'), v = d + parseFloat(line); return v === 0 ? 'void' : (pick === '1' ? v > 0 : v < 0) ? 'won' : 'lost'; }
     if (l.mk === 'tot') { const L = parseFloat(ok.slice(1)); if (m.ftTotal === L) return 'void'; return (ok[0] === 'o' ? m.ftTotal > L : m.ftTotal < L) ? 'won' : 'lost'; }
     return 'void';
   }
@@ -1169,6 +1211,7 @@
     if (k in FIXED) return FIXED[k];
     let r = /^([ou])(\d+(?:\.\d+)?)$/.exec(k); if (r) return +r[2] * 10 + (r[1] === 'o' ? 0 : 1);
     r = /^h(\d+)([12])$/.exec(k); if (r) return +r[1] * 10 + +r[2];
+    r = /^(-?\d+(?:\.\d+)?)\|([12])$/.exec(k); if (r) return 1000 + +r[1] * 10 + +r[2];
     r = /^(\d+)-(\d+)$/.exec(k); if (r) return 100 + +r[1] * 10 + +r[2];
     return 500;
   };
@@ -1198,7 +1241,8 @@
     if (st.goals) m.ev = st.goals.map(g => ({ min: g.min, side: g.side, type: 'goal' }));
     if (m.finished) { m.ft = m.score; if (e.ht) m.ht = e.ht; if (!m.endAt) { m.endAt = Date.now(); if (!RESULTS.includes(m)) RESULTS.unshift(m); } }
     const logos = {}; if (e.homeLogo) logos[e.home] = e.homeLogo; if (e.awayLogo) logos[e.away] = e.awayLogo; if (Object.keys(logos).length) LBA.setLogos(logos);
-    if (prevScore && m.live && (m.score[0] > prevScore[0] || m.score[1] > prevScore[1])) { m.goalAt = Date.now(); m.goalSide = m.score[0] > prevScore[0] ? 0 : 1; notifyGoal(m); }
+    m.noScore = m.live && !!(e.stats && e.stats.noScore);
+    if (prevScore && m.live && !m.two && (m.score[0] > prevScore[0] || m.score[1] > prevScore[1])) { m.goalAt = Date.now(); m.goalSide = m.score[0] > prevScore[0] ? 0 : 1; notifyGoal(m); }
     mapMarkets(m, e.markets);
     return m;
   }
@@ -1447,6 +1491,10 @@
   function renderAfterSlipChange() { renderCurrent(true); renderSlip(); }
 
   /* ---------------- Events ---------------- */
+  document.addEventListener('input', e => {
+    if (e.target.id !== 'mkQ') return;
+    state.mkQ = e.target.value; const m = byId(+state.arg); if (m) $('#mdMarkets').innerHTML = mdMarketsHTML(m);
+  });
   document.addEventListener('click', e => {
     const t = e.target.closest('button, a');
     if (!t) return;
@@ -1505,6 +1553,8 @@
     if (d.bets) { state.betsTab = d.bets; return renderMe(); }
     if (d.mdtab) { state.mdTab = d.mdtab; return renderMatch(+state.arg, true); }
     if (d.group) { state.mdGroup = d.group; return renderMatch(+state.arg, true); }
+    if (t.hasAttribute('data-search-open')) return openSearch();
+    if (t.hasAttribute('data-mksearch')) { state.mkQ = state.mkQ == null ? '' : null; renderMatch(+state.arg, true); if (state.mkQ != null) setTimeout(() => $('#mkQ') && $('#mkQ').focus(), 30); return; }
     if (d.lcycle) return openLinePicker(d.lcycle);
     if (d.lpick) { const [mid, mk, L] = d.lpick.split('|'), m = byId(mid); if (!m) return; m.uiLine = m.uiLine || {}; m.uiLine[mk] = +L; closeModals(); return renderCurrent(true); }
     if (d.mkinfo) return showMarketInfo(d.mkinfo);

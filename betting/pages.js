@@ -99,12 +99,12 @@
   const WHEN = id => [...DAYS(), ...RANGES(), { id: 'all', label: 'All', from: 0, to: Infinity }, { id: 'today', label: 'Today', from: sod(Date.now()), to: sod(Date.now()) + DAY }, { id: 'tomorrow', label: 'Tomorrow', from: sod(Date.now()) + DAY, to: sod(Date.now()) + 2 * DAY }, { id: '3h', label: 'Next 3 hours', from: Date.now(), to: Date.now() + 3 * 36e5 }].find(w => w.id === id) || { id: 'all', label: 'All', from: 0, to: Infinity };
   function renderSports() {
     const a = A(), el = root('sports');
-    const sp = a.VISIBLE().filter(s => a.MATCHES.some(m => m.sport === s.id));
+    const sp = a.VISIBLE().filter(s => a.MATCHES.some(m => m.sport === s.id && !m.finished));
     if (!sp.some(s => s.id === SF.sport)) SF.sport = sp[0]?.id || 'football';
     const all = upcoming().filter(m => m.sport === SF.sport);
     const w = SF.when ? WHEN(SF.when) : null;
     const inWhen = m => !w || (m.kick >= w.from && m.kick < w.to);
-    const lgs = a.LEAGUES.filter(l => l.sport === SF.sport);
+    const lgs = a.LEAGUES.filter(l => l.sport === SF.sport && all.some(m => m.lg === l.idx));
     const cnt = l => all.filter(m => m.lg === l.idx && inWhen(m)).length;
     const today = all.filter(m => m.kick < sod(Date.now()) + DAY).length;
     const liveN = a.MATCHES.filter(m => m.live && m.sport === SF.sport).length;
@@ -133,7 +133,7 @@
         <a href="#/list/${SF.sport}/today">Today games (${today})</a>
         <a href="#/live/${SF.sport}">Live (${liveN})</a>
         <a href="#/list/${SF.sport}/all">All ${esc(a.sportOf(SF.sport).name)} (${all.length})</a>
-        <a href="#/list/${SF.sport}/all/out">Outrights (${lgs.filter(l => l.teams && l.teams.length > 2).length})</a>
+        ${(n => n ? `<a href="#/list/${SF.sport}/all/out">Outrights (${n})</a>` : '')(lgs.filter(l => l.teams && l.teams.length > 2).length)}
       </div>
       <div class="sf-sec">
         <div class="pg-tabs sm"><button data-pg="sfmode" data-v="daily" class="${SF.mode === 'daily' ? 'on' : ''}">Daily</button><button data-pg="sfmode" data-v="range" class="${SF.mode === 'range' ? 'on' : ''}">Range</button></div>

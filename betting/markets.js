@@ -243,7 +243,7 @@
 
   /* ---------- how the match page lays a market out ---------- */
   const OU_KEYS = /^(ou|hou|aou|1hou|2hou|1hhou|1haou|2hhou|2haou|cor|hcor|acor|bk|hbk|abk|tot)$/;
-  function view(mk) { if (OU_KEYS.test(mk)) return 'ou'; if (mk === 'eh' || mk === '1heh') return 'eh'; if (mk === 'ah' || mk === 'hcp') return 'ah'; return 'grid'; }
+  function view(mk) { if (OU_KEYS.test(mk)) return 'ou'; if (mk === 'eh' || mk === '1heh') return 'eh'; if (mk === 'ah' || mk === 'hcp' || mk === 'spr') return 'ah'; return 'grid'; }
 
   /* ---------- what a result must contain to settle a market ---------- */
   function needs(mk) {
@@ -393,6 +393,11 @@
     hhsh: 'In which half this team scores more goals.',
     hcor: 'Over or under the number of corners this team takes.',
     hbk: 'Over or under the number of cards shown to this team.',
+    // basketball, ice hockey, American football, baseball (and the demo's other two-way sports)
+    win: 'Pick the winner. Overtime and extra innings count. If the game ends level, bets are refunded.',
+    spr: 'The handicap is added to the team\'s final score, overtime included. If the result lands exactly on the line, bets are refunded.',
+    hcp: 'The handicap is added to the team\'s final score, overtime included.',
+    tot: 'Total points, goals or runs scored by both teams, overtime included. If the total lands exactly on the line, bets are refunded.',
   };
   function guide(mk) {
     if (GUIDE[mk]) return GUIDE[mk];
@@ -407,7 +412,7 @@
   }
 
   /* ---------- canonical order of market keys (how the match page lists them) ---------- */
-  const ORDER = (() => { const o = {}; football({ home: 'H', away: 'A', lh: 1.3, la: 1.1 }, p => p).forEach((x, i) => { o[x.key] = i; }); o.next = o.dc + 0.5; return o; })();
+  const ORDER = (() => { const o = {}; football({ home: 'H', away: 'A', lh: 1.3, la: 1.1 }, p => p).forEach((x, i) => { o[x.key] = i; }); o.next = o.dc + 0.5; o.win = -3; o.spr = o.hcp = -2; o.tot = -1; return o; })();
   const order = mk => (mk in ORDER ? ORDER[mk] : 900);
 
   const GROUPS = ['All', 'Main', 'Goals', 'Corners', 'Half', 'Combo', 'Bookings'];
