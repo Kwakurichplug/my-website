@@ -412,7 +412,7 @@
   }
 
   /* ---------- canonical order of market keys (how the match page lists them) ---------- */
-  const ORDER = (() => { const o = {}; football({ home: 'H', away: 'A', lh: 1.3, la: 1.1 }, p => p).forEach((x, i) => { o[x.key] = i; }); o.next = o.dc + 0.5; o.win = -3; o.spr = o.hcp = -2; o.tot = -1; return o; })();
+  const ORDER = (() => { const o = {}; football({ home: 'H', away: 'A', lh: 1.3, la: 1.1 }, p => p).forEach((x, i) => { o[x.key] = i; }); o.next = o.dc + 0.5; o.win = -3; o.spr = o.hcp = 0.3; o.tot = 0.4; return o; })();   // two-way and virtual cards: Winner or 1X2 first, then Handicap, Total
   const order = mk => (mk in ORDER ? ORDER[mk] : 900);
 
   const GROUPS = ['All', 'Main', 'Goals', 'Corners', 'Half', 'Combo', 'Bookings'];
