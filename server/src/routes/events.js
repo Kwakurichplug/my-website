@@ -52,8 +52,8 @@ r.get('/', async (req, res, next) => {
 
 r.get('/results', async (req, res, next) => {
   try {
-    // virtual rounds finish every 2 minutes – only returned when asked for (sport=vfootball)
-    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished'${REAL} ${req.query.sport ? 'AND e.sport=$1' : "AND e.sport <> 'vfootball'"} ORDER BY e.updated_at DESC LIMIT ${req.query.sport === 'vfootball' ? 30 : 300}`, req.query.sport ? [req.query.sport] : []);
+    // virtual rounds (Virtual League, virtual sports) finish every few minutes – only returned when asked for by sport
+    const { rows } = await q(`${EV_SELECT} WHERE e.status='finished'${REAL} ${req.query.sport ? 'AND e.sport=$1' : "AND e.sport <> 'vfootball' AND coalesce(e.ext_id, '') NOT LIKE 'vs:%'"} ORDER BY e.updated_at DESC LIMIT ${req.query.sport === 'vfootball' ? 30 : 300}`, req.query.sport ? [req.query.sport] : []);
     res.json({ events: rows.map(e => shape(e)) });
   } catch (e) { next(e); }
 });

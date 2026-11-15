@@ -2775,6 +2775,8 @@ html:not([data-theme="dark"]) #page-match.pre .mk-search{background:#fff;border-
 html:not([data-theme="dark"]) #page-match.pre .mk-q{background:#f2f3f5;color:var(--mute)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q input{color:var(--ink)}
 html:not([data-theme="dark"]) #page-match.pre .mk-q-x{color:var(--g)}
+/* virtual sports: set / game / leg scores under the score rows */
+.mh-sets{margin-top:6px;font-size:var(--fs-s);color:#c9ccd2;letter-spacing:.2px;font-variant-numeric:tabular-nums}
 /* Sports page quick links: a lone last link spans the row */
 .sf-quick a:last-child:nth-child(odd){grid-column:1/-1}
 /* desktop always shows the betslip column, so the floating slip button never shows there */

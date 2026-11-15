@@ -83,10 +83,20 @@
     { id: 'boxing', name: 'Boxing', em: '🥊' },
     { id: 'mma', name: 'MMA', em: '🥋' },
     { id: 'darts', name: 'Darts', em: '🎯' },
+    // virtual sports (server-run rounds, fictional teams) – listed after the real ones
+    { id: 'vbasketball', name: 'vBasketball', em: '🏀' },
+    { id: 'vtennis', name: 'vTennis', em: '🎾' },
+    { id: 'vicehockey', name: 'vIce Hockey', em: '🏒' },
+    { id: 'vvolleyball', name: 'vVolleyball', em: '🏐' },
+    { id: 'vtabletennis', name: 'vTable Tennis', em: '🏓' },
+    { id: 'vhandball', name: 'vHandball', em: '🤾' },
+    { id: 'vdarts', name: 'vDarts', em: '🎯' },
     { id: 'vfootball', name: 'Virtual Football', em: '🎮', hidden: true },
   ];
   SPORTS.forEach(sp => { sp.em = LBA.sport(sp.id); });
   const VISIBLE = () => SPORTS.filter(s => !s.hidden);
+  const VS = new Set(['vbasketball', 'vtennis', 'vicehockey', 'vvolleyball', 'vtabletennis', 'vhandball', 'vdarts']);
+  const realLive = m => m.live && !m.vs;   // virtual games in play stay out of "All live" and the live counters
   // sports and leagues are only listed while they have a match to bet on (no empty "(0)" spots)
   const openIn = (f) => MATCHES.filter(m => !m.finished && f(m));
   const SPORTS_ON = () => VISIBLE().filter(s => MATCHES.some(m => m.sport === s.id && !m.finished));
@@ -100,6 +110,10 @@
     volleyball: { T: 182.5, sd: 18, msd: 10, hl: [-2.5, -4.5], tl: [176.5, 182.5, 188.5], unit: 'Points' },
     americanfootball: { T: 44.5, sd: 13, msd: 13, hl: [-3.5, -6.5], tl: [40.5, 44.5, 48.5], unit: 'Points' },
     baseball: { T: 8.5, sd: 3, msd: 3, hl: [-1.5], tl: [7.5, 8.5, 9.5], unit: 'Runs' },
+    vbasketball: { T: 218, sd: 14, msd: 11, hl: [-1.5], tl: [218.5], unit: 'Points' }, vtennis: { T: 21.5, sd: 3.5, msd: 1, hl: [-1.5], tl: [21.5], unit: 'Games' },
+    vicehockey: { T: 5.5, sd: 1.8, msd: 1.6, hl: [-1.5], tl: [5.5], unit: 'Goals' }, vvolleyball: { T: 3.5, sd: 1, msd: 1, hl: [-1.5], tl: [3.5], unit: 'Sets' },
+    vtabletennis: { T: 3.5, sd: 1, msd: 1, hl: [-1.5], tl: [3.5], unit: 'Games' }, vhandball: { T: 55.5, sd: 5, msd: 4, hl: [-1.5], tl: [55.5], unit: 'Goals' },
+    vdarts: { T: 9.5, sd: 1.5, msd: 1.5, hl: [-1.5], tl: [9.5], unit: 'Legs' },
     default: { T: 20.5, sd: 4, msd: 3, hl: [-1.5], tl: [18.5, 20.5, 22.5], unit: 'Points' },
   };
   const LEAGUES = [
@@ -239,7 +253,7 @@
     ];
     const P = TW[sport] || TW.default;
     return [
-      { id: 'win', name: 'Winner', mk: 'win', outs: ['1', '2'], lab: ['1', '2'] },
+      sport === 'vhandball' ? { id: '1x2', name: '1X2', mk: '1x2', outs: ['1', 'X', '2'], lab: ['1', 'X', '2'] } : { id: 'win', name: 'Winner', mk: 'win', outs: ['1', '2'], lab: ['1', '2'] },
       { id: 'spr', name: 'Handicap', mk: 'spr', outs: ['1', '2'], n: 3, lines: 'auto', lab: ['', '1', '2'] },
       { id: 'tot', name: 'Total', mk: 'tot', outs: ['o', 'u'], n: 3, lines: 'auto', lab: ['', 'Over', 'Under'], unit: P.unit },
     ];
@@ -276,6 +290,7 @@
   const LOCK = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const isSel = (id, mk, ok) => state.slip.some(s => s.mid === id && s.mk === mk && s.ok === ok);
   const liveLabel = m => {
+    if (m.vs && m.period) return m.period;
     if (m.noScore) return 'LIVE';
     if (!m.two) return m.minute >= 90 ? "90+'" : m.minute === 45 ? 'HT' : m.minute + "'";
     if (m.sport === 'basketball') return 'Q' + Math.min(4, 1 + Math.floor(m.prog * 4));
@@ -302,7 +317,7 @@
     if (liveOnly) list = [{ id: 'all', name: 'All', em: LBA.sport('all') }, ...VISIBLE().filter(s => MATCHES.some(m => m.live && m.sport === s.id))];
     const x = el.scrollLeft;
     el.innerHTML = list.map(s => {
-      const n = s.id === 'all' ? MATCHES.filter(m => m.live).length : openIn(m => m.sport === s.id && (!liveOnly || m.live)).length;
+      const n = s.id === 'all' ? MATCHES.filter(realLive).length : openIn(m => m.sport === s.id && (!liveOnly || m.live)).length;
       return `<button data-sport="${s.id}" class="${s.id === active ? 'active' : ''}"><span class="em">${s.em}</span>${s.name}<i>${n}</i></button>`;
     }).join('');
     el.scrollLeft = x;
@@ -458,20 +473,20 @@
   }
 
   function renderLiveStrip() {
-    const sports = [...new Set(MATCHES.filter(m => m.live).map(m => m.sport))];
+    const sports = [...new Set(MATCHES.filter(realLive).map(m => m.sport))];
     if (!state.hls || !sports.includes(state.hls)) state.hls = sports[0] || 'football';
     const el = $('#homeLiveTabs'), x = el.scrollLeft;
     el.innerHTML = sports.map(id => `<button data-hls="${id}" class="${id === state.hls ? 'active' : ''}">${sportOf(id).name}</button>`).join('');
     el.scrollLeft = x;
     renderMarketTabs($('#homeLiveMkt'), state.hls);
     const cfg = mktFor(state.hls);
-    const live = MATCHES.filter(m => m.live && m.sport === state.hls).slice(0, 6);
+    const live = MATCHES.filter(m => realLive(m) && m.sport === state.hls).slice(0, 6);
     $('#liveStrip').innerHTML = `<div class="day-sep dark" style="--n:${cfg.n || cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}</div>` + live.map(m => matchRow(m, cfg, true)).join('');
   }
 
   function renderLive() {
     renderSportTabs($('#liveSportTabs'), state.liveSport, true);
-    const list = MATCHES.filter(m => m.live && (state.liveSport === 'all' || m.sport === state.liveSport));
+    const list = MATCHES.filter(m => state.liveSport === 'all' ? realLive(m) : m.live && m.sport === state.liveSport);
     $('#liveCount').textContent = list.length + ' events';
     $('#liveList').innerHTML = groupRender(list, s => listMarkets(s)[0]);
   }
@@ -539,7 +554,7 @@
           <div class="mh-when"><span>${dd}</span><span>${wd}</span><em>${kt}</em></div>
           <div class="mh-team">${crest(m.away, 1, m.sport)}<b>${esc(m.away)}</b></div>
         </div>
-        <div class="mh-meta">Game ID ${m.id}${m.two ? '' : '<span class="dot"></span>Live In-Play Available'}</div>`;
+        <div class="mh-meta">Game ID ${m.id}${m.vs ? ' · Virtual game' : m.two ? '' : '<span class="dot"></span>Live In-Play Available'}</div>`;
     } else {
       const clock = m.live
         ? `<span class="mh-clock">${m.two ? liveLabel(m) : `<b data-clk="${m.id}">${String(m.minute).padStart(2, '0')}:00</b> ${m.minute <= 45 ? 'H1' : 'H2'}`}</span>`
@@ -548,6 +563,7 @@
       $('#mdHero').innerHTML = `<a class="mh-lg" href="#/league/${lg.idx}">${esc(sp.name)} - ${esc(lg.country)} - ${esc(lg.name)}</a>
         <div class="mh-clockrow">${m.finished ? '<span class="mh-clock">Ended</span>' : clock}<span class="mh-id">ID ${m.id}</span></div>
         ${bar2(m.home, m.noScore ? '–' : m.score[0], 0)}${bar2(m.away, m.noScore ? '–' : m.score[1], 1)}
+        ${m.sets && m.sets.length ? `<div class="mh-sets">${m.sets.map(x => x.join('-')).join(' · ')}</div>` : ''}
         ${bar}`;
     }
 
@@ -611,7 +627,9 @@
     const m = byId(+state.arg), x = m && m.mk.find(y => y.key === key);
     $('#mkInfoTitle').textContent = x ? x.name : 'Market';
     $('#mkInfoBody').textContent = window.LBAMarkets ? LBAMarkets.guide(key) : '';
-    $('#mkInfoRule').textContent = m && m.two
+    $('#mkInfoRule').textContent = m && m.vs
+      ? 'Virtual game with fictional teams: the result is drawn by our random number generator when betting closes and played out over a minute. Results include overtime.'
+      : m && m.two
       ? 'Results include overtime and extra innings. A game that is not completed within 48 hours of its start is void.'
       : 'Unless the market name says otherwise, football markets settle on the result after 90 minutes plus stoppage time. Extra time and penalties do not count. A match abandoned or postponed and not completed within 48 hours is void.';
     openModal('mkInfoModal');
@@ -933,7 +951,7 @@
     state.tx = state.tx.slice(0, 200); store.set('tx', state.tx);
   }
   function updateLiveBadges() {
-    const n = MATCHES.filter(m => m.live).length;
+    const n = MATCHES.filter(realLive).length;
     const nl = $('#navLive'); if (nl) nl.textContent = n; $('#liveCountHome').textContent = n;
   }
 
@@ -1242,6 +1260,7 @@
     if (m.finished) { m.ft = m.score; if (e.ht) m.ht = e.ht; if (!m.endAt) { m.endAt = Date.now(); if (!RESULTS.includes(m)) RESULTS.unshift(m); } }
     const logos = {}; if (e.homeLogo) logos[e.home] = e.homeLogo; if (e.awayLogo) logos[e.away] = e.awayLogo; if (Object.keys(logos).length) LBA.setLogos(logos);
     m.noScore = m.live && !!(e.stats && e.stats.noScore);
+    m.vs = VS.has(e.sport); m.period = e.period || null; m.sets = Array.isArray(st.sets) ? st.sets : null;
     if (prevScore && m.live && !m.two && (m.score[0] > prevScore[0] || m.score[1] > prevScore[1])) { m.goalAt = Date.now(); m.goalSide = m.score[0] > prevScore[0] ? 0 : 1; notifyGoal(m); }
     mapMarkets(m, e.markets);
     return m;

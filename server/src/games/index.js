@@ -2,6 +2,7 @@
 import { isLeader } from '../lib/leader.js';
 import * as crash from './crash.js';
 import * as virtual from './virtual.js';
+import * as vsports from './vsports.js';
 import * as jackpot from './jackpot.js';
 import { expireBonuses } from '../lib/bonus.js';
 
@@ -20,6 +21,7 @@ export function startGames() {
   };
   loop('crash', crash.tick, 200);
   loop('virtual', virtual.tick, 1000);
+  loop('vsports', vsports.tick, 1000);
   loop('jackpot', jackpot.tick, 30000);
   loop('bonuses', expireBonuses, 60000);
   console.log('[games] schedulers started');

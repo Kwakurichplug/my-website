@@ -31,7 +31,8 @@
     vfootball: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10.5" r="3"/>',
     all: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-6 1.5 1 2 2 2 3 1-2 1-5 1-7z"/>',
   };
-  const sport = id => `<svg class="sp-ic" viewBox="0 0 24 24" aria-hidden="true">${SPORT[id] || SPORT.all}</svg>`;
+  // virtual sports (vbasketball, vtennis…) use the icon of the real sport
+  const sport = id => `<svg class="sp-ic" viewBox="0 0 24 24" aria-hidden="true">${SPORT[id] || SPORT[String(id).replace(/^v(?=[a-z]{5})/, '')] || SPORT.all}</svg>`;
 
   /* ---------- Flags (24×16) ---------- */
   const tri = (a, b, c, vertical) => vertical

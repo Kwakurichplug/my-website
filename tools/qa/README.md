@@ -11,6 +11,7 @@ base URL. Paths inside assume the repo at `/home/user/my-website` – change `fi
 | `e2e_live.js` | Same flows against the real API + database, checks server balances (the Verify ID form needs an email) | `node e2e_live.js tools/qa` (server on :8080) |
 | `e2e_pages.js` | Live, sports filter, lists, outrights, bet detail + rebet, jackpot purchase, promos, results, Code Hub | `node e2e_pages.js tools/qa <baseUrl>` |
 | `e2e_email.js` | Sign up, log in, reset password and change email **with an email address** (live test mode, demo, or production mode reading codes from a local SMTP sink folder) | `node e2e_email.js tools/qa <baseUrl> [mailboxDir]` |
+| `e2e_vsports.js` | Virtual sports through the real API: a round on sale in all 7 sports, 14 bets settle exactly as their final scores, markets closed while a game plays, virtual results kept out of the main results | server with `VIRTUAL_ROUND_SEC=40 VIRTUAL_PLAY_SEC=15` on a fresh DB, then `node e2e_vsports.js <baseUrl>` |
 | `e2e_sports.js` | Real-feed sports end to end on the mock: NBA arrives with Winner / Handicap / Total, no tennis, betting closes at tip-off, four bets settle from the 110-104 result | `node e2e_sports.js <baseUrl> <dbUrl>` (server on the mock, fresh DB) |
 | `e2e_slip.js` | Betslip sheet gestures with real touch events: swipe up on the pill, drag back, drag/pull down to close, rows fold away, page locked | `node e2e_slip.js tools/qa [baseUrl]` |
 | `e2e_instant.js` | Instant Football incl. server replay protection and tampered-round rejection | `node e2e_instant.js tools/qa <baseUrl>` |

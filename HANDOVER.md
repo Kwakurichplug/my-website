@@ -45,7 +45,7 @@ Never copy another operator's brand assets – we match their quality and layout
 | `server/` | Node 20+ Express API + Postgres. `npm start` in repo root runs it and serves `betting/`. |
 | `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware): football, plus basketball, ice hockey, American football and baseball as the plan allows. Only touches its own `oa:` events. |
 | `server/src/feeds/demo.js` | Simulated feed for demos (`ODDS_PROVIDER=demo`). Only touches its own `demo:` events. |
-| `server/src/games/` | **Game engines**: `crash.js` (Rocket Crash rounds), `virtual.js` (Virtual League rounds), `jackpot.js` (rounds, grading, payouts), `rng.js` (CSPRNG + shared rules), `index.js` (schedulers). |
+| `server/src/games/` | **Game engines**: `crash.js` (Rocket Crash rounds), `virtual.js` (Virtual League rounds), `vsports.js` (virtual basketball, tennis, ice hockey, volleyball, table tennis, handball, darts), `jackpot.js` (rounds, grading, payouts), `rng.js` (CSPRNG + shared rules), `index.js` (schedulers). |
 | `server/src/lib/leader.js` | Picks ONE replica (Postgres advisory lock) to run the game schedulers. |
 | `server/src/lib/logos.js` | Real club crests via TheSportsDB, cached in `team_logos`. |
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
@@ -127,6 +127,15 @@ Earn reward per country (₦1,000 / GH₵10).
   score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
   were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
   covered by `test/grade.test.js`.
+- **Virtual sports** (`server/src/games/vsports.js`): vBasketball, vTennis, vIce Hockey, vVolleyball, vTable Tennis,
+  vHandball, vDarts – a round of 4 matches every 3 minutes per sport, all day, with fictional teams and players and
+  leagues named *Virtual …* under *LetBet Virtuals*. Winner (1X2 for handball) / Handicap / Total are priced from the
+  same score model that decides the match (30 000-run Monte Carlo, `price = 0.94 / p`, lines only between 7% and 93%),
+  the result is drawn with the CSPRNG when betting closes (kept in `events.model`, never sent to players), played out
+  over a minute (period labels, set/leg scores) and settled by `settleEvent()`. Virtual games stay out of the main
+  results list and the live counters/home live strip. `VIRTUAL_ROUND_SEC` / `VIRTUAL_PLAY_SEC` shorten rounds for
+  tests. Finished rounds without bets are deleted after a day. Tests: `server/test/vsports.test.js` (valid results,
+  margin on every market, every outcome returns ~94% over 40 000 draws), `tools/qa/e2e_vsports.js`.
 - **More sports, no empty spots**: NBA basketball from the real feed (more sports switch on with a bigger odds plan,
   §5); sports and leagues without a match are no longer listed (the empty Tennis tab is gone); old demo results are
   hidden on the live site. Lists show Winner | Handicap | Total, with the same line picker as football's Over/Under.
@@ -197,6 +206,7 @@ Golden rules: the stake is taken **before** the result is drawn; results come fr
 | Hi-Lo | `#/game/hilo` | `POST /api/games/hilo/deal` → signed single-use card; `POST hilo/play {stake, choice, deal}` | 94.9% |
 | Instant Football | `#/instant` | `GET /api/virtuals/instant/round` (sealed round token), `POST /api/virtuals/instant/play` | ~92% margin pricing |
 | Virtual League | `#/virtuals` | rounds of 6 matches every 2 min are **normal events** (sport `vfootball`), bet via `/api/bets/place`, settled by `settleEvent()` | ~94% margin pricing |
+| Virtual sports | Sports page / A–Z (`vbasketball`, `vtennis`, `vicehockey`, `vvolleyball`, `vtabletennis`, `vhandball`, `vdarts`) | a round of 4 matches every 3 min per sport (sports staggered 20 s), fictional teams; normal events, `/api/bets/place`, `settleEvent()` | 94% (every outcome, tested) |
 | Weekly Jackpot | `#/jackpot` | `GET /api/jackpot/round`, `POST /api/jackpot/tickets`, `GET /api/jackpot/results` | prize table |
 
 - **Rocket Crash**: every round is fixed before betting opens – a random seed is drawn and stored with `hash = SHA-256(seed)`;

@@ -287,6 +287,11 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Line columns** (`linesOf`, `pairOf`, `lineTxt`): fixed `cfg.lines` (football O/U) or `lines: 'auto'` (two-way Handicap
   and Total – the lines come from each match's keys). Handicap pairs are `<line>|1` / `<line>|2`, shown signed (`+3.5`).
   The picker header (`#lineHead`) follows the market (Goals/Points/Runs | Over | Under, or Home line | Home | Away).
+- **Virtual sports** (`app.js`): `SPORTS` has `vbasketball … vdarts` after the real sports (names *vBasketball* etc.; icons
+  fall back to the real sport's in `icons.js`). `VS` set → `m.vs`; `m.period` (server `period`: Q1–Q4, P1–P3, halves,
+  *Set n*, *Game n*, *Leg n*) is the live label; `m.sets` (server `stats.sets`) shows under the score rows (`.mh-sets`).
+  `realLive(m)` keeps virtual games out of the live badges, the home live strip and *All* on the live page. vHandball
+  lists open on 1X2. Match meta reads *Game ID … · Virtual game*; the info sheet explains the random draw.
 - **Sports lists** (`SPORTS_ON`, `openIn`): sport tabs, A–Z, desktop rail and the Sports page count open matches only and
   skip sports/leagues with none. New sports `americanfootball` and `baseball` (icons in `icons.js`). `m.noScore` (server
   `stats.noScore`) = a two-way game in play without a score yet: rows show `–` and *LIVE*; no *GOAL!* pop-up outside football.
