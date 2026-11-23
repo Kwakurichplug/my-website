@@ -2899,3 +2899,24 @@ html[data-theme="dark"] .sh-btn.wa{color:#fff}
 .nt-ladder li em{font-style:normal;font-size:12.5px;color:var(--brand);font-weight:700}
 .nt-ladder li.released,.nt-ladder li.active,.nt-ladder li.expired{opacity:.65}
 .nt .wx-note{align-self:stretch;text-align:left}
+/* Deposit 1·2·3: steps marked done; the sticky next-deposit bar (above the bottom menu; a floating card on desktop) */
+.wx-steps li.done .wx-step-n{background:var(--brand);color:#fff}
+.wx-done{font-style:normal;font-size:11px;font-weight:700;color:var(--brand);background:#e6f4ec;border-radius:9px;padding:1px 7px;margin-left:4px;vertical-align:1px}
+.wx-steps li.checking .wx-step-n{background:#fff4dc;color:#a76b00}
+.lad-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:44;padding:6px 8px;background:transparent;pointer-events:none}
+.lad-bar[hidden]{display:none}
+.lb-in{pointer-events:auto;display:flex;align-items:center;gap:10px;min-height:48px;padding:7px 8px 7px 10px;border-radius:12px;background:#0b3d22;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25);text-decoration:none}
+.lb-dots{display:flex;gap:4px;flex:none}
+.lb-dots i{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.14);color:rgba(255,255,255,.8)}
+.lb-dots i.done{background:#1aa34a;color:#fff}
+.lb-dots i.done svg{width:12px;height:12px}
+.lb-dots i.now{background:var(--gold, #ffc20e);color:#1c1600}
+.lb-txt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.lb-txt b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-txt small{font-size:11.5px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-go{flex:none;background:var(--gold, #ffc20e);color:#1c1600;font-weight:800;font-size:13px;padding:8px 14px;border-radius:8px}
+.lb-go.wait{background:rgba(255,255,255,.16);color:#fff}
+body.has-ladbar .slip-pill{margin-bottom:62px}
+body.has-ladbar .foot-dark{padding-bottom:164px}
+body.has-ladbar .page.active{padding-bottom:62px}
+@media (min-width:1024px){ .lad-bar{left:16px;right:auto;bottom:16px;width:380px;padding:0} body.has-ladbar .page.active{padding-bottom:0} body.has-ladbar .foot-dark{padding-bottom:34px} }

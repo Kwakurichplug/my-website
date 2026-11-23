@@ -70,24 +70,40 @@ export async function addTurnover(c, bet, legs) {
   return released;
 }
 
-/** Deposit 1, 2, 3 for a player: each step's % and cap, and where they are (done / active / next / locked). */
-export async function ladderOf(user) {
-  const R = await bonusRules();
+/** Deposit 1, 2, 3 for one player, from their bonus rows and a deposit still being checked (if any). Each step:
+ *  done (✓ deposit made, with the amount and date) and its bonus status (active / released / expired), or
+ *  checking (their deposit is waiting for the admin), next, later, or locked (ID not approved yet).
+ *  Used by the player's pages (ladderOf) and the admin's tracker (GET /api/admin/ladder). */
+export function buildLadder(R, user, rows, pending) {
   if (!R.ladder) return null;
-  const { rows } = await q(`SELECT b.kind, b.amount, b.required, b.wagered, b.status, b.created_at, p.amount AS deposit FROM bonuses b LEFT JOIN payments p ON p.id = b.payment_id
-    WHERE b.user_id=$1 AND (b.kind = ANY($2::text[]) OR b.kind = 'welcome')`, [user.id, LADDER_KINDS]);
   const got = Object.fromEntries(rows.map(b => [b.kind, b]));
   // an old welcome bonus stands in for Deposit 1 (the ladder then continues with deposit2, deposit3)
   if (got.welcome && !got.deposit1) got.deposit1 = got.welcome;
   const unlocked = R.ladder.requireId === false || !!user.verified;
-  let next = null;
+  let next = null, done = 0;
   const steps = (R.ladder[user.country] || []).slice(0, 3).map((s, i) => {
     const b = got[LADDER_KINDS[i]];
-    const status = b ? b.status : !unlocked ? 'locked' : next == null ? (next = i + 1, 'next') : 'later';
-    return { n: i + 1, pct: Number(s.pct), max: Number(s.max), status, bonus: b ? Number(b.amount) : null, deposit: b && b.deposit != null ? Number(b.deposit) : null,
-      wagered: b ? Number(b.wagered) : null, required: b ? Number(b.required) : null };
+    if (b) done++;
+    const status = b ? b.status : !unlocked ? 'locked' : next == null ? (next = i + 1, pending ? 'checking' : 'next') : 'later';
+    const wait = status === 'checking' ? pending : null;
+    return { n: i + 1, pct: Number(s.pct), max: Number(s.max), status, done: !!b, bonus: b ? Number(b.amount) : null,
+      deposit: b ? (b.deposit != null ? Number(b.deposit) : null) : wait ? Number(wait.amount) : null,
+      depositAt: b ? (b.deposit_at || b.created_at) : wait ? wait.created_at : null,
+      wagered: b ? Number(b.wagered) : null, required: b ? Number(b.required) : null, releasedAt: b ? b.released_at || null : null };
   });
-  return { requireId: R.ladder.requireId !== false, unlocked, next, steps, times: R.times, min_odds: R.min_odds, days: R.days };
+  return { requireId: R.ladder.requireId !== false, unlocked, next, done, left: steps.length - done, steps, times: R.times, min_odds: R.min_odds, days: R.days };
+}
+export const LADDER_ROWS_SQL = `SELECT b.user_id, b.kind, b.amount, b.required, b.wagered, b.status, b.created_at, b.released_at, p.amount AS deposit, p.updated_at AS deposit_at
+  FROM bonuses b LEFT JOIN payments p ON p.id = b.payment_id WHERE b.user_id = ANY($1::uuid[]) AND (b.kind = ANY($2::text[]) OR b.kind = 'welcome')`;
+export const PENDING_SQL = `SELECT DISTINCT ON (user_id) user_id, amount, created_at FROM payments
+  WHERE user_id = ANY($1::uuid[]) AND kind='deposit' AND status='pending' ORDER BY user_id, created_at`;
+
+/** Deposit 1, 2, 3 for a player (the deposit page, the pop-ups, the sticky "next deposit" bar). */
+export async function ladderOf(user) {
+  const R = await bonusRules();
+  if (!R.ladder) return null;
+  const [{ rows }, { rows: pend }] = await Promise.all([q(LADDER_ROWS_SQL, [[user.id], LADDER_KINDS]), q(PENDING_SQL, [[user.id]])]);
+  return buildLadder(R, user, rows, pend[0] || null);
 }
 
 export const expireBonuses = () => q(`UPDATE bonuses SET status='expired' WHERE status='active' AND expires_at <= now()`);

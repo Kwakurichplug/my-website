@@ -13,6 +13,7 @@
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
     trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
     ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3.5-5-1s3.5 1 5 1c1.5 0 5 1.5 5-1s-3.5-2-5 1"/></svg>',
     agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.6"/><circle cx="5" cy="18.5" r="2.6"/><circle cx="19" cy="18.5" r="2.6"/><path d="M12 7.6V12M12 12l-5.4 4.3M12 12l5.4 4.3"/></svg>',
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 0 1 6-4.6"/></svg>',
     card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
@@ -111,14 +112,19 @@
       const o = await API.admin.overview(); const n = (o.pending_withdrawals || 0) + (o.pending_deposits || 0); const b = $('#navPending'); b.hidden = !n; b.textContent = n;
       const k = $('#navKyc'); k.hidden = !o.pending_kyc; k.textContent = o.pending_kyc || ''; state.pending = o;
     } catch {}
+    try {
+      const L = await API.admin.ladder(); const nl = $('#navLadder'); if (nl) { const n = (L.counts && L.counts.left) || 0; nl.hidden = !n; nl.textContent = n; nl.title = n + ' players with deposit bonuses left'; }
+    } catch {}
     try { state.api = (await API.admin.paymentSettings()).api; } catch {}
   }
 
   /* ---------- router ---------- */
-  const TITLES = { overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', agents: 'Agents', paysettings: 'Payment settings' };
+  const TITLES = { ladder: 'Deposit 1·2·3', overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', agents: 'Agents', paysettings: 'Payment settings' };
   function route() {
     const [page = 'overview', arg = null] = location.hash.replace(/^#\/?/, '').split('/');
+    const before = state.page;
     state.page = TITLES[page] ? page : 'overview'; state.arg = arg ? decodeURIComponent(arg) : null;
+    if (before && before !== state.page && $('#drawer').classList.contains('open')) closeDrawer();   // another page: the side panel closes
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.nav === state.page));
     $('#pageTitle').textContent = TITLES[state.page];
     document.body.classList.remove('nav-open');
@@ -230,7 +236,7 @@
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
         ${d.agent && d.agent.active ? `<button class="btn sm" data-agent="${u.id}">Agent · ${esc(basisShort(d.agent))}</button>` : `<button class="btn sm" data-agent-edit="${u.id}">${d.agent ? 'Restore agent' : 'Make agent'}</button>`}
       </div>
-      <dl class="kv">${d.ladder ? `<dt>Deposit bonuses</dt><dd class="lad">${d.ladder.steps.map(x => `<span class="pill ${x.status === 'released' ? 'ok' : x.status === 'active' ? 'gold' : x.status === 'next' ? 'info' : ''}">${x.n} · ${x.bonus != null ? money(x.bonus, cc) + (x.status === 'active' ? ` · ${x.required ? Math.floor(100 * x.wagered / x.required) : 0}% played` : x.status === 'released' ? ' released' : ' ' + x.status) : x.status === 'next' ? 'next deposit' : x.status === 'locked' ? 'after the ID check' : 'later'}</span>`).join(' ')}</dd>` : ''}${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
+      <dl class="kv">${d.ladder ? `<dt>Deposit bonuses</dt><dd class="lad">${d.ladder.steps.map(x => `<span class="pill ${x.done ? 'ok' : x.status === 'checking' ? 'gold' : x.status === 'next' ? 'info' : ''}">${x.done ? '✓ ' : ''}Deposit ${x.n} · ${x.done ? (x.deposit != null ? money(x.deposit, cc) + ' · ' : '') + 'bonus ' + money(x.bonus, cc) + (x.status === 'active' ? ` ${x.required ? Math.floor(100 * x.wagered / x.required) : 0}% played` : ' ' + x.status) : x.status === 'checking' ? 'being checked' : x.status === 'next' ? 'next' : x.status === 'locked' ? 'after the ID check' : 'left'}</span>`).join(' ')}</dd>` : ''}${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
     $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
@@ -343,24 +349,65 @@
     state.drawer = { type: 'agent', id };
   }
 
+  /* ---------- Deposit 1·2·3 tracker: players with an approved ID, each step marked; those with deposits left first ---------- */
+  const LAD_SEG = [['left', 'Deposits left'], ['s0', 'Not started'], ['s1', '1 of 3 done'], ['s2', '2 of 3 done'], ['checking', 'Being checked'], ['s3', 'All 3 done'], ['all', 'All']];
+  PAGES.ladder = async main => {
+    const f = state.ladF || (state.ladF = { seg: 'left', cc: '', q: '', sort: 'progress' });
+    const d = await API.admin.ladder(f.cc, f.q);
+    if (!d.enabled) { main.innerHTML = `<div class="page-head"><div><h2>Deposit 1·2·3</h2><p>Deposit bonuses 1 · 2 · 3 is switched off.</p></div></div><div class="card"><div class="empty"><b>Switched off</b>Turn it on in <a href="#/settings">Settings → Deposit bonuses 1 · 2 · 3</a>.</div></div>`; return; }
+    state.ladRows = new Map(d.players.map(p => [p.id, p]));
+    const c = d.counts, cnt = { left: c.left, s0: c.s0, s1: c.s1, s2: c.s2, checking: c.checking, s3: c.s3, all: c.all };
+    let rows = d.players.filter(p => f.seg === 'all' ? true : f.seg === 'left' ? p.left > 0 : f.seg === 'checking' ? p.checking : p.done === +f.seg.slice(1));
+    const t = x => (x ? new Date(x).getTime() : 0);
+    rows = rows.sort(f.sort === 'recent' ? (a, b) => t(b.verified_at) - t(a.verified_at) : f.sort === 'last' ? (a, b) => t(b.last_deposit) - t(a.last_deposit)
+      : (a, b) => (b.checking - a.checking) || (a.done - b.done) || (t(b.verified_at) - t(a.verified_at)));
+    const day = x => x ? new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
+    const cell = (p, s) => s.done
+      ? `<div class="lad-c done"><b>✓ ${s.deposit != null ? money(s.deposit, p.country) : 'Done'}</b><small>${day(s.depositAt)} · bonus ${money(s.bonus, p.country)} ${s.status === 'active' ? `· ${s.required ? Math.floor(100 * s.wagered / s.required) : 0}% played` : s.status === 'released' ? '· released' : '· ' + s.status}</small></div>`
+      : s.status === 'checking' ? `<div class="lad-c chk"><b>Being checked</b><small>${money(s.deposit, p.country)} · confirm it in Payments</small></div>`
+      : s.status === 'next' ? `<div class="lad-c next"><b>Next</b><small>${s.pct}% up to ${compact(s.max, p.country)}</small></div>`
+      : `<div class="lad-c left"><b>Left</b><small>${s.pct}% up to ${compact(s.max, p.country)}</small></div>`;
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Deposit 1·2·3</h2><p>Every player whose ID is approved, with each deposit step marked: ✓ done (amount, date, bonus), being checked, next or left. Players with deposits left come first – press <b>Request deposit</b> to send them a pop-up and an email that takes them straight to their next deposit.</p></div>
+        <div class="page-actions"><div class="seg">${[['', 'All'], ['NG', '₦ Nigeria'], ['GH', 'GH₵ Ghana']].map(([v, l]) => `<button class="${f.cc === v ? 'on' : ''}" data-lcc="${v}">${l}</button>`).join('')}</div></div></div>
+      <div class="card"><div class="toolbar sticky-tools"><div class="seg wrap">${LAD_SEG.map(([v, l]) => `<button class="${f.seg === v ? 'on' : ''}" data-lseg="${v}">${l} <em class="cnt">${cnt[v] || 0}</em></button>`).join('')}</div>
+        <form class="search" id="lq"><i>${IC.search}</i><input placeholder="Phone, ID, name or email" value="${esc(f.q)}"></form>
+        <select class="btn sm" id="lsort" aria-label="Sort"><option value="progress" ${f.sort === 'progress' ? 'selected' : ''}>Fewest done first</option><option value="recent" ${f.sort === 'recent' ? 'selected' : ''}>Newest ID approval</option><option value="last" ${f.sort === 'last' ? 'selected' : ''}>Latest deposit</option></select>
+        <span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
+      <div class="tbl-wrap"><table class="tbl lad-tbl"><thead><tr><th>Player</th><th>ID approved</th><th>Deposit 1</th><th>Deposit 2</th><th>Deposit 3</th><th>Progress</th><th></th></tr></thead><tbody>
+        ${rows.map(p => `<tr class="click" data-user="${p.id}"><td><div class="who"><b>${esc(p.full_name || 'No name yet')}</b><small>ID ${p.uid} · ${flag(p.country)}${esc(p.phone ? phoneFmt(p.country, p.phone) : p.email || '')}</small></div></td>
+          <td class="muted">${day(p.verified_at) || '–'}</td>${p.steps.map(s => `<td>${cell(p, s)}</td>`).join('')}
+          <td><div class="lad-prog" title="${p.done} of ${p.steps.length} done">${p.steps.map(s => `<i class="${s.done ? 'on' : s.status === 'checking' ? 'chk' : ''}"></i>`).join('')}</div><small class="muted">${p.left ? p.left + ' left' : 'All done'}</small></td>
+          <td><div class="acts">${p.next && !p.checking ? `<button class="btn xs primary" data-lad-req="${p.id}">Request deposit ${p.next}</button>` : p.checking ? '<a class="btn xs" href="#/payments/pending:deposit">Confirm in Payments</a>' : ''}</div></td></tr>`).join('')
+          || `<tr><td colspan="7"><div class="empty"><b>No players here</b>${f.seg === 'left' ? 'Every player with an approved ID has made all three deposits.' : 'Nothing matches this filter.'}</div></td></tr>`}
+      </tbody></table></div></div>`;
+    $$('#main [data-lseg]').forEach(b => b.onclick = () => { f.seg = b.dataset.lseg; render(true); });
+    $$('#main [data-lcc]').forEach(b => b.onclick = () => { f.cc = b.dataset.lcc; render(); });
+    $('#lsort').onchange = e => { f.sort = e.target.value; render(true); };
+    $('#lq').onsubmit = e => { e.preventDefault(); f.q = $('#lq input').value.trim(); render(); };
+  };
+
   /* ---------- Support: ask a player to deposit – they get a pop-up in the app (and an email) that walks them through it ---------- */
-  function requestDepositModal(id) {
-    const u = state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
+  function requestDepositModal(id, row) {
+    const u = row || (state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null);
     if (!u) return toast('Open the player first', 'err');
+    const nx = row && row.next ? row.steps.find(x => x.n === row.next) : null;
+    const preset = nx ? `Your Deposit ${nx.n} bonus is waiting: ${nx.pct}% extra, up to ${money(nx.max, u.country)}. Deposit now and we add it.` : '';
     const cc = u.country, gh = cc === 'GH';
     openModal(`<h3>Ask the player to deposit</h3>
       <p class="sub">The player gets a pop-up the next time they open LetBetAfrika, and an email. It shows how to pay ${gh ? 'with Mobile Money' : 'by bank transfer to your account'}, step by step, with a button that opens the deposit page with the amount filled in. It closes by itself once they deposit, or after 7 days.</p>
       <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · ${flag(cc)}${esc(u.phone ? phoneFmt(cc, u.phone) : u.email || '')}</dd><dt>They pay by</dt><dd>${gh ? 'Mobile Money' : 'Bank transfer (the account in Payment settings)'}</dd></dl>
       <label class="field"><span>Amount (${SYM[cc]}, optional)</span><input id="rAmt" type="number" min="1" step="0.01" inputmode="decimal" placeholder="Leave empty to let them choose"></label>
-      <label class="field"><span>Message to the player (optional)</span><textarea id="rNote" maxlength="300" placeholder="e.g. Hi ${esc((u.full_name || '').split(' ')[0] || 'there')}, please use the details below – we confirm it as soon as it arrives."></textarea></label>
+      <label class="field"><span>Message to the player (optional)</span><textarea id="rNote" maxlength="300" data-preset="${esc(preset)}" placeholder="e.g. Hi ${esc((u.full_name || '').split(' ')[0] || 'there')}, please use the details below – we confirm it as soon as it arrives."></textarea></label>
       <p class="form-err" id="rErr" hidden></p>
       <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Send to the player</button></div>`);
+    if (preset) $('#rNote').value = preset;
     $('#rAmt').focus();
     $('#mGo').onclick = async () => {
       const v = +$('#rAmt').value, note = $('#rNote').value.trim(), body = {};
       if ($('#rAmt').value && !(v > 0)) return $('#rAmt').focus();
       if (v > 0) body.amount = Math.round(v * 100) / 100; if (note) body.note = note;
-      try { $('#mGo').disabled = true; await API.admin.depositRequest(id, body); closeModal(); toast('Sent – the player sees it when they open the app, and by email', 'ok'); openUser(id); }
+      try { $('#mGo').disabled = true; await API.admin.depositRequest(id, body); closeModal(); toast('Sent – the player sees it when they open the app, and by email', 'ok'); if (state.page === 'ladder' && !row) render(true); else if (row) render(true); else openUser(id); }
       catch (e) { $('#rErr').textContent = errMsg(e); $('#rErr').hidden = false; $('#mGo').disabled = false; }
     };
   }
@@ -923,11 +970,12 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-lad-req],[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
+      if (d.ladReq) return requestDepositModal(d.ladReq, state.ladRows && state.ladRows.get(d.ladReq));
       if (d.proofView) return proofModal(d.proofView);
       if (d.addDep) return addDepositModal(d.addDep);
       if (d.reqDep) return requestDepositModal(d.reqDep);

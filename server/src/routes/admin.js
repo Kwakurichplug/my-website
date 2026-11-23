@@ -10,7 +10,7 @@ import { sendEmail, deliver, emailProvider, render, emailStatus, checkEmail, log
 import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
 import * as crash from '../games/crash.js';
-import { creditDeposit, ladderOf } from '../lib/bonus.js';
+import { creditDeposit, ladderOf, bonusRules, buildLadder, LADDER_ROWS_SQL, PENDING_SQL, LADDER_KINDS } from '../lib/bonus.js';
 import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS, referenceOf } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
 import { BASES, period as agentPeriod, pay as payAgent } from '../lib/agents.js';
@@ -304,6 +304,34 @@ r.get('/payments', async (req, res, next) => {
         EXISTS (SELECT 1 FROM payment_proofs x WHERE x.payment_id = p.id) AS has_proof, u.limits->'kyc'->>'status' AS kyc
       FROM payments p JOIN users u ON u.id=p.user_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${st === 'pending' ? 'p.created_at' : 'p.updated_at DESC'} LIMIT 200`, params);
     res.json({ payments: rows.map(x => ({ ...x, amount: Number(x.amount), user_balance: Number(x.user_balance), methodName: methodName(x.method) })) });
+  } catch (e) { next(e); }
+});
+
+// Deposit 1, 2, 3 tracker: every player whose ID is approved, each step marked (✓ amount and date, being checked,
+// next, later) – so the admin sees who has deposits left. Filtering and sorting happen in the portal.
+r.get('/ladder', async (req, res, next) => {
+  const cc = ['NG', 'GH'].includes(req.query.cc) ? req.query.cc : null, s = String(req.query.q || '').trim().slice(0, 60);
+  try {
+    const R = await bonusRules();
+    if (!R.ladder) return res.json({ enabled: false, players: [], counts: {} });
+    const params = [], where = [`u.role <> 'admin'`, R.ladder.requireId === false ? 'true' : 'u.verified'];
+    if (cc) { params.push(cc); where.push(`u.country = $${params.length}`); }
+    if (s) { params.push('%' + s + '%'); where.push(`(u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length} OR u.uid::text LIKE $${params.length} OR u.full_name ILIKE $${params.length})`); }
+    const { rows: users } = await q(`SELECT u.id, u.uid, u.full_name, u.phone, u.email, u.country, u.verified, u.balance, u.limits->'kyc'->>'decidedAt' AS verified_at
+      FROM users u WHERE ${where.join(' AND ')} ORDER BY u.created_at DESC LIMIT 2000`, params);
+    const ids = users.map(u => u.id);
+    const [{ rows: bon }, { rows: pend }, { rows: last }] = await Promise.all([q(LADDER_ROWS_SQL, [ids, LADDER_KINDS]), q(PENDING_SQL, [ids]),
+      q(`SELECT user_id, max(updated_at) AS at FROM payments WHERE user_id = ANY($1::uuid[]) AND kind='deposit' AND status='success' GROUP BY user_id`, [ids])]);
+    const B = new Map(); for (const b of bon) { if (!B.has(b.user_id)) B.set(b.user_id, []); B.get(b.user_id).push(b); }
+    const P = new Map(pend.map(x => [x.user_id, x])), L = new Map(last.map(x => [x.user_id, x.at]));
+    const players = users.map(u => {
+      const lad = buildLadder(R, u, B.get(u.id) || [], P.get(u.id) || null);
+      return { id: u.id, uid: u.uid, full_name: u.full_name, phone: u.phone, email: u.email, country: u.country, balance: Number(u.balance), verified_at: u.verified_at,
+        last_deposit: L.get(u.id) || null, done: lad.done, left: lad.left, next: lad.next, checking: lad.steps.some(x => x.status === 'checking'), steps: lad.steps };
+    });
+    const n = d => players.filter(p => p.done === d).length;
+    res.json({ enabled: true, players, counts: { all: players.length, left: players.filter(p => p.left > 0).length, checking: players.filter(p => p.checking).length, s0: n(0), s1: n(1), s2: n(2), s3: n(3) },
+      rules: { times: R.times, min_odds: R.min_odds, days: R.days } });
   } catch (e) { next(e); }
 });
 

@@ -204,7 +204,10 @@ Earn reward per country (₦1,000 / GH₵10).
     first three deposits after the ID check (% and cap per step and country), locked until wagered; a stake counts
     towards the oldest active bonus only; an old welcome bonus counts as Deposit 1. `GET /api/wallet/options` →
     `ladder` (steps, next, unlocked); ID approval sends a `kyc_approved` pop-up listing them. Replaces the welcome bonus
-    while enabled (default on, after ID approval).
+    while enabled (default on, after ID approval). Every step is marked (`done`, the deposit amount and date, or
+    `checking` while a deposit waits for the admin); the player gets a **sticky next-deposit bar** (`#ladBar`) until all
+    three are done; the portal's **Deposit 1·2·3** page (`GET /api/admin/ladder`, `buildLadder()`) lists every player with
+    an approved ID – deposits left first, filters with counts, Request deposit N.
   - **Support adds a deposit** (portal: player profile → *Add deposit*, `POST /api/admin/users/:id/deposits`): for a
     player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
     MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited

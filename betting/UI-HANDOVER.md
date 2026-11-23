@@ -314,6 +314,11 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
 - **Deposit bonuses 1 · 2 · 3** (`account.js` `ladderHTML()`, `.wx-ladder` / `.wx-steps`): the deposit page lists the three
   steps from `opt.data.ladder` (done / bonus active with % played through / next / later / locked behind *Verify your ID*);
   the amount hint shows the bonus this deposit earns. Me → Bonuses shows one row per step with its progress bar.
+- **Sticky next-deposit bar** (`#ladBar` in index.html, `account.js` `ladderBar()` / `renderLadderBar()`, `.lad-bar` / `.lb-*`):
+  fixed above the bottom menu (a floating card on desktop) on browsing pages (`LB_ROUTES`) for players whose ID is
+  approved while a step is left – dots ✓ ✓ 3, "Deposit 3 of 3 · 50% bonus", **Deposit**; "being checked" while one waits.
+  `body.has-ladbar` lifts the betslip button and pads the page. Loaded with the app, after a deposit and with the "ID
+  approved" pop-up; refreshed at most once a minute.
 - **Transfer screenshot** (`proofHTML()` / `bindProof()` / `shrinkImage()`, `.wx-proof*`): required on real manual
   deposits (`way.mode === 'manual'`) – the button says "Add the screenshot of your transfer" until one is picked; sent after
   "I have sent it"; *Add screenshot* on a pending deposit in Recent deposits (`addProofLater`).

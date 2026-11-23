@@ -323,3 +323,33 @@ test('ID approved → the player’s Deposit 1 · 2 · 3 bonuses open, with a po
   assert.equal((await api('/admin/users/' + p.user.id, null, ADMIN)).ladder.steps[0].bonus, 4000);
   assert.equal((await api('/admin/settings/deposit_bonuses', { value: { enabled: true, requireId: true, NG: [{ pct: 9999, max: 1 }], GH: [], times: 0, min_odds: 1, days: 0 } }, ADMIN, 'PUT')).status, 400);
 });
+
+test('Deposit 1·2·3 tracker: every step marked (✓ amount, being checked, next, left); players with deposits left are easy to find', { skip }, async () => {
+  const tag = 'Trk' + Math.random().toString(36).slice(2, 7);
+  const mk = async name => { const p = await player('NG', { name }); await db.query('UPDATE users SET verified=true WHERE id=$1', [p.user.id]); return p; };
+  const p0 = await mk(tag + ' None'), p1 = await mk(tag + ' One'), p2 = await mk(tag + ' Two'), pc = await mk(tag + ' Checking'), un = await player('NG', { name: tag + ' Unverified' });
+  const credit = (p, amount) => api(`/admin/users/${p.user.id}/deposits`, { amount, credit: true, reference: `TRK-${p.user.uid}-${amount}-${Date.now()}` }, ADMIN);
+  await credit(p1, 1000); await credit(p2, 1000); await credit(p2, 3000);
+  await api('/wallet/deposit', { amount: 2500, method: 'bank_transfer', details: { sender: 'TRACKER CHECKING' } }, pc.token);
+  // the player: Deposit 1 marked done with its amount and date; the next step; being checked
+  let o = await api('/wallet/options', null, p1.token);
+  assert.equal(o.ladder.done, 1); assert.equal(o.ladder.left, 2); assert.equal(o.ladder.next, 2);
+  assert.equal(o.ladder.steps[0].done, true); assert.equal(o.ladder.steps[0].deposit, 1000); assert.ok(o.ladder.steps[0].depositAt);
+  o = await api('/wallet/options', null, pc.token);
+  assert.equal(o.ladder.steps[0].status, 'checking'); assert.equal(o.ladder.steps[0].deposit, 2500); assert.equal(o.ladder.next, 1);
+  // the admin's tracker
+  const t = await api('/admin/ladder?q=' + tag, null, ADMIN);
+  const row = name => t.players.find(x => x.full_name === name);
+  assert.ok(!row(tag + ' Unverified'), 'only players whose ID is approved');
+  assert.equal(row(tag + ' None').done, 0); assert.equal(row(tag + ' None').next, 1); assert.equal(row(tag + ' None').left, 3);
+  assert.deepEqual(row(tag + ' Two').steps.map(s => s.done), [true, true, false]); assert.equal(row(tag + ' Two').steps[1].deposit, 3000);
+  assert.equal(row(tag + ' Two').steps[2].status, 'next');
+  assert.equal(row(tag + ' Checking').checking, true);
+  assert.equal(t.counts.s0, 2, 'not started: one has nothing yet, one is being checked'); assert.equal(t.counts.s1, 1); assert.equal(t.counts.s2, 1); assert.equal(t.counts.checking, 1); assert.equal(t.counts.left, 4);
+  assert.equal((await api('/admin/ladder', null, p1.token)).status, 403, 'admins only');
+  // the third deposit completes the ladder
+  await credit(p2, 4000);
+  assert.equal((await api('/admin/ladder?q=' + encodeURIComponent(tag + ' Two'), null, ADMIN)).players[0].left, 0);
+  assert.equal((await api('/wallet/options', null, p2.token)).ladder.next, null, 'no next step: the sticky bar goes away');
+  assert.ok(un);
+});

@@ -162,6 +162,25 @@ async function player(cc, name) {
   await P.screenshot({ path: OUT + '/ply-3-request-popup.png' });
   await P.click('[data-nt-go]'); await P.waitForTimeout(2000);
   ok(P.url().includes('#/deposit/transfer') && (await P.inputValue('#wlAmt')) === '5000', 'Deposit now opens the bank transfer page with ₦5,000 filled in');
+  // Deposit 1 was made after the ID check (the support deposit) → marked ✓; the sticky bar offers Deposit 2
+  ok(/✓ Done/.test(await P.textContent('.wx-ladder')) && /1 of 3 done/.test(await P.textContent('.wx-ladder')), 'deposit page: Deposit 1 marked done (1 of 3)');
+  await P.goto(BASE + '#/home'); await P.waitForTimeout(2500);
+  // earlier pop-ups waiting for this player (deposit confirmed, withdrawal paid…) show one by one – close them
+  for (let i = 0; i < 8 && await P.isVisible('#wlSheet.open'); i++) { await P.click('#wlSheet.open [data-close-sheet]'); await P.waitForTimeout(1500); }
+  ok(await P.isVisible('#ladBar') && /Deposit 2 of 3/.test(await P.textContent('#ladBar')), 'sticky bar: "Deposit 2 of 3" with a Deposit button');
+  await P.screenshot({ path: OUT + '/ply-4-sticky-bar.png' });
+  await P.goto(BASE + '#/sports'); await P.waitForTimeout(800);
+  ok(await P.isVisible('#ladBar'), 'the bar stays while browsing');
+  await P.click('#ladBar .lb-in'); await P.waitForTimeout(1200);
+  ok(P.url().includes('#/deposit') && !(await P.isVisible('#ladBar')), 'the bar opens the deposit page (and hides there)');
+  // the admin's tracker: players with deposits left first, each step marked
+  await A.goto(BASE + 'admin.html#/ladder'); await A.waitForTimeout(1800);
+  const trk = await A.textContent('#main');
+  ok(/Deposits left/.test(trk) && /1 of 3 done/.test(trk) && /Ada Obi/.test(trk) && /✓ ₦1,000\.00/.test(trk), 'tracker: the player with Deposit 1 ✓ and deposits left');
+  await A.screenshot({ path: OUT + '/adm-11-ladder-tracker.png' });
+  await A.click(`#main [data-lad-req="${ng.user.id}"]`); await A.waitForTimeout(500);
+  ok(/Deposit 2 bonus is waiting/.test(await A.inputValue('#rNote')), 'Request deposit from the tracker names the next step');
+  await A.click('#modalBody [data-close-modal]'); await A.waitForTimeout(300);
   // Ghana: the MoMo steps, then Mobile Money with the amount filled in
   await api(`/admin/users/${gh.user.id}/deposit-request`, { amount: 50 }, admin.token);
   await G.goto(BASE + '?open=1#/home'); await G.waitForSelector('#wlSheet.open .nt', { timeout: 15000 }).catch(() => {});

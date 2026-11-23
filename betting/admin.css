@@ -382,3 +382,21 @@ textarea.json{width:100%;min-height:120px;border:1px solid var(--line-2);border-
 .lad-grid .flag{margin-right:4px}
 dd.lad{display:flex;flex-wrap:wrap;gap:4px}
 @media (max-width:600px){ .lad-grid{grid-template-columns:70px repeat(2,1fr)} .lad-grid span:nth-child(n+4):nth-child(-n+5){display:none} }
+/* Deposit 1·2·3 tracker */
+.seg.wrap{flex-wrap:wrap}
+.seg .cnt{font-style:normal;font-size:11px;font-weight:700;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:0 6px;margin-left:4px;color:var(--ink-2)}
+.seg button.on .cnt{background:rgba(255,255,255,.18);border-color:transparent;color:#fff}
+.sticky-tools{position:sticky;top:var(--top-h);z-index:5;background:var(--card);flex-wrap:wrap;gap:8px}
+.lad-tbl td{vertical-align:top}
+.lad-c{display:flex;flex-direction:column;gap:1px;min-width:110px}
+.lad-c b{font-size:var(--fs)}
+.lad-c small{font-size:var(--fs-s);color:var(--mute);line-height:1.35}
+.lad-c.done b{color:var(--g)}
+.lad-c.chk b{color:var(--amber)}
+.lad-c.next b{color:var(--blue)}
+.lad-c.left b{color:var(--mute-2);font-weight:600}
+.lad-prog{display:flex;gap:3px;margin-bottom:3px}
+.lad-prog i{width:18px;height:6px;border-radius:3px;background:var(--line-2)}
+.lad-prog i.on{background:var(--g)}
+.lad-prog i.chk{background:var(--amber)}
+.nav-badge.info{background:var(--blue)}

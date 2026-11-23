@@ -134,6 +134,7 @@
       addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),
       depositRequest: (id, body) => post(`/admin/users/${id}/deposit-request`, body || {}),   // { amount?, note? } → pop-up + email
       cancelNotice: id => post(`/admin/notices/${id}/cancel`),   // support: { amount, sender?, reference?, note?, credit }
+      ladder: (cc, q) => get('/admin/ladder?' + new URLSearchParams({ ...(cc ? { cc } : {}), ...(q ? { q } : {}) })),   // Deposit 1·2·3 tracker
       agents: () => get('/admin/agents'),                                   // { agents, bases }
       agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
       saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }

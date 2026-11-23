@@ -124,7 +124,20 @@ No money leaks:
   ones), and only three ever – a player who had the old welcome bonus continues at Deposit 2;
 - revoking an ID stops further bonuses.
 
-The player's profile shows their ladder (1 · 2 · 3 with the bonus, how much is played through, released / expired).
+**Who has deposits left – the Deposit 1·2·3 page.** Every player whose ID is approved, one row each, with Deposit 1,
+2 and 3 marked: **✓ amount** (date, the bonus, how much is played through / released), **Being checked** (their
+deposit is waiting in Payments), **Next** or **Left**, and a progress bar. Filters with counts: *Deposits left* (the
+default), *Not started*, *1 of 3 done*, *2 of 3 done*, *Being checked*, *All 3 done*, *All*; Nigeria / Ghana; search by
+phone, ID, name or email; sort by *Fewest done first*, *Newest ID approval* or *Latest deposit*. **Request deposit N**
+sends the player a pop-up and an email for their next step (the message is written for you – change it if you like);
+*Confirm in Payments* when one is being checked. The menu badge shows how many players still have deposits left.
+
+**What the player sees.** Right after the ID is approved: the "ID approved" pop-up listing 1 · 2 · 3, and a **sticky
+bar** above the bottom menu on every browsing page – "Deposit 2 of 3 · 100% bonus · up to ₦50,000" with ✓ for the
+steps done and a **Deposit** button – until all three are done (while one is being checked it says so). The deposit
+page marks each step ✓ Done with the amount, the date and the bonus.
+
+The player's profile shows their ladder (1 · 2 · 3 with ✓, the amount, the bonus, how much is played through).
 **Settings → Deposit bonuses 1 · 2 · 3**: on/off, the ID rule, the % and maximum per deposit and country, the times,
 the minimum odds and the days. The old "Welcome bonus" card is used only while the ladder is off.
 
@@ -151,6 +164,7 @@ GH₵10–GH₵20,000 withdrawals; payouts "within 24 hours". Every save is writ
 | **Bets** | Tickets with player, stake, odds, potential, status; search by ticket, phone or player ID | Open a ticket (legs, results), void an open ticket (refunds the stake) |
 | **Players** | Accounts with status, ID check, role, balance; search by phone, ID, name or email | Player drawer: **Add deposit** (support), deposit reference, ID details, balance adjustment (ledger entry with a reason), suspend / reactivate, make / remove admin, make agent; tabs for bets, payments, ledger, games |
 | **Payments** | Deposits and withdrawals by status (pending, done, rejected, failed, cancelled) and kind, with the sender name, reference and payout details | Confirm / Mark paid / Send via Paystack / Reject, as above |
+| **Deposit 1·2·3** | Players with an approved ID and each deposit step marked (✓ amount and date, being checked, next, left) | Filter by progress (deposits left first), country, search, sort; Request deposit N; open the player |
 | **Agents** | Agents with their commission (rate and basis), players, unpaid period, commission due, paid so far | Add / edit / remove / restore an agent, pay commission, open an agent's players |
 | **ID checks** | Players waiting for an ID check, with the details they sent | Approve, or reject with a reason |
 | **Payment settings** | The bank account, Ghana MoMo / payment API status, limits | Edit and save |
@@ -169,7 +183,8 @@ player search, a link to the site and a refresh button. The Overview refreshes i
 - `server/src/routes/admin.js` – every route needs `role=admin`: `GET /overview?cc=`, `GET /series?days=&cc=`,
   `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /users/:id/adjust`,
   `POST /users/:id/deposits {amount, sender?, reference?, note?, credit}` (support adds a deposit),
-  `POST /users/:id/deposit-request {amount?, note?}` (pop-up + email), `POST /notices/:id/cancel`, `GET /payments?status=&kind=`,
+  `POST /users/:id/deposit-request {amount?, note?}` (pop-up + email), `POST /notices/:id/cancel`, `GET /ladder?cc=&q=`
+  (Deposit 1·2·3 tracker), `GET /payments?status=&kind=`,
   `POST /payments/:id/approve|reject` (body: `amount` = what arrived for a deposit, `reference` for a paid withdrawal,
   `reason` required to reject, `note`), `POST /payments/:id/payout` (Ghana, through Paystack), `GET /kyc`,
   `POST /users/:id/kyc {approve, reason}`, `GET|PUT /payment-settings`, `GET /bets`, `GET /bets/:id`,

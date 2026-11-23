@@ -615,19 +615,47 @@
   const nth = n => ['first', 'second', 'third'][n - 1];
   function ladderHTML() {
     const L = ladder(), a = app(); if (!L || !L.steps.length) return '';
-    const ST = { released: ['Done', 'ok'], active: ['Bonus active', 'pend'], expired: ['Expired', 'bad'], forfeited: ['Ended', 'bad'], next: ['Next', 'next'], later: ['', ''], locked: ['', ''] };
-    return `<section class="wx-card wx-ladder"><div class="wx-ladder-h"><h2 class="wx-h">${ICON.gift}Deposit bonuses</h2>${L.unlocked ? '' : '<em class="wx-st pend">ID check needed</em>'}</div>
+    const ST = { released: ['Bonus released', 'ok'], active: ['Bonus locked', 'pend'], expired: ['Bonus expired', 'bad'], forfeited: ['Bonus ended', 'bad'], checking: ['Being checked', 'pend'], next: ['Next', 'next'], later: ['', ''], locked: ['', ''] };
+    const day = d => new Date(d).toLocaleDateString(a.C.locale, { day: 'numeric', month: 'short' });
+    return `<section class="wx-card wx-ladder"><div class="wx-ladder-h"><h2 class="wx-h">${ICON.gift}Deposit bonuses</h2>${L.unlocked ? `<em class="wx-st ${L.left ? 'next' : 'ok'}">${L.done} of ${L.steps.length} done</em>` : '<em class="wx-st pend">ID check needed</em>'}</div>
       ${!L.unlocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="deposit">${ICON.shield}<span><b>Verify your ID to unlock your deposit bonuses</b>It takes 2 minutes. Then each of your next 3 deposits earns a bonus.</span>${ICON.chev}</a>` : ''}
-      <ol class="wx-steps">${L.steps.map(s => { const [lab, cls] = ST[s.status] || ['', '']; return `<li class="${s.status}"><span class="wx-step-n">${s.status === 'released' ? ICON.check : s.n}</span>
-        <span class="wx-step-m"><b>Deposit ${s.n} · ${s.pct}% bonus</b><small>${s.bonus != null ? `You got ${a.money(s.bonus)}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}` : `Up to ${a.whole(s.max)} on your ${nth(s.n)} deposit`}</small></span>
+      <ol class="wx-steps">${L.steps.map(s => { const [lab, cls] = ST[s.status] || ['', '']; return `<li class="${s.done ? 'done ' : ''}${s.status}"><span class="wx-step-n">${s.done ? ICON.check : s.n}</span>
+        <span class="wx-step-m"><b>Deposit ${s.n} · ${s.pct}% bonus${s.done ? ' <i class="wx-done">✓ Done</i>' : ''}</b><small>${s.done
+          ? `${s.deposit != null ? a.money(s.deposit) + (s.depositAt ? ' on ' + day(s.depositAt) : '') + ' · ' : ''}bonus ${a.money(s.bonus)}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}`
+          : s.status === 'checking' ? `${a.money(s.deposit)} sent – we credit it as soon as it arrives` : `Up to ${a.whole(s.max)} on your ${nth(s.n)} deposit`}</small></span>
         ${lab ? `<em class="wx-st ${cls}">${lab}</em>` : ''}</li>`; }).join('')}</ol>
       <p class="wx-note">${ICON.shield}<span>Bonus money is released into your balance once you have staked ${L.times}× the bonus on multiples with every selection at ${L.min_odds}+ odds, within ${L.days} days.</span></p></section>`;
+  }
+
+  /* ----- the sticky "next deposit" bar: once the ID is approved, until Deposit 1, 2 and 3 are all done ----- */
+  const lb = { at: 0, busy: false, data: undefined };
+  const LB_ROUTES = ['home', 'live', 'sports', 'list', 'league', 'match', 'me', 'acct', 'promos', 'results', 'jackpot', 'games', 'virtuals'];
+  function renderLadderBar() {
+    const el = $('#ladBar'); if (!el) return;
+    const a = app(), L = live() && user() ? lb.data : null;
+    const s = L && L.unlocked && L.next ? L.steps.find(x => x.n === L.next) : null;
+    const show = !!s && LB_ROUTES.includes(a.state.route);
+    el.hidden = !show; document.body.classList.toggle('has-ladbar', show);
+    if (!show) return;
+    const wait = s.status === 'checking';
+    el.innerHTML = `<a class="lb-in" href="#/deposit"><span class="lb-dots" aria-hidden="true">${L.steps.map(x => `<i class="${x.done ? 'done' : x.n === s.n ? 'now' : ''}">${x.done ? ICON.check : x.n}</i>`).join('')}</span>
+      <span class="lb-txt"><b>${wait ? `Deposit ${s.n} is being checked` : `Deposit ${s.n} of ${L.steps.length} · ${s.pct}% bonus`}</b><small>${wait ? `${a.money(s.deposit)} sent – we credit it as soon as it arrives` : `Up to ${a.whole(s.max)} extra`}</small></span>
+      <span class="lb-go${wait ? ' wait' : ''}">${wait ? 'View' : 'Deposit'}</span></a>`;
+  }
+  async function ladderBar(force) {
+    const u = user();
+    if (!live() || !u) { lb.data = undefined; return renderLadderBar(); }
+    renderLadderBar();
+    if (lb.busy || (!force && (Date.now() - lb.at < 60000 || kyc(u) !== 'ok'))) return;
+    lb.at = Date.now(); lb.busy = true;
+    try { const o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); lb.data = o.ladder || null; } catch {} finally { lb.busy = false; }
+    renderLadderBar();
   }
   // the bonus this deposit earns (next step of the ladder), for the amount hint
   function ladderBonus(v) {
     const L = ladder(); if (!L) return null;
     if (!L.unlocked) return { locked: true };
-    const s = L.steps.find(x => x.status === 'next'); if (!s) return null;
+    const s = L.steps.find(x => x.status === 'next' || x.status === 'checking'); if (!s) return null;
     return { n: s.n, amount: Math.min(s.max, v * s.pct / 100) };
   }
 
@@ -804,13 +832,15 @@
         <div class="wl-sheet-btns col">${way ? `<button class="au-btn" data-nt-go>${amt ? 'Deposit ' + a.money(amt) + ' now' : 'Deposit now'}</button>` : '<a class="au-btn" href="#/acct/help" data-nt-help>Contact support</a>'}<button class="au-btn ghost" data-nt-later>Later</button></div>
       </div>`);
       const go = $('[data-nt-go]', s);
-      if (go) go.onclick = () => { if (amt) wl.amt.dep = String(amt); closeSheet(); a.go('deposit/' + tab); };
+      // "Deposit now" also answers the pop-up for this visit (the sticky bar and the deposit page take it from here)
+      if (go) go.onclick = () => { try { sessionStorage.setItem('lba_nt_later', JSON.stringify([...ntLater(), n.id])); } catch {} if (amt) wl.amt.dep = String(amt); closeSheet(); a.go('deposit/' + tab); };
       $('[data-nt-later]', s).onclick = () => { try { sessionStorage.setItem('lba_nt_later', JSON.stringify([...ntLater(), n.id])); } catch {} closeSheet(); };
       return;
     }
     if (n.kind === 'kyc_approved') {
       let o = null; try { o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); } catch {}
       const L = o && o.ladder, steps = (L && L.steps) || [];
+      if (o) { lb.data = L || null; lb.at = Date.now(); renderLadderBar(); }
       API.auth.closeNotice(n.id).catch(() => {});
       const s = sheet(`<div class="nt">
         <div class="nt-ico ok">${ICON.check}</div>
@@ -965,6 +995,7 @@
       if (first) { u.bonus = bonus; a.addTx('Welcome bonus (locked)', 0, { method: `${a.whole(bonus)} bonus – unlocks as you play`, status: 'success' }); }
     }
     await sleep(Math.max(0, 700 - (Date.now() - t0)));   // let the processing state register
+    if (live()) ladderBar(true);
     wl.amt.dep = '';
     saveUser(); refresh(); rerender();
     if (status === 'failed') return resultSheet({ ok: 'fail', title: 'Payment not approved', rows: [['Reason', a.esc(res.message || 'The payment was declined')], ['Method', m.name]], note: 'No money was taken. You can try again.', secondary: 'Close' });
@@ -1230,6 +1261,6 @@
   }
   function rerender() { const a = app(); if (a.state.route === last.page) RENDER[last.page](last.page === 'deposit' ? wl.dep : last.page === 'withdraw' ? wl.wd : last.arg); }
 
-  window.Account = { handles: page => page in RENDER, render, persist, changePassword, prefetch: loadMethods, notices: checkNotices };
+  window.Account = { handles: page => page in RENDER, render, persist, changePassword, prefetch: loadMethods, notices: checkNotices, ladderBar };
   setTimeout(settleStale, 0);
 })();
