@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ensureAdmins } from '../lib/admins.js';
 import { BASES as AGENT_BASES, period as agentPeriod } from '../lib/agents.js';
+import { openFor as openNotices } from '../lib/notices.js';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { getSetting } from '../lib/settings.js';
 import { z } from 'zod';
@@ -102,6 +103,15 @@ r.get('/referrals', requireUser, async (req, res, next) => {
     }
     res.json({ code: 'LB' + req.user.uid, joined: f[0].joined, qualified: f[0].qualified, earned: e[0].earned, reward: reward?.[req.user.country] ?? 0, agent });
   } catch (err) { next(err); }
+});
+
+// Pop-ups for the player (lib/notices.js): support's deposit requests and payment outcomes; close one after showing it
+r.get('/notices', requireUser, async (req, res, next) => {
+  try { res.json({ notices: await openNotices({ query: (t, v) => q(t, v) }, req.user.id) }); } catch (e) { next(e); }
+});
+r.post('/notices/:id/close', requireUser, async (req, res, next) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ error: 'invalid' });
+  try { await q('UPDATE notices SET done_at=now() WHERE id=$1 AND user_id=$2 AND done_at IS NULL', [req.params.id, req.user.id]); res.json({ ok: true }); } catch (e) { next(e); }
 });
 
 // Login with mobile number + password (country from the site) or email + password (any country)

@@ -41,6 +41,23 @@ request first – confirm that one instead of adding another. Otherwise find the
 - **Add to pending** – it waits in Payments → Pending (for example for a second person to check), and the player gets a
   "we are checking your deposit" email.
 
+**Ask the player to deposit (Request deposit).** When a player cannot get a deposit through, press **Request deposit**
+on their profile, optionally with an amount and a message. The next time they open LetBetAfrika (or log in) they get a
+pop-up, and an email, that walks them through it in their country:
+- **Nigeria**: your bank account with Copy buttons, their reference, and 3 steps (transfer → reference in the
+  narration → "I have sent it");
+- **Ghana**: the Mobile Money steps (with the payment API: enter the MoMo number and approve the prompt; without it:
+  your MoMo number and their reference);
+- a big **Deposit ₦X now** button that opens the deposit page with the amount filled in. "Later" hides it until their
+  next visit.
+The request shows on their profile ("Deposit request · waiting for the player", with **Cancel**) and closes by itself
+once they make a deposit, or after 7 days. A new request replaces the old one.
+
+**Players are told on screen too.** Besides the email, players get a pop-up the next time they open the app when you
+confirm or credit a deposit ("Deposit confirmed" / "Your deposit was added", with their balance), reject one (your
+reason and a Contact support button), pay a withdrawal (with your payout reference) or reject one (the reason – the
+money is back in their balance). Each shows once.
+
 A transfer reference can be credited **only once** – on any player, by any admin, also when confirming a player's own
 request (the Confirm dialog has the same field). Using it again is refused ("already used"), so nobody gets paid twice;
 a rejected deposit frees its reference again. Support deposits are marked "Added by support" in Payments and written
@@ -130,7 +147,8 @@ player search, a link to the site and a refresh button. The Overview refreshes i
 
 - `server/src/routes/admin.js` – every route needs `role=admin`: `GET /overview?cc=`, `GET /series?days=&cc=`,
   `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /users/:id/adjust`,
-  `POST /users/:id/deposits {amount, sender?, reference?, note?, credit}` (support adds a deposit), `GET /payments?status=&kind=`,
+  `POST /users/:id/deposits {amount, sender?, reference?, note?, credit}` (support adds a deposit),
+  `POST /users/:id/deposit-request {amount?, note?}` (pop-up + email), `POST /notices/:id/cancel`, `GET /payments?status=&kind=`,
   `POST /payments/:id/approve|reject` (body: `amount` = what arrived for a deposit, `reference` for a paid withdrawal,
   `reason` required to reject, `note`), `POST /payments/:id/payout` (Ghana, through Paystack), `GET /kyc`,
   `POST /users/:id/kyc {approve, reason}`, `GET|PUT /payment-settings`, `GET /bets`, `GET /bets/:id`,

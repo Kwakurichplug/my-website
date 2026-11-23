@@ -703,6 +703,65 @@
   function failSheet(x, method) {
     resultSheet({ ok: 'fail', title: 'Not completed', rows: [['Reason', err(x, 'Something went wrong')], ...(method ? [['Method', method]] : [])], secondary: 'Close' });
   }
+
+  /* ---------------- Payment pop-ups (server lib/notices.js): support's deposit requests and payment outcomes ----------------
+     Checked when the app opens, after login and at most once a minute while the player browses (never in the middle of
+     a payment, a sign-up or a game). A deposit request shows how to pay in the player's country and opens the deposit
+     page with the amount filled in; "Later" hides it until the next visit. The other pop-ups show once. */
+  const nt = { at: 0, busy: false };
+  const NT_QUIET = ['register', 'login', 'forgot', 'deposit', 'withdraw', 'game', 'play', 'instant', 'virtuals'];
+  const ntLater = () => { try { return JSON.parse(sessionStorage.getItem('lba_nt_later') || '[]'); } catch { return []; } };
+  const ntBusy = () => !!document.querySelector('#wlSheet.open') || NT_QUIET.includes(app().state.route);
+  async function checkNotices(force) {
+    if (!live() || !user() || nt.busy || ntBusy() || (!force && Date.now() - nt.at < 60000)) return;
+    nt.at = Date.now(); nt.busy = true;
+    try {
+      const skip = ntLater(), n = (await API.auth.notices()).find(x => !skip.includes(x.id));
+      if (n && !ntBusy()) await showNotice(n);
+    } catch {} finally { nt.busy = false; }
+  }
+  async function showNotice(n) {
+    const a = app(), d = n.data || {}, amt = d.amount ? Number(d.amount) : null, esc = a.esc;
+    if (n.kind === 'deposit_request') {
+      let o = null; try { o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); } catch {}
+      const way = o && o.deposit && o.deposit[0], bank = !!way && way.method === 'bank_transfer', api = !!way && way.mode === 'api', tab = bank ? 'transfer' : 'momo';
+      const rc = (o && o.reference) || refCode(), how = amt ? `<b>${a.money(amt)}</b>` : 'the amount you want';
+      const steps = !way ? [] : api ? ['Tap <b>Deposit now</b> below.', 'Enter your MoMo number and pick your network.', 'Approve the prompt on your phone – your balance updates at once.']
+        : bank ? [`Open your bank app and transfer ${how} to the account below.`, `Put your reference <b>${esc(rc)}</b> in the narration.`, 'Tap <b>Deposit now</b>, then <b>I have sent it</b>.']
+        : [`Send ${how} by MoMo to the number below.`, `Use <b>${esc(rc)}</b> as the reference.`, 'Tap <b>Deposit now</b>, then <b>I have sent it</b>.'];
+      const s = sheet(`<div class="nt">
+        <div class="nt-ico">${bank ? ICON.bank : ICON.phone}</div>
+        <h3>Complete your deposit</h3>
+        <p class="wl-p">Our support team set this up for you – it takes about 2 minutes.</p>
+        ${amt ? `<b class="wl-res-amt">${a.money(amt)}</b>` : ''}
+        ${d.note ? `<div class="nt-msg"><b>Message from support</b><span>${esc(d.note)}</span></div>` : ''}
+        ${way ? `<ol class="nt-steps">${steps.map(x => `<li>${x}</li>`).join('')}</ol>${api ? '' : payToHTML({ ...way, id: tab })}`
+          : '<p class="wl-p">Deposits are not open for your country right now. Our team will contact you – or write to us and we will help.</p>'}
+        <div class="wl-sheet-btns col">${way ? `<button class="au-btn" data-nt-go>${amt ? 'Deposit ' + a.money(amt) + ' now' : 'Deposit now'}</button>` : '<a class="au-btn" href="#/acct/help" data-nt-help>Contact support</a>'}<button class="au-btn ghost" data-nt-later>Later</button></div>
+      </div>`);
+      const go = $('[data-nt-go]', s);
+      if (go) go.onclick = () => { if (amt) wl.amt.dep = String(amt); closeSheet(); a.go('deposit/' + tab); };
+      $('[data-nt-later]', s).onclick = () => { try { sessionStorage.setItem('lba_nt_later', JSON.stringify([...ntLater(), n.id])); } catch {} closeSheet(); };
+      return;
+    }
+    const R = {
+      deposit_credited: { ok: 'ok', title: d.support ? 'Your deposit was added' : 'Deposit confirmed', primary: ['Start betting', '#/home'],
+        note: `${d.support ? 'Our support team added your deposit' : 'We confirmed your deposit'}${d.method ? ' (' + esc(d.method) + ')' : ''}. It is in your balance – you are ready to bet.`,
+        rows: [['Balance now', `<b>${a.money(user().balance)}</b>`]] },
+      deposit_rejected: { ok: 'fail', title: 'We could not confirm your deposit', primary: ['Contact support', '#/acct/help'],
+        note: `${d.reason ? '<b>Reason:</b> ' + esc(d.reason) + '<br>' : ''}If you sent the money, contact support with your transfer receipt and we will sort it out.`, rows: [] },
+      withdrawal_paid: { ok: 'ok', title: 'Withdrawal paid', primary: ['View transactions', '#/acct/tx'],
+        note: 'We sent your money. It can take a few minutes to show in your account.',
+        rows: [...(d.account ? [['To', esc(d.account)]] : []), ...(d.reference ? [['Reference', esc(d.reference)]] : [])] },
+      withdrawal_rejected: { ok: 'fail', title: 'Withdrawal returned to your balance', primary: ['Withdraw again', '#/withdraw'],
+        note: `${d.reason ? '<b>Reason:</b> ' + esc(d.reason) + '<br>' : ''}The money is back in your balance.`, rows: [] },
+    }[n.kind];
+    API.auth.closeNotice(n.id).catch(() => {});   // shown once
+    if (!R) return;
+    resultSheet({ ok: R.ok, title: R.title, amount: amt, note: R.note, rows: R.rows, primary: R.primary, secondary: 'Close' });
+    // closing it brings up the next waiting pop-up straight away
+    $$('#wlSheet [data-close-sheet]').forEach(b => b.addEventListener('click', () => setTimeout(() => checkNotices(true), 350)));
+  }
   const refresh = () => { const a = app(); a.renderAuth(); a.renderMe(); };
 
   /* ----- GH mobile money: the payer's number (registered one, or typed for email sign-ups) + network ----- */
@@ -1086,6 +1145,6 @@
   }
   function rerender() { const a = app(); if (a.state.route === last.page) RENDER[last.page](last.page === 'deposit' ? wl.dep : last.page === 'withdraw' ? wl.wd : last.arg); }
 
-  window.Account = { handles: page => page in RENDER, render, persist, changePassword, prefetch: loadMethods };
+  window.Account = { handles: page => page in RENDER, render, persist, changePassword, prefetch: loadMethods, notices: checkNotices };
   setTimeout(settleStale, 0);
 })();

@@ -311,6 +311,12 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   `GET /api/wallet/payments/:id` every 3 s) or the OTP sheet; a country with nothing open shows `.wx-closed` (no fake
   method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
   (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
+- **Payment pop-ups** (`account.js` `checkNotices()` / `Account.notices()`, styles `.nt-*` at the end of `app.css`): the
+  wallet bottom sheet (`#wlSheet`) shows the oldest open notice from `GET /api/auth/notices` – a support deposit request
+  first (`.nt`: icon, amount, support's message `.nt-msg`, numbered `.nt-steps`, the `.wx-payto` account block for manual
+  ways, **Deposit ₦X now** → `wl.amt.dep` + `#/deposit/transfer|momo`, **Later** = `sessionStorage lba_nt_later`), then
+  one-time outcome sheets (`resultSheet`). app.js calls it 1.5 s after the app opens and on every live refresh (throttled
+  to a minute); never on register/login/deposit/withdraw/game routes.
 - **Refer & Earn and agents** (`app.js` `refer`, styles `.ag-*` at the end of `app.css`): every player gets their code and
   a sign-up link `/?ref=LB<ID>#/register` (`account.js` `refFromLink()` fills the code in, kept in `sessionStorage`
   `lba_ref`), Copy buttons and WhatsApp share. An agent (`GET /api/auth/referrals` → `agent`) sees `.ag-card`: the

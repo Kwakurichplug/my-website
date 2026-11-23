@@ -57,6 +57,8 @@
       emailConfirm: (email, code) => post('/auth/email/confirm', { email, code }).then(r => r.user),
       limits: d => post('/auth/limits', d),
       referrals: () => get('/auth/referrals'),
+      notices: () => get('/auth/notices').then(r => r.notices),               // pop-ups: deposit requests, payment outcomes
+      closeNotice: id => post(`/auth/notices/${id}/close`),
     },
     wallet: {
       balance: () => get('/wallet'),
@@ -120,7 +122,9 @@
       kycDecide: (id, approve, reason) => post(`/admin/users/${id}/kyc`, { approve, ...(reason ? { reason } : {}) }),
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
-      addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),   // support: { amount, sender?, reference?, note?, credit }
+      addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),
+      depositRequest: (id, body) => post(`/admin/users/${id}/deposit-request`, body || {}),   // { amount?, note? } → pop-up + email
+      cancelNotice: id => post(`/admin/notices/${id}/cancel`),   // support: { amount, sender?, reference?, note?, credit }
       agents: () => get('/admin/agents'),                                   // { agents, bases }
       agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
       saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }

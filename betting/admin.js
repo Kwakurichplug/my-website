@@ -223,13 +223,14 @@
       <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
       <div class="d-actions">
         <button class="btn sm primary" data-add-dep="${u.id}">Add deposit</button>
+        <button class="btn sm" data-req-dep="${u.id}">Request deposit</button>
         <button class="btn sm" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
         ${u.verified ? `<button class="btn sm" data-kyc="reject" data-id="${u.id}">Revoke ID check</button>` : kyc.status === 'pending' ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : ''}
         ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
         ${d.agent && d.agent.active ? `<button class="btn sm" data-agent="${u.id}">Agent · ${esc(basisShort(d.agent))}</button>` : `<button class="btn sm" data-agent-edit="${u.id}">${d.agent ? 'Restore agent' : 'Make agent'}</button>`}
       </div>
-      <dl class="kv">${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
+      <dl class="kv">${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
     $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
@@ -340,6 +341,28 @@
         ${d.payouts.map(x => `<tr><td class="muted">${when(x.created_at)}</td><td class="small">${when(x.period_start)} – ${when(x.period_end)}</td><td class="r">${money(x.base, cc)}</td><td class="r">${money(x.commission, cc)}</td><td class="r amt in">${money(x.amount, cc)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing paid yet.</td></tr>'}
       </tbody></table>`;
     state.drawer = { type: 'agent', id };
+  }
+
+  /* ---------- Support: ask a player to deposit – they get a pop-up in the app (and an email) that walks them through it ---------- */
+  function requestDepositModal(id) {
+    const u = state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
+    if (!u) return toast('Open the player first', 'err');
+    const cc = u.country, gh = cc === 'GH';
+    openModal(`<h3>Ask the player to deposit</h3>
+      <p class="sub">The player gets a pop-up the next time they open LetBetAfrika, and an email. It shows how to pay ${gh ? 'with Mobile Money' : 'by bank transfer to your account'}, step by step, with a button that opens the deposit page with the amount filled in. It closes by itself once they deposit, or after 7 days.</p>
+      <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · ${flag(cc)}${esc(u.phone ? phoneFmt(cc, u.phone) : u.email || '')}</dd><dt>They pay by</dt><dd>${gh ? 'Mobile Money' : 'Bank transfer (the account in Payment settings)'}</dd></dl>
+      <label class="field"><span>Amount (${SYM[cc]}, optional)</span><input id="rAmt" type="number" min="1" step="0.01" inputmode="decimal" placeholder="Leave empty to let them choose"></label>
+      <label class="field"><span>Message to the player (optional)</span><textarea id="rNote" maxlength="300" placeholder="e.g. Hi ${esc((u.full_name || '').split(' ')[0] || 'there')}, please use the details below – we confirm it as soon as it arrives."></textarea></label>
+      <p class="form-err" id="rErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Send to the player</button></div>`);
+    $('#rAmt').focus();
+    $('#mGo').onclick = async () => {
+      const v = +$('#rAmt').value, note = $('#rNote').value.trim(), body = {};
+      if ($('#rAmt').value && !(v > 0)) return $('#rAmt').focus();
+      if (v > 0) body.amount = Math.round(v * 100) / 100; if (note) body.note = note;
+      try { $('#mGo').disabled = true; await API.admin.depositRequest(id, body); closeModal(); toast('Sent – the player sees it when they open the app, and by email', 'ok'); openUser(id); }
+      catch (e) { $('#rErr').textContent = errMsg(e); $('#rErr').hidden = false; $('#mGo').disabled = false; }
+    };
   }
 
   /* ---------- Support: add a deposit for a player whose deposit is not showing ---------- */
@@ -744,6 +767,9 @@
   PAGES.audit = async main => {
     const log = await API.admin.log();
     const describe = l => { const a = l.action, m = l.meta || {};
+      if (/deposit-request/.test(a)) return `Asked a player to deposit${m.amount ? ' ' + esc(String(m.amount)) : ''}${m.note ? ' – “' + esc(m.note) + '”' : ''}`;
+      if (/notices\/:id\/cancel/.test(a)) return 'Cancelled a deposit request';
+      if (/users\/:id\/deposits/.test(a)) return `${m.credit ? 'Credited' : 'Added a pending'} deposit for a player – ${esc(String(m.amount))}${m.reference ? ' · ref ' + esc(m.reference) : ''}`;
       if (/agents\/:id\/pay/.test(a)) return `Paid agent commission${m.amount != null ? ' – ' + esc(String(m.amount)) : ''}${m.note ? ' – ' + esc(m.note) : ''}`;
       if (/agents/.test(a)) return m.active === false ? 'Removed an agent' : `Set agent commission – ${esc(String(m.rate))}% of ${esc({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' }[m.basis] || '')}`;
       if (/payment-settings/.test(a)) return `Changed payment settings${m.NG && m.NG.bank ? ` · Nigeria account ${esc(m.NG.bank.bank || '')} ${esc(m.NG.bank.number || '')}` : ''}`;
@@ -864,12 +890,14 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
       if (d.addDep) return addDepositModal(d.addDep);
+      if (d.reqDep) return requestDepositModal(d.reqDep);
+      if (d.cancelReq) { API.admin.cancelNotice(d.cancelReq).then(() => { toast('Request cancelled', 'ok'); refreshDrawer(); }).catch(err => toast(errMsg(err), 'err')); return; }
       if (d.agentPay) return agentPayModal(d.agentPay).catch(err => toast(errMsg(err), 'err'));
       if (d.agentEdit) return agentModal(d.agentEdit).catch(err => toast(errMsg(err), 'err'));
       if (d.agentNew) return agentModal(null).catch(err => toast(errMsg(err), 'err'));

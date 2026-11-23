@@ -54,7 +54,7 @@ Never copy another operator's brand assets – we match their quality and layout
 | `server/src/lib/logos.js` | Real club crests via TheSportsDB, cached in `team_logos`. |
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
 | `server/src/lib/bonus.js` | **Deposits + welcome bonus**: `creditDeposit()` (the ONLY way to credit a deposit – grants the bonus on the first one), `addTurnover()` (called by settlement), `expireBonuses()`. |
-| `server/src/emails/` | Transactional emails (22 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
+| `server/src/emails/` | Transactional emails (23 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
 | `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash), **payments** (Paystack webhook). |
 | `server/src/lib/payments.js` | **Ways to pay per country** (what the deposit page offers, limits, the bank account / MoMo wallet the admin sets, the player's reference `LB` + account ID). |
 | `server/src/payments/` | `paystack.js` (Paystack API: MoMo charge, OTP, verify, transfers, balance, webhook signature), `flows.js` (credit / fail a deposit, payout result – idempotent, one row lock). |
@@ -197,6 +197,13 @@ Earn reward per country (₦1,000 / GH₵10).
     player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
     MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited
     once only – unique index `payments_transfer_ref_key`; a rejected deposit frees it.
+  - **Pop-ups for players** (`lib/notices.js`, table `notices`, `GET /api/auth/notices`, `account.js` `Account.notices()`):
+    shown when the app opens, after login and at most once a minute while browsing – never during a payment, sign-up or
+    game. *Request deposit* (portal, player profile → `POST /api/admin/users/:id/deposit-request`, plus the
+    `depositRequest` email) shows how to pay in the player's country – Nigeria: the bank account, their reference and 3
+    steps; Ghana: the MoMo steps – and opens the deposit page with the amount filled in; it closes when they deposit (or
+    after 7 days). One-time pop-ups follow every admin payment decision: deposit confirmed / added by support /
+    rejected, withdrawal paid / returned (also Paystack payouts).
   - **Clean start**: deposit requests left `pending` by the old demo flow are cancelled on boot (new status
     `cancelled`), so no player sees a deposit stuck "pending".
 - **Deposit & withdraw pages** to a professional standard: balance card, method tiles (NG: Bank Transfer · GH: Mobile

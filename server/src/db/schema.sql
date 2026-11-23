@@ -377,3 +377,15 @@ CREATE INDEX IF NOT EXISTS agent_payouts_agent ON agent_payouts (agent_id, creat
 -- a bank / MoMo transfer reference entered by an admin can be credited once (a rejected deposit frees it again)
 CREATE UNIQUE INDEX IF NOT EXISTS payments_transfer_ref_key ON payments (lower(details->>'transferRef'))
   WHERE kind = 'deposit' AND status IN ('pending','success') AND details ? 'transferRef';
+-- pop-ups for the player (shown when they open the app): support's deposit requests and payment outcomes
+CREATE TABLE IF NOT EXISTS notices (
+  id         bigserial PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES users(id),
+  kind       text NOT NULL,                 -- deposit_request | deposit_credited | deposit_rejected | withdrawal_paid | withdrawal_rejected
+  data       jsonb NOT NULL DEFAULT '{}',   -- amount, method, reason, note, reference…
+  created_by uuid REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  done_at    timestamptz                    -- closed: seen (one-time notices), deposit made, or cancelled
+);
+CREATE INDEX IF NOT EXISTS notices_open ON notices (user_id, created_at) WHERE done_at IS NULL;

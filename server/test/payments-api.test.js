@@ -226,3 +226,50 @@ test('support: an admin adds a deposit from the player’s profile – credited 
   assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 0, credit: true }, ADMIN)).status, 400);
   assert.equal((await api('/admin/users/00000000-0000-0000-0000-000000000000/deposits', { amount: 100, credit: true }, ADMIN)).status, 404);
 });
+
+test('pop-ups: support asks a player to deposit (Nigeria bank, Ghana MoMo); payment outcomes reach the player once', { skip }, async () => {
+  const ng = await player('NG', { name: 'Ada Popup' }), gh = await player('GH', { name: 'Kofi Popup' });
+  const open = async t => (await api('/auth/notices', null, t)).notices;
+  // a request: the player sees it with the amount and support's message; a newer one replaces it
+  let r = await api(`/admin/users/${ng.user.id}/deposit-request`, { amount: 5000, note: 'Please use the account below' }, ADMIN);
+  assert.equal(r.notice.kind, 'deposit_request');
+  await api(`/admin/users/${ng.user.id}/deposit-request`, { amount: 6000, note: 'Updated amount' }, ADMIN);
+  let n = await open(ng.token);
+  assert.equal(n.length, 1); assert.equal(n[0].kind, 'deposit_request'); assert.equal(Number(n[0].data.amount), 6000); assert.equal(n[0].data.note, 'Updated amount');
+  assert.equal((await api('/admin/users/' + ng.user.id, null, ADMIN)).requests.length, 1, 'the profile shows the open request');
+  // the player makes the deposit → the request closes
+  const dep = await api('/wallet/deposit', { amount: 6000, method: 'bank_transfer', details: { sender: 'ADA POPUP' } }, ng.token);
+  assert.equal(dep.status, 'pending');
+  assert.equal((await open(ng.token)).length, 0, 'request closed once they deposit');
+  // confirmed → "deposit confirmed" pop-up, once
+  await api(`/admin/payments/${dep.paymentId}/approve`, {}, ADMIN);
+  n = await open(ng.token);
+  assert.equal(n.length, 1); assert.equal(n[0].kind, 'deposit_credited'); assert.equal(Number(n[0].data.amount), 6000);
+  assert.equal((await api(`/auth/notices/${n[0].id}/close`, {}, gh.token)).ok, true);   // someone else's notice: nothing happens
+  assert.equal((await open(ng.token)).length, 1);
+  await api(`/auth/notices/${n[0].id}/close`, {}, ng.token);
+  assert.equal((await open(ng.token)).length, 0, 'shown once');
+  // rejected deposit → the reason; withdrawal paid → the reference
+  const dep2 = await api('/wallet/deposit', { amount: 2000, method: 'bank_transfer', details: { sender: 'ADA POPUP' } }, ng.token);
+  await api(`/admin/payments/${dep2.paymentId}/reject`, { reason: 'No transfer received' }, ADMIN);
+  const w = await api('/wallet/withdraw', { amount: 1500, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Popup' } }, ng.token);
+  await api(`/admin/payments/${w.paymentId}/approve`, { reference: 'NIP-PAID-1' }, ADMIN);
+  n = await open(ng.token);
+  assert.deepEqual(n.map(x => x.kind), ['deposit_rejected', 'withdrawal_paid']);
+  assert.equal(n[0].data.reason, 'No transfer received'); assert.equal(n[1].data.reference, 'NIP-PAID-1');
+  // support credits a deposit → "your deposit was added" and any open request closes
+  await api(`/admin/users/${ng.user.id}/deposit-request`, {}, ADMIN);
+  await api(`/admin/users/${ng.user.id}/deposits`, { amount: 700, credit: true }, ADMIN);
+  n = await open(ng.token);
+  assert.ok(n.some(x => x.kind === 'deposit_credited' && x.data.support) && !n.some(x => x.kind === 'deposit_request'));
+  // Ghana: a request without an amount; the admin can cancel it
+  await api(`/admin/users/${gh.user.id}/deposit-request`, {}, ADMIN);
+  n = await open(gh.token);
+  assert.equal(n.length, 1); assert.equal(n[0].data.amount, null);
+  await api(`/admin/notices/${n[0].id}/cancel`, {}, ADMIN);
+  assert.equal((await open(gh.token)).length, 0);
+  // admin-only, validated
+  assert.equal((await api(`/admin/users/${gh.user.id}/deposit-request`, {}, gh.token)).status, 403);
+  assert.equal((await api(`/admin/users/${gh.user.id}/deposit-request`, { amount: -1 }, ADMIN)).status, 400);
+  assert.equal((await api('/auth/notices', null)).status, 401);
+});

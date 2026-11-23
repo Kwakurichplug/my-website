@@ -211,6 +211,10 @@ html[data-theme="dark"] .sh-link{background:#15181c}
 html[data-theme="dark"] .sh-btn{color:#eef0f2}
 html[data-theme="dark"] .ag-top{color:#eef0f2}
 html[data-theme="dark"] .ag-card .ref-stats{background:#1d2127}
+html[data-theme="dark"] .nt-ico{background:#183323}
+html[data-theme="dark"] .nt-msg{background:#3a3120}
+html[data-theme="dark"] .nt-msg b{color:#e8c56a}
+html[data-theme="dark"] .nt-steps li{color:#eef0f2}
 @media (min-width:1024px){
 html[data-theme="dark"] .left-rail{background:#1d2127}
 html[data-theme="dark"] .icon-row{background:#1d2127}

@@ -127,6 +127,27 @@ async function player(cc, name) {
   await A.fill('#dAmt', '1000'); await A.fill('#dRef', 'nip-support-1'); await A.click('#mGo'); await A.waitForTimeout(1200);
   ok(/already used/.test(await A.textContent('#dErr')), 'the same transfer reference is refused (no double credit)');
   await A.click('#modalBody [data-close-modal]'); await A.waitForTimeout(300);
+  // support asks the Nigerian player to deposit → a pop-up when they open the app → the deposit page with the amount filled in
+  await A.click('#drawerBody [data-req-dep]'); await A.waitForTimeout(400);
+  await A.fill('#rAmt', '5000'); await A.fill('#rNote', 'Please use the account below – we confirm it quickly.');
+  await A.screenshot({ path: OUT + '/adm-8c-request.png' });
+  await A.click('#mGo'); await A.waitForTimeout(1500);
+  ok(/Deposit request/.test(await A.textContent('#drawerBody')), 'the profile shows the open deposit request');
+  await P.goto(BASE + '?open=1#/home'); await P.waitForSelector('#wlSheet.open .nt', { timeout: 15000 }).catch(() => {});
+  const pop = await P.textContent('#wlSheet').catch(() => '');
+  ok(!/undefined|NaN/.test(pop) && /Complete your deposit/.test(pop) && /₦5,000\.00/.test(pop) && /Please use the account below/.test(pop), 'Nigeria: pop-up when the player opens the app, with the amount and support’s message');
+  ok(/Test MFB/.test(pop) && /0123456789/.test(pop) && /LB\d+/.test(pop) && /I have sent it/.test(pop), 'the pop-up shows the bank account, their reference and the steps');
+  await P.screenshot({ path: OUT + '/ply-3-request-popup.png' });
+  await P.click('[data-nt-go]'); await P.waitForTimeout(2000);
+  ok(P.url().includes('#/deposit/transfer') && (await P.inputValue('#wlAmt')) === '5000', 'Deposit now opens the bank transfer page with ₦5,000 filled in');
+  // Ghana: the MoMo steps, then Mobile Money with the amount filled in
+  await api(`/admin/users/${gh.user.id}/deposit-request`, { amount: 50 }, admin.token);
+  await G.goto(BASE + '?open=1#/home'); await G.waitForSelector('#wlSheet.open .nt', { timeout: 15000 }).catch(() => {});
+  const gpop = await G.textContent('#wlSheet').catch(() => '');
+  ok(!/undefined|NaN/.test(gpop) && /Complete your deposit/.test(gpop) && /GH₵50\.00/.test(gpop) && /Approve the prompt on your phone/.test(gpop), 'Ghana: pop-up with the MoMo steps');
+  await G.screenshot({ path: OUT + '/gh-3-request-popup.png' });
+  await G.click('[data-nt-go]'); await G.waitForTimeout(2000);
+  ok(G.url().includes('#/deposit/momo') && (await G.inputValue('#wlAmt')) === '50', 'Deposit now opens Mobile Money with GH₵50 filled in');
   // phone-sized portal
   await A.setViewportSize({ width: 390, height: 844 }); await A.goto(BASE + 'admin.html#/payments'); await A.waitForTimeout(1500);
   await A.screenshot({ path: OUT + '/adm-9-phone.png' });

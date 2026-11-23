@@ -1,3 +1,4 @@
+import { closeDepositRequests } from '../lib/notices.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
@@ -62,6 +63,7 @@ r.post('/deposit', async (req, res, next) => {
     if (mode === 'demo') {
       const out = await tx(async c => {
         const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,'demo','success',$4) RETURNING id`, [req.user.id, amount, method, details]);
+        await closeDepositRequests(c, req.user.id);
         return { paymentId: rows[0].id, balance: await creditDeposit(c, req.user, amount, rows[0].id, { method }), status: 'success' };
       });
       res.json(out);
@@ -76,6 +78,7 @@ r.post('/deposit', async (req, res, next) => {
       const keep = momo ? { phone: ph.data, network: details.network, sender: details.sender || null } : { sender: details.sender };
       const { rows } = await q(`INSERT INTO payments (user_id, kind, amount, method, provider, provider_ref, status, details) VALUES ($1,'deposit',$2,$3,'manual',$4,'pending',$5) RETURNING id`,
         [req.user.id, amount, method, reference, keep]);
+      await closeDepositRequests({ query: (t, v) => q(t, v) }, req.user.id);
       res.json({ status: 'pending', paymentId: rows[0].id, reference, balance: Number(req.user.balance), mode: 'manual',
         next: { message: `We are checking your ${momo ? 'MoMo transfer' : 'transfer'}. Your balance updates as soon as it is confirmed – ${way.eta}.`, rows: [['Reference', reference]] } });
       return sendEmail('depositReceived', req.user, { amount, method: methodName(method), paymentId: rows[0].id, reference, when: new Date() });

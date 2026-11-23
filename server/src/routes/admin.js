@@ -14,6 +14,8 @@ import { creditDeposit } from '../lib/bonus.js';
 import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS, referenceOf } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
 import { BASES, period as agentPeriod, pay as payAgent } from '../lib/agents.js';
+import { notify, closeDepositRequests } from '../lib/notices.js';
+import { options as payOptions } from '../lib/payments.js';
 
 const r = Router();
 r.use(requireAdmin);
@@ -58,7 +60,7 @@ r.get('/users/:id', async (req, res, next) => {
   try {
     const u = (await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits, created_at, referred_by FROM users WHERE id=$1', [req.params.id])).rows[0];
     if (!u) return res.status(404).json({ error: 'not_found' });
-    const [pay, bets, tx, games, sums, ag, ref] = await Promise.all([
+    const [pay, bets, tx, games, sums, ag, ref, reqs] = await Promise.all([
       q('SELECT id, kind, amount, method, provider, provider_ref, status, details, created_at, updated_at FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 30', [u.id]),
       q('SELECT id, type, stake, odds, potential, status, paid, placed_at, settled_at FROM bets WHERE user_id=$1 ORDER BY placed_at DESC LIMIT 30', [u.id]),
       q('SELECT id, type, amount, balance_after, ref, meta, created_at FROM transactions WHERE user_id=$1 ORDER BY id DESC LIMIT 50', [u.id]),
@@ -67,9 +69,10 @@ r.get('/users/:id', async (req, res, next) => {
           (SELECT coalesce(sum(stake),0) FROM bets WHERE user_id=$1) AS staked, (SELECT coalesce(sum(paid),0) FROM bets WHERE user_id=$1 AND status IN ('won','cashout')) AS won FROM payments WHERE user_id=$1`, [u.id]),
       q(`SELECT a.*, (SELECT count(*)::int FROM users x WHERE x.referred_by = a.user_id) AS players FROM agents a WHERE a.user_id=$1`, [u.id]),
       u.referred_by ? q(`SELECT u.id, u.uid, u.full_name, (SELECT active FROM agents a WHERE a.user_id = u.id) AS agent FROM users u WHERE u.id=$1`, [u.referred_by]) : { rows: [] },
+      q(`SELECT id, data, created_at, expires_at FROM notices WHERE user_id=$1 AND kind='deposit_request' AND done_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at DESC`, [u.id]),
     ]);
     const agent = ag.rows[0] ? { ...ag.rows[0], rate: Number(ag.rows[0].rate), basisName: BASES[ag.rows[0].basis] } : null;
-    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0], agent, referrer: ref.rows[0] || null });
+    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0], agent, referrer: ref.rows[0] || null, requests: reqs.rows });
   } catch (e) { next(e); }
 });
 
@@ -235,6 +238,27 @@ r.post('/users/:id/adjust', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Support: ask a player to deposit (they messaged support that their deposit does not go through). They get a pop-up
+// when they open the app – how to pay in their country and a button to the deposit page with the amount filled in –
+// and an email. One open request per player (a new one replaces it); it closes when they deposit, or after 7 days.
+r.post('/users/:id/deposit-request', async (req, res, next) => {
+  const p = z.object({ amount: z.number().positive().max(1e8).optional(), note: z.string().trim().max(300).optional() }).safeParse(req.body || {});
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try {
+    const u = (await q('SELECT * FROM users WHERE id=$1', [req.params.id])).rows[0];
+    if (!u) return res.status(404).json({ error: 'not_found' });
+    const amount = p.data.amount ? Math.round(p.data.amount * 100) / 100 : null;
+    const n = await tx(async c => { await closeDepositRequests(c, u.id); return notify(c, u.id, 'deposit_request', { amount, note: p.data.note || null }, req.user.id, 7); });
+    res.status(201).json({ notice: n });
+    const opt = await payOptions(u);
+    sendEmail('depositRequest', u, { amount, note: p.data.note, way: opt.deposit[0] || null, reference: opt.reference });
+  } catch (e) { next(e); }
+});
+r.post('/notices/:id/cancel', async (req, res, next) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ error: 'invalid' });
+  try { await q('UPDATE notices SET done_at=now() WHERE id=$1 AND done_at IS NULL', [req.params.id]); res.json({ ok: true }); } catch (e) { next(e); }
+});
+
 // Support: add a deposit for a player who messaged support (their money arrived but no request shows, or the app could
 // not complete it). credit=true → credited now as a real deposit (creditDeposit: welcome bonus on the first one, receipt
 // email); otherwise it waits in Payments → Pending like the player's own "I have sent it". A bank / MoMo transfer
@@ -255,6 +279,7 @@ r.post('/users/:id/deposits', async (req, res, next) => {
       const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, provider_ref, status, details) VALUES ($1,'deposit',$2,$3,'manual',$4,$5,$6) RETURNING id`,
         [u.id, amount, method, referenceOf(u), d.credit ? 'success' : 'pending', details]);
       const balance = d.credit ? await creditDeposit(c, u, amount, rows[0].id, { method }) : Number(u.balance);
+      if (d.credit) { await notify(c, u.id, 'deposit_credited', { amount, method: methodName(method), paymentId: rows[0].id, support: true }, req.user.id); await closeDepositRequests(c, u.id); }
       return { u, id: rows[0].id, method, balance };
     });
     res.status(201).json({ paymentId: out.id, status: d.credit ? 'success' : 'pending', balance: out.balance });
@@ -303,6 +328,8 @@ r.post('/payments/:id/:action', async (req, res, next) => {
       p.method = methodName(p.method); req.body = { ...req.body, reason: b.data.reason };
       if (p.kind === 'withdrawal') sendEmail(ok ? 'withdrawalPaid' : 'withdrawalRejected', u, { amount: Number(p.amount), method: p.method, paymentId: p.id, account: p.details?.account, when: new Date(), reason: req.body?.reason, balance: Number(u.balance) });
       else sendEmail(ok ? 'depositSuccess' : 'depositFailed', u, { amount: Number(p.amount), method: p.method, paymentId: p.id, balance: Number(u.balance), when: new Date(), reason: req.body?.reason, manual: p.provider === 'manual' });
+      if (p.kind === 'withdrawal') await notify(c, p.user_id, ok ? 'withdrawal_paid' : 'withdrawal_rejected', { amount: Number(p.amount), method: p.method, account: p.details?.account || null, reference: b.data.reference || null, reason: b.data.reason || null, paymentId: p.id }, req.user.id);
+      else { await notify(c, p.user_id, ok ? 'deposit_credited' : 'deposit_rejected', { amount: Number(p.amount), method: p.method, reason: b.data.reason || null, paymentId: p.id }, req.user.id); if (ok) await closeDepositRequests(c, p.user_id); }
     });
     res.json({ ok: true });
   } catch (e) { if (e.code === '23505') return res.status(409).json({ error: 'duplicate_reference' }); next(e); }

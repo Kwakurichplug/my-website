@@ -1350,6 +1350,7 @@
       if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) mapEvent(e); }
       if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > 30000)) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
       syncSlipOdds(); updateLiveBadges();
+      if (window.Account && Account.notices) Account.notices();
       const y = window.scrollY;
       if (state.route === 'home') renderHome();
       else if (['live', 'match', 'league', 'list', 'results', 'me', 'acct', 'bet'].includes(state.route)) renderCurrent(false);
@@ -1365,6 +1366,7 @@
     // keep only the virtual league (browser-run rounds); real leagues come from the server
     { const v = LEAGUES[VLG]; MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0; v.idx = 0; LEAGUES.push(v); VLG_LIVE = 0; }
     await liveUser();
+    if (window.Account && Account.notices) setTimeout(() => Account.notices(true), 1500);   // payment pop-ups when the app opens
     try { const evs = await API.events.list({ limit: 400 }); evs.forEach(mapEvent); } catch {}
     try { (await API.events.results()).forEach(mapEvent); } catch {}
     await liveBets();
