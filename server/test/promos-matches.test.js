@@ -190,3 +190,13 @@ test('crests and live scoring for hand-added matches', { skip }, async () => {
   if (feedEv) assert.equal((await api(`/admin/events/${feedEv.id}/live`, { home: 1, away: 0, period: 'H1' }, ADMIN)).error, 'not_found', 'only hand-added matches');
   assert.equal((await api(`/admin/events/${m.id}/result`, { home: 1, away: 1, htHome: 1, htAway: 0 }, ADMIN)).ok, true);
 });
+
+test('results: both half-time scores or neither, never above full time (half-time markets settle from them)', { skip }, async () => {
+  const ev = (await db.query(`SELECT id FROM events WHERE status IN ('scheduled','live') AND kickoff < now() + interval '30 days' ORDER BY kickoff LIMIT 1`)).rows[0];
+  await db.query(`UPDATE events SET kickoff = now() - interval '100 minutes' WHERE id=$1`, [ev.id]);
+  const result = b => api(`/admin/events/${ev.id}/result`, b, ADMIN);
+  assert.equal((await result({ home: 2, away: 1, htHome: 2 })).error, 'ht_both', 'one half-time side only');
+  assert.equal((await result({ home: 2, away: 1, htHome: 1, htAway: 2 })).error, 'ht_over_ft', 'half time above full time');
+  assert.equal((await result({ home: 2, away: 1, htHome: -1, htAway: 0 })).error, 'invalid', 'negative');
+  assert.equal((await result({ home: 2, away: 1, htHome: 1, htAway: 0 })).ok, true, 'a full result is accepted');
+});

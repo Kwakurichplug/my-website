@@ -704,8 +704,12 @@ r.post('/markets/:eventId/:key', async (req, res, next) => {
 
 // Manually finish an event (feed fallback) and settle it
 r.post('/events/:id/result', async (req, res, next) => {
-  const p = z.object({ home: z.number().int().min(0), away: z.number().int().min(0), htHome: z.number().int().optional(), htAway: z.number().int().optional(), cancelled: z.boolean().optional() }).safeParse(req.body);
+  const p = z.object({ home: z.number().int().min(0), away: z.number().int().min(0), htHome: z.number().int().min(0).optional(), htAway: z.number().int().min(0).optional(), cancelled: z.boolean().optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
+  // half-time markets settle from the half-time score: both sides or neither, and never more than at full time
+  const { home, away, htHome, htAway } = p.data;
+  if ((htHome == null) !== (htAway == null)) return res.status(400).json({ error: 'ht_both' });
+  if (htHome != null && (htHome > home || htAway > away)) return res.status(400).json({ error: 'ht_over_ft' });
   try {
     // a result can only be entered for a match that has started (cancelling – refund everything – is always allowed)
     if (!p.data.cancelled && (await q('SELECT 1 FROM events WHERE id=$1 AND kickoff > now()', [+req.params.id])).rowCount) return res.status(409).json({ error: 'not_started' });
