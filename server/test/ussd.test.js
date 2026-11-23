@@ -22,6 +22,7 @@ let ADMIN, saved;
 before(async () => { if (skip) return; const a = await player('Admin USSD'); await db.query(`UPDATE users SET role='admin' WHERE id=$1`, [a.user.id]); ADMIN = a.token; });
 after(async () => { if (saved && ADMIN) await api('/admin/payment-settings', saved, ADMIN, 'PUT'); await db.end(); });
 
+const TXID = '5' + String(Date.now()).slice(-10);   // a transaction ID is credited once: unique per run
 test('USSD deposits: set by the admin, paid by the player with a transaction ID, confirmed by the admin', { skip }, async () => {
   const st = (await api('/admin/payment-settings', null, ADMIN)).settings;
   saved = { NG: st.NG, GH: { ...st.GH, ussd: st.GH.ussd } };
@@ -38,15 +39,15 @@ test('USSD deposits: set by the admin, paid by the player with a transaction ID,
   assert.ok(!(await api('/wallet/options', null, ng.token)).deposit.some(d => d.method === 'ussd'), 'Ghana only');
 
   assert.equal((await api('/wallet/deposit', { amount: 30, method: 'ussd', details: { phone: p.phone, network: 'mtn' } }, p.token)).error, 'txid_required');
-  const d = await api('/wallet/deposit', { amount: 30, method: 'ussd', details: { phone: p.phone, network: 'mtn', txid: '51234567890' } }, p.token);
-  assert.equal(d.status, 'pending'); assert.ok(d.next.rows.some(r => r[0] === 'Transaction ID' && r[1] === '51234567890'));
+  const d = await api('/wallet/deposit', { amount: 30, method: 'ussd', details: { phone: p.phone, network: 'mtn', txid: TXID } }, p.token);
+  assert.equal(d.status, 'pending'); assert.ok(d.next.rows.some(r => r[0] === 'Transaction ID' && r[1] === TXID));
   const row = (await db.query('SELECT provider, status, method, details FROM payments WHERE id=$1', [d.paymentId])).rows[0];
-  assert.equal(row.provider, 'manual'); assert.equal(row.method, 'ussd'); assert.equal(row.details.txid, '51234567890'); assert.equal(row.details.ussd, '*203*0778606#');
+  assert.equal(row.provider, 'manual'); assert.equal(row.method, 'ussd'); assert.equal(row.details.txid, TXID); assert.equal(row.details.ussd, '*203*0778606#');
   assert.equal((await api('/wallet', null, p.token)).balance, 0, 'not credited before the admin confirms');
 
   // the admin confirms it → credited
   const q = (await api('/admin/payments?status=pending', null, ADMIN)).payments.find(x => x.id === d.paymentId);
-  assert.ok(q && q.details.txid === '51234567890');
+  assert.ok(q && q.details.txid === TXID);
   const c = await api(`/admin/payments/${d.paymentId}/approve`, { amount: 30 }, ADMIN);
   assert.ok(c.http === 200, JSON.stringify(c));
   assert.equal((await api('/wallet', null, p.token)).balance, 30);

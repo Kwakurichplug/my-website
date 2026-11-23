@@ -463,7 +463,9 @@ r.post('/payments/:id/:action', async (req, res, next) => {
       // the payment API settles these itself: a deposit is credited only when the provider confirms it, and a payout
       // already sent cannot be marked paid or refunded by hand (it would pay twice)
       if (gateway.isApi(p.provider)) throw Object.assign(new Error('api_payment'), { status: 409 });
-      if (p.kind === 'deposit' && action === 'approve' && !(b.data.reference || '').length) throw Object.assign(new Error('reference_required'), { status: 400 });   // a manual deposit is credited once per transfer reference
+      // a manual deposit is credited once per transfer reference; a USSD deposit's reference is the player's transaction ID
+      if (p.kind === 'deposit' && action === 'approve' && !(b.data.reference || '').trim() && p.details && p.details.txid) b.data.reference = String(p.details.txid);
+      if (p.kind === 'deposit' && action === 'approve' && !(b.data.reference || '').length) throw Object.assign(new Error('reference_required'), { status: 400 });
       const ok = action === 'approve';
       // a deposit is credited with what actually arrived (the admin may correct the amount the player typed)
       const amount = p.kind === 'deposit' && ok && b.data.amount ? Math.round(b.data.amount * 100) / 100 : Number(p.amount);

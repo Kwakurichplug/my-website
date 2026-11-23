@@ -37,8 +37,19 @@ const ledgerOk = async uid => { const { rows } = await db.query(`SELECT u.balanc
 const deposits = async uid => (await db.query(`SELECT count(*)::int AS n, coalesce(sum(amount),0)::float AS s FROM transactions WHERE user_id=$1 AND type='deposit'`, [uid])).rows[0];
 
 let ADMIN;
-before(async () => { if (!skip) ADMIN = (await player({ admin: true })).token; });
-after(() => db.end());
+// This suite tests the Nov 22 rules. The 3-deposit withdrawal rule and the Deposit 1·2·3 bonuses (payments-api.test.js)
+// are switched off while it runs – withdrawals open for every player, the welcome bonus on the first deposit – then restored.
+const RULES = {};
+async function nov22Rules(admin) {
+  for (const k of ['withdrawals', 'deposit_bonuses']) RULES[k] = (await db.query('SELECT value FROM settings WHERE key=$1', [k])).rows[0]?.value;
+  await api('/admin/settings/withdrawals', { value: { ...(RULES.withdrawals || {}), suspended: false, requireDeposits: false, newMembersOpen: true, message: '' } }, admin, 'PUT');
+  if (RULES.deposit_bonuses) await api('/admin/settings/deposit_bonuses', { value: { ...RULES.deposit_bonuses, enabled: false } }, admin, 'PUT');
+}
+async function restoreRules(admin) {
+  for (const [k, v] of Object.entries(RULES)) if (v) await api('/admin/settings/' + k, { value: v }, admin, 'PUT');
+}
+before(async () => { if (skip) return; ADMIN = (await player({ admin: true })).token; await nov22Rules(ADMIN); });
+after(async () => { if (!skip) await restoreRules(ADMIN); await db.end(); });
 
 test('deposit: prompt on the phone → Moolre confirms → credited once; webhooks alone never credit', { skip }, async () => {
   const p = await player();

@@ -2,7 +2,7 @@
 // friend takes the lock with it. Plus: the admin can ask for the ID again at any time.
 // Needs a running server on a TEST database with PAYMENTS_MODE=demo:
 //   API_URL=… DATABASE_URL=… node --test test/playthrough.test.js
-import { test, after } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 
@@ -25,7 +25,16 @@ async function newUser(deposit, admin) {
 const me = async t => (await api('/auth/me', null, t)).user;
 const bank = { bank: 'GTBank', acct: '0123456789', name: 'Play Through' };
 const withdraw = (t, amount) => api('/wallet/withdraw', { amount, method: 'bank_transfer', details: bank }, t);
-after(() => db.end());
+// This suite tests the play-through rule on its own: the 3-deposit withdrawal rule (payments-api.test.js) is switched
+// off while it runs, then restored.
+let ADMIN, RULE;
+const put = (path, value, tok) => fetch(API + path, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ value }) });
+before(async () => {
+  ADMIN = (await newUser(0, true)).token;
+  RULE = (await db.query(`SELECT value FROM settings WHERE key='withdrawals'`)).rows[0]?.value;
+  await put('/admin/settings/withdrawals', { ...(RULE || {}), suspended: false, requireDeposits: false, newMembersOpen: true, message: '' }, ADMIN);
+});
+after(async () => { if (RULE) await put('/admin/settings/withdrawals', RULE, ADMIN); await db.end(); });
 
 test('a deposit must be staked once before it can be withdrawn; winnings are never locked', async () => {
   const p = await newUser(5000);

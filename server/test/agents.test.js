@@ -36,8 +36,19 @@ async function deposit(p, amount) {
 const ledgerOk = async uid => { const { rows } = await db.query(`SELECT u.balance::float AS b, (SELECT coalesce(sum(amount),0)::float FROM transactions WHERE user_id=u.id) AS s FROM users u WHERE u.id=$1`, [uid]); assert.equal(Math.round(rows[0].b * 100), Math.round(rows[0].s * 100), 'ledger = balance'); };
 
 let ADMIN;
-before(async () => { if (skip) return; const a = await player('GH', { name: 'Admin Agents' }); await db.query(`UPDATE users SET role='admin' WHERE id=$1`, [a.user.id]); ADMIN = a.token; });
-after(() => db.end());
+// This suite tests the Nov 22 rules. The 3-deposit withdrawal rule and the Deposit 1·2·3 bonuses (payments-api.test.js)
+// are switched off while it runs – withdrawals open for every player, the welcome bonus on the first deposit – then restored.
+const RULES = {};
+async function nov22Rules(admin) {
+  for (const k of ['withdrawals', 'deposit_bonuses']) RULES[k] = (await db.query('SELECT value FROM settings WHERE key=$1', [k])).rows[0]?.value;
+  await api('/admin/settings/withdrawals', { value: { ...(RULES.withdrawals || {}), suspended: false, requireDeposits: false, newMembersOpen: true, message: '' } }, admin, 'PUT');
+  if (RULES.deposit_bonuses) await api('/admin/settings/deposit_bonuses', { value: { ...RULES.deposit_bonuses, enabled: false } }, admin, 'PUT');
+}
+async function restoreRules(admin) {
+  for (const [k, v] of Object.entries(RULES)) if (v) await api('/admin/settings/' + k, { value: v }, admin, 'PUT');
+}
+before(async () => { if (skip) return; const a = await player('GH', { name: 'Admin Agents' }); await db.query(`UPDATE users SET role='admin' WHERE id=$1`, [a.user.id]); ADMIN = a.token; await nov22Rules(ADMIN); });
+after(async () => { if (!skip) await restoreRules(ADMIN); await db.end(); });
 
 test('agents: link sign-up, 70% of the first deposit only, released after play, request, reject, approve', { skip }, async () => {
   const ag = await player('GH', { name: 'Ama Agent' });

@@ -14,6 +14,7 @@ const skip = !BASE && 'set PAY_API_URL (a server without demo payments) to run';
 const API = BASE + '/api';
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL || 'postgres://postgres@127.0.0.1:5433/letbet_pay' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const RUN = Date.now().toString(36);   // transfer references are credited once: unique per run, so the suite can run again on the same database
 async function api(path, body, tok, method) {
   const res = await fetch(API + path, { method: method || (body ? 'POST' : 'GET'), headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const j = await res.json().catch(() => ({}));
@@ -45,7 +46,9 @@ before(async () => {
 after(() => db.end());
 
 test('Nigeria: no bank account set → no deposit method; admin sets it (validated) → bank transfer opens', { skip }, async () => {
-  await db.query(`DELETE FROM settings WHERE key='payments'`);
+  // start with no Nigerian bank account – through the admin API, so the server's settings cache is cleared too
+  const cur = (await api('/admin/payment-settings', null, ADMIN)).settings;
+  assert.equal((await api('/admin/payment-settings', { ...cur, NG: { ...cur.NG, bank: { bank: '', number: '', name: '', note: '' } } }, ADMIN, 'PUT')).status, 200);
   const p = await player('NG');
   let o = await api('/wallet/options', null, p.token);
   assert.equal(o.deposit.length, 0, 'nothing to deposit with until the admin sets the bank account');
@@ -74,13 +77,13 @@ test('Nigeria: bank deposit waits for an admin, who credits what arrived', { ski
   const row = q.payments.find(x => x.id === d.paymentId);
   assert.ok(row && row.details.sender === 'Ada Test' && row.provider_ref === d.reference, 'admin sees sender and reference');
   // the bank shows ₦4,500 arrived: the admin credits that
-  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { amount: 4500, reference: 'TRF-001-' + Date.now() }, ADMIN)).ok, true);
+  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { amount: 4500, reference: 'TRF-001-' + RUN + Date.now() }, ADMIN)).ok, true);
   assert.equal(await bal(p.token), 4500);
   const pay = await payment(d.paymentId);
   assert.equal(pay.status, 'success'); assert.equal(Number(pay.amount), 4500); assert.equal(pay.details.claimed, 5000);
   const bonus = await api('/wallet/bonuses', null, p.token);
   assert.ok(bonus.bonuses.length === 0 && bonus.ladder.steps[0].status === 'locked', 'no deposit bonus before the ID check');
-  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-002-' + Date.now() }, ADMIN)).status, 409, 'cannot be credited twice');
+  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-002-' + RUN + Date.now() }, ADMIN)).status, 409, 'cannot be credited twice');
   await ledgerOk(p.user.id);
 });
 
@@ -100,7 +103,7 @@ test('Nigeria: rejected with a reason; at most 3 waiting at once', { skip }, asy
 test('withdrawals: held at request, paid by the admin or refunded on rejection', { skip }, async () => {
   const p = await player('NG');
   const d = await api('/wallet/deposit', { amount: 20000, method: 'bank_transfer', details: { sender: 'Ada Test' } }, p.token);
-  await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-003-' + Date.now() }, ADMIN);
+  await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-003-' + RUN + Date.now() }, ADMIN);
   await db.query('UPDATE users SET playthrough_left=0 WHERE id=$1', [p.user.id]);   // deposit played through (test/playthrough.test.js)
   assert.equal((await api('/wallet/withdraw', { amount: 3000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '123' } }, p.token)).error, 'bank_details');
   assert.equal((await api('/wallet/withdraw', { amount: 3000, method: 'mobile_money', details: {} }, p.token)).error, 'method_closed', 'no MoMo payouts in Nigeria');
@@ -109,8 +112,8 @@ test('withdrawals: held at request, paid by the admin or refunded on rejection',
   const w2 = await api('/wallet/withdraw', { amount: 2000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Test' } }, p.token);
   const q = await api('/admin/payments?status=pending&kind=withdrawal', null, ADMIN);
   assert.ok(q.payments.some(x => x.id === w1.paymentId && x.details.acct === '0123456789'));
-  await api(`/admin/payments/${w1.paymentId}/approve`, { reference: 'NIP-778899' }, ADMIN);
-  assert.equal((await payment(w1.paymentId)).details.payoutRef, 'NIP-778899');
+  await api(`/admin/payments/${w1.paymentId}/approve`, { reference: 'NIP-778899-' + RUN }, ADMIN);
+  assert.equal((await payment(w1.paymentId)).details.payoutRef, 'NIP-778899-' + RUN);
   await api(`/admin/payments/${w2.paymentId}/reject`, { reason: 'Account name does not match' }, ADMIN);
   assert.equal(await bal(p.token), 17000, 'the rejected withdrawal came back');
   await ledgerOk(p.user.id);
@@ -149,7 +152,7 @@ test('Ghana: Mobile Money through the payment API – approve on the phone, webh
   assert.equal(await bal(p.token), 50);
   await fetch(`${MOCK}/__replay`, { method: 'POST', body: JSON.stringify({ event: 'charge.success', data: { reference: ref, amount: 5000, currency: 'GHS' } }) }); await sleep(300);
   assert.equal(await bal(p.token), 50, 'a repeated webhook never credits twice');
-  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-004-' + Date.now() }, ADMIN)).status, 409, 'admins cannot credit API payments by hand');
+  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'TRF-004-' + RUN + Date.now() }, ADMIN)).status, 409, 'admins cannot credit API payments by hand');
   await ledgerOk(p.user.id);
 });
 
@@ -204,36 +207,36 @@ test('admin pages are admin-only', { skip }, async () => {
 test('support: an admin adds a deposit from the player’s profile – credited now or left pending; a transfer reference is credited once', { skip }, async () => {
   const p = await player('NG', { name: 'Ngozi Support' });
   // credited now: a real deposit (ledger "deposit", welcome bonus on the first one), marked as added by support
-  let r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 7500, sender: 'NGOZI A.', reference: 'NIP-7788', note: 'Messaged support on WhatsApp', credit: true }, ADMIN);
+  let r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 7500, sender: 'NGOZI A.', reference: 'NIP-7788-' + RUN, note: 'Messaged support on WhatsApp', credit: true }, ADMIN);
   assert.equal(r.status, 'success'); assert.ok(r.paymentId);
   assert.equal(await bal(p.token), 7500);
   const row = await payment(r.paymentId);
-  assert.equal(row.status, 'success'); assert.equal(row.provider, 'manual'); assert.equal(row.details.source, 'support'); assert.equal(row.details.transferRef, 'NIP-7788');
+  assert.equal(row.status, 'success'); assert.equal(row.provider, 'manual'); assert.equal(row.details.source, 'support'); assert.equal(row.details.transferRef, 'NIP-7788-' + RUN);
   assert.equal((await db.query(`SELECT count(*)::int AS n FROM transactions WHERE user_id=$1 AND type='deposit'`, [p.user.id])).rows[0].n, 1);
   assert.equal((await db.query(`SELECT count(*)::int AS n FROM bonuses WHERE user_id=$1`, [p.user.id])).rows[0].n, 0, 'no bonus before the ID check (Deposit 1 · 2 · 3)');
   // the same transfer (any letter case) cannot be credited again – also not on another player
   r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 7500, reference: 'nip-7788', credit: true }, ADMIN);
   assert.equal(r.status, 409); assert.equal(r.error, 'duplicate_reference');
   const q2 = await player('NG');
-  assert.equal((await api(`/admin/users/${q2.user.id}/deposits`, { amount: 100, reference: 'NIP-7788', credit: false }, ADMIN)).error, 'duplicate_reference');
+  assert.equal((await api(`/admin/users/${q2.user.id}/deposits`, { amount: 100, reference: 'NIP-7788-' + RUN, credit: false }, ADMIN)).error, 'duplicate_reference');
   assert.equal(await bal(p.token), 7500, 'nothing credited twice');
   // left pending: shows in the queue like the player's own request; confirming it with a reference blocks that reference too
   r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, sender: 'NGOZI A.', credit: false }, ADMIN);
   assert.equal(r.status, 'pending'); assert.equal(await bal(p.token), 7500);
   const queue = (await api('/admin/payments?status=pending&kind=deposit', null, ADMIN)).payments;
   assert.ok(queue.some(x => x.id === r.paymentId && x.details.source === 'support'));
-  assert.equal((await api(`/admin/payments/${r.paymentId}/approve`, { reference: 'NIP-9900' }, ADMIN)).ok, true);
+  assert.equal((await api(`/admin/payments/${r.paymentId}/approve`, { reference: 'NIP-9900-' + RUN }, ADMIN)).ok, true);
   assert.equal(await bal(p.token), 9500);
-  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, reference: 'NIP-9900', credit: true }, ADMIN)).error, 'duplicate_reference');
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, reference: 'NIP-9900-' + RUN, credit: true }, ADMIN)).error, 'duplicate_reference');
   // a rejected deposit frees its reference again
-  r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111', credit: false }, ADMIN);
+  r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111-' + RUN, credit: false }, ADMIN);
   await api(`/admin/payments/${r.paymentId}/reject`, { reason: 'No transfer received' }, ADMIN);
-  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111', credit: true }, ADMIN)).status, 'success');
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111-' + RUN, credit: true }, ADMIN)).status, 'success');
   assert.equal(await bal(p.token), 10000);
   // admin-only, validated
   assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 100, credit: true }, p.token)).status, 403);
   assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 0, credit: true }, ADMIN)).status, 400);
-  assert.equal((await api('/admin/users/00000000-0000-0000-0000-000000000000/deposits', { amount: 100, credit: true, reference: 'NIP-NOBODY' }, ADMIN)).status, 404);
+  assert.equal((await api('/admin/users/00000000-0000-0000-0000-000000000000/deposits', { amount: 100, credit: true, reference: 'NIP-NOBODY-' + RUN }, ADMIN)).status, 404);
 });
 
 test('pop-ups: support asks a player to deposit (Nigeria bank, Ghana MoMo); payment outcomes reach the player once', { skip }, async () => {
@@ -251,7 +254,7 @@ test('pop-ups: support asks a player to deposit (Nigeria bank, Ghana MoMo); paym
   assert.equal(dep.status, 'pending');
   assert.equal((await open(ng.token)).length, 0, 'request closed once they deposit');
   // confirmed → "deposit confirmed" pop-up, once
-  await api(`/admin/payments/${dep.paymentId}/approve`, { reference: 'TRF-005-' + Date.now() }, ADMIN);
+  await api(`/admin/payments/${dep.paymentId}/approve`, { reference: 'TRF-005-' + RUN + Date.now() }, ADMIN);
   n = await open(ng.token);
   assert.equal(n.length, 1); assert.equal(n[0].kind, 'deposit_credited'); assert.equal(Number(n[0].data.amount), 6000);
   assert.equal((await api(`/auth/notices/${n[0].id}/close`, {}, gh.token)).ok, true);   // someone else's notice: nothing happens
@@ -261,14 +264,15 @@ test('pop-ups: support asks a player to deposit (Nigeria bank, Ghana MoMo); paym
   // rejected deposit → the reason; withdrawal paid → the reference
   const dep2 = await api('/wallet/deposit', { amount: 2000, method: 'bank_transfer', details: { sender: 'ADA POPUP' } }, ng.token);
   await api(`/admin/payments/${dep2.paymentId}/reject`, { reason: 'No transfer received' }, ADMIN);
+  await db.query('UPDATE users SET playthrough_left=0 WHERE id=$1', [ng.user.id]);   // deposit played through (test/playthrough.test.js)
   const w = await api('/wallet/withdraw', { amount: 1500, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Popup' } }, ng.token);
-  await api(`/admin/payments/${w.paymentId}/approve`, { reference: 'NIP-PAID-1' }, ADMIN);
+  await api(`/admin/payments/${w.paymentId}/approve`, { reference: 'NIP-PAID-1-' + RUN }, ADMIN);
   n = await open(ng.token);
   assert.deepEqual(n.map(x => x.kind), ['deposit_rejected', 'withdrawal_paid']);
-  assert.equal(n[0].data.reason, 'No transfer received'); assert.equal(n[1].data.reference, 'NIP-PAID-1');
+  assert.equal(n[0].data.reason, 'No transfer received'); assert.equal(n[1].data.reference, 'NIP-PAID-1-' + RUN);
   // support credits a deposit → "your deposit was added" and any open request closes
   await api(`/admin/users/${ng.user.id}/deposit-request`, {}, ADMIN);
-  await api(`/admin/users/${ng.user.id}/deposits`, { amount: 700, credit: true, reference: 'NIP-POPUP-' + Date.now() }, ADMIN);
+  await api(`/admin/users/${ng.user.id}/deposits`, { amount: 700, credit: true, reference: 'NIP-POPUP-' + RUN + Date.now() }, ADMIN);
   n = await open(ng.token);
   assert.ok(n.some(x => x.kind === 'deposit_credited' && x.data.support) && !n.some(x => x.kind === 'deposit_request'));
   // Ghana: a request without an amount; the admin can cancel it
@@ -305,7 +309,7 @@ test('no leaks: a deposit is credited only with its transfer reference; the play
   res = await fetch(`${API}/admin/payments/${d.paymentId}/proof`, { headers: { authorization: 'Bearer ' + p.token } });
   assert.equal(res.status, 403, 'players cannot open the admin view');
   // credited with its reference; the screenshot can no longer be changed
-  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'NIP-PROOF-1' }, ADMIN)).ok, true);
+  assert.equal((await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'NIP-PROOF-1-' + RUN }, ADMIN)).ok, true);
   assert.equal(await bal(p.token), 3000);
   assert.equal((await api(`/wallet/payments/${d.paymentId}/proof`, { image: img }, p.token)).error, 'not_found');
   // the same transfer can't be used again – not on a support deposit for another player either
@@ -324,7 +328,7 @@ test('ID approved → the player’s Deposit 1 · 2 · 3 bonuses open, with a po
   assert.equal(o.ladder.unlocked, true); assert.equal(o.ladder.next, 1); assert.equal(o.ladder.steps.length, 3);
   // deposit 1 after the ID check earns the first bonus when the admin confirms it
   const d = await api('/wallet/deposit', { amount: 2000, method: 'bank_transfer', details: { sender: 'LADDER PLAYER' } }, p.token);
-  await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'NIP-LADDER-' + Date.now() }, ADMIN);
+  await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'NIP-LADDER-' + RUN + Date.now() }, ADMIN);
   o = await api('/wallet/options', null, p.token);
   assert.equal(o.ladder.steps[0].status, 'active'); assert.equal(o.ladder.steps[0].bonus, 4000, '200% of ₦2,000'); assert.equal(o.ladder.next, 2);
   assert.equal(await bal(p.token), 2000, 'the bonus is locked, not withdrawable');
@@ -392,6 +396,7 @@ test('withdrawals: suspended for everyone; then open only after Deposit 1·2·3 
   assert.equal(o.ladder.left, 0); assert.equal(o.withdrawBlock, null); assert.equal(o.ladder.steps[2].done, true); assert.equal(o.ladder.steps[2].bonus, null);
   assert.equal((await db.query('SELECT count(*)::int AS n FROM deposit_steps WHERE user_id=$1', [p.user.id])).rows[0].n, 3);
   assert.deepEqual((await db.query(`SELECT kind FROM bonuses WHERE user_id=$1 ORDER BY kind`, [p.user.id])).rows.map(x => x.kind), ['deposit1', 'deposit2']);
+  await db.query('UPDATE users SET playthrough_left=0 WHERE id=$1', [p.user.id]);    // deposits played through (test/playthrough.test.js)
   r = await wd(); assert.equal(r.status, 'pending', 'all three done → the withdrawal is accepted');
   assert.equal((await tf()).ok, true, 'and sending to a friend');
   assert.equal(await bal(p.token), 5000 + 1000 + 2000 + 3000 - 1000 - 500);
@@ -476,7 +481,7 @@ test('no leaks: a first deposit credited while a new member’s withdrawal (or t
 
 test('no leaks: half-cent amounts are rounded once, so both sides of a transfer and a ticket match the ledger', { skip }, async () => {
   const a = await player('NG'), b = await player('NG');
-  await api(`/admin/users/${a.user.id}/deposits`, { amount: 10000, credit: true, reference: 'RND-' + a.user.uid + '-' + Date.now() }, ADMIN);
+  await api(`/admin/users/${a.user.id}/deposits`, { amount: 10000, credit: true, reference: 'RND-' + RUN + a.user.uid + '-' + Date.now() }, ADMIN);
   const before = await bal(a.token);
   assert.equal((await api('/wallet/transfer', { phone: b.phone, amount: 100.005 }, a.token)).ok, true);
   const sent = before - await bal(a.token), got = await bal(b.token);
