@@ -1,5 +1,6 @@
 // Admin API – powers the admin portal. Every route needs role=admin.
 import { Router } from 'express';
+import { readdirSync } from 'node:fs';
 import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { requireAdmin } from '../lib/auth.js';
@@ -12,7 +13,15 @@ import { settleRound } from '../games/jackpot.js';
 import * as crash from '../games/crash.js';
 import { creditDeposit } from '../lib/bonus.js';
 import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS } from '../lib/payments.js';
-import * as paystack from '../payments/paystack.js';
+import * as gateway from '../payments/gateway.js';
+import { payoutResult, checkApi, checkPayout } from '../payments/flows.js';
+import * as promos from '../lib/promos.js';
+import * as manual from '../lib/manual.js';
+import { checks as withdrawalChecks, sendMomo as sendWithdrawal } from '../lib/withdrawals.js';
+import * as walletPay from '../lib/walletPayouts.js';
+import * as agents from '../lib/agents.js';
+import * as support from '../lib/support.js';
+import { verifyHash } from '../lib/auth.js';
 
 const r = Router();
 r.use(requireAdmin);
@@ -106,7 +115,106 @@ r.get('/events/:id', async (req, res, next) => {
 });
 // suspend / reopen every market of an event in one go
 r.post('/events/:id/suspend', async (req, res, next) => {
-  try { await q('UPDATE markets SET suspended=$2, updated_at=now() WHERE event_id=$1', [+req.params.id, !!(req.body && req.body.suspended)]); res.json({ ok: true }); } catch (e) { next(e); }
+  try {
+    const off = !!(req.body && req.body.suspended);
+    // a hand-added match has no in-play prices: once it has kicked off its markets stay closed until the result
+    if (!off && (await q(`SELECT 1 FROM events WHERE id=$1 AND ext_id LIKE 'man:%' AND kickoff <= now()`, [+req.params.id])).rowCount) return res.status(409).json({ error: 'started' });
+    await q('UPDATE markets SET suspended=$2, updated_at=now() WHERE event_id=$1', [+req.params.id, off]); res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Matches added by hand (lib/manual.js): leagues to pick from, a price preview, and create
+r.get('/leagues', async (_req, res, next) => { try { res.json({ leagues: await manual.leagues() }); } catch (e) { next(e); } });
+// Country / region flags the site has (betting/img/flags) – for leagues and for national teams' crests
+const FLAG_CODES = (() => { try { return readdirSync(new URL('../../../betting/img/flags/', import.meta.url)).filter(f => f.endsWith('.svg')).map(f => f.slice(0, -4)).sort(); } catch { return []; } })();
+r.get('/flags', (_req, res) => res.json({ flags: FLAG_CODES }));
+// Teams and their crests: pick from known teams; set a crest by upload, link, automatic lookup or a country flag
+r.get('/teams', async (req, res, next) => { try { res.json({ teams: await manual.teams(req.query.q || '') }); } catch (e) { next(e); } });
+const crestDone = (res, next) => [x => res.json(x), e => (e.body ? res.status(e.status).json(e.body) : next(e))];
+r.post('/teams/crest', (req, res, next) => { manual.uploadCrest(req.body && req.body.name, req.body && req.body.image).then(...crestDone(res, next)); });
+r.post('/teams/crest-link', (req, res, next) => { manual.linkCrest(req.body && req.body.name, req.body && req.body.url).then(...crestDone(res, next)); });
+r.post('/teams/crest-find', (req, res, next) => { manual.findCrest(req.body && req.body.name).then(...crestDone(res, next)); });
+r.post('/teams/crest-flag', (req, res, next) => {
+  const f = String((req.body && req.body.flag) || '').toLowerCase();
+  if (!FLAG_CODES.includes(f)) return res.status(400).json({ error: 'bad_flag' });
+  manual.linkCrest(req.body && req.body.name, `/img/flags/${f}.svg`, true).then(...crestDone(res, next));
+});
+// Live betting on / off for one of your own matches (before kick-off: whether it opens at kick-off)
+r.post('/events/:id/inplay', async (req, res, next) => {
+  const p = z.object({ on: z.boolean() }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try {
+    const { rows } = await q(`UPDATE events SET stats = stats || jsonb_build_object('inplay', $2::boolean), updated_at=now() WHERE id=$1 AND ext_id LIKE 'man:%' AND status IN ('scheduled','live') RETURNING id, status`, [req.params.id, p.data.on]);
+    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    if (rows[0].status === 'live' && !p.data.on) await q('UPDATE markets SET suspended=true, updated_at=now() WHERE event_id=$1 AND NOT suspended', [req.params.id]);
+    res.json({ ok: true, inplay: p.data.on });
+  } catch (e) { next(e); }
+});
+// Live desk: every hand-added match in play (or kicking off within 30 min) with its live-betting state
+r.get('/live-desk', async (_req, res, next) => { try { res.json({ matches: await manual.liveDesk(), freshSec: manual.LIVE_FRESH_SEC() }); } catch (e) { next(e); } });
+// Live scoring of a hand-added match that has kicked off: the real score and the half; inplay turns live betting on/off
+r.post('/events/:id/live', async (req, res, next) => {
+  const p = z.object({ home: z.number().int().min(0).max(40), away: z.number().int().min(0).max(40), period: z.enum(['H1', 'HT', 'H2']), inplay: z.boolean().optional() }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try { res.json(await manual.liveUpdate(+req.params.id, p.data)); } catch (e) { if (e.body) return res.status(e.status).json(e.body); next(e); }
+});
+const oddsSchema = z.object({ home: z.number().min(1.01).max(100), draw: z.number().min(1.01).max(100), away: z.number().min(1.01).max(100) });
+const matchSchema = z.object({
+  league: z.union([z.object({ id: z.number().int().positive() }),
+    z.object({ name: z.string().trim().min(2).max(60), country: z.string().trim().min(2).max(40), flag: z.string().trim().toLowerCase().regex(/^([a-z]{2,6}(-[a-z]{2,4})?|world)$/) })]),
+  home: z.string().trim().min(2).max(60), away: z.string().trim().min(2).max(60),
+  kickoff: z.coerce.date(), odds: oddsSchema, hot: z.boolean().optional(), inplay: z.boolean().optional(),
+});
+r.post('/events/preview', (req, res) => {
+  const p = oddsSchema.safeParse(req.body && req.body.odds);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try { const x = manual.priceMatch(p.data); res.json({ margin: x.margin, markets: x.markets.length, model: x.model, sample: x.markets.filter(m => ['dc', 'ou', 'gg'].includes(m.key)) }); }
+  catch (e) { res.status(e.status || 500).json(e.body || { error: e.message }); }
+});
+r.post('/events', async (req, res, next) => {
+  const p = matchSchema.safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid', details: p.error.flatten().fieldErrors });
+  try { res.json(await manual.createMatch(p.data, req.user.id)); }
+  catch (e) { if (e.body) return res.status(e.status).json(e.body); next(e); }
+});
+
+// Promo codes (lib/promos.js)
+r.get('/promos', async (_req, res, next) => { try { res.json({ promos: await promos.list() }); } catch (e) { next(e); } });
+const promoSchema = z.object({
+  code: z.string().transform(promos.normalize).pipe(z.string().regex(promos.CODE_RE)),
+  country: z.enum(['NG', 'GH']), amount: z.number().positive(), times: z.number().min(0).max(50).default(5), days: z.number().int().min(1).max(90).default(7),
+  maxUses: z.number().int().positive().max(1e6).nullable().default(null), endsAt: z.coerce.date().nullable().default(null),
+  requiresDeposit: z.boolean().default(true), newPlayersOnly: z.boolean().default(false), note: z.string().trim().max(200).default(''),
+});
+const PROMO_MAX = { NG: 500000, GH: 5000 };
+r.post('/promos', async (req, res, next) => {
+  const p = promoSchema.safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid', details: p.error.flatten().fieldErrors });
+  const v = p.data;
+  if (v.amount > PROMO_MAX[v.country]) return res.status(400).json({ error: 'amount_too_high', max: PROMO_MAX[v.country] });
+  if (v.endsAt && v.endsAt <= new Date()) return res.status(400).json({ error: 'ends_in_past' });
+  try {
+    const { rowCount } = await q(`INSERT INTO promo_codes (code, country, amount, times, days, max_uses, ends_at, requires_deposit, new_players_only, note, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (code) DO NOTHING`,
+      [v.code, v.country, Math.round(v.amount * 100) / 100, v.times, v.days, v.maxUses, v.endsAt, v.requiresDeposit, v.newPlayersOnly, v.note || null, req.user.id]);
+    if (!rowCount) return res.status(409).json({ error: 'code_taken' });
+    res.json({ ok: true, code: v.code });
+  } catch (e) { next(e); }
+});
+// pause / resume, change the use limit or the end date (amount and wagering stay as players were told)
+r.post('/promos/:code', async (req, res, next) => {
+  const p = z.object({ active: z.boolean().optional(), maxUses: z.number().int().positive().max(1e6).nullable().optional(), endsAt: z.coerce.date().nullable().optional() }).safeParse(req.body || {});
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try {
+    const v = p.data, sets = [], params = [promos.normalize(req.params.code)];
+    if (v.active !== undefined) { params.push(v.active); sets.push(`active=$${params.length}`); }
+    if (v.maxUses !== undefined) { params.push(v.maxUses); sets.push(`max_uses=$${params.length}`); }
+    if (v.endsAt !== undefined) { params.push(v.endsAt); sets.push(`ends_at=$${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'nothing_to_change' });
+    const { rowCount } = await q(`UPDATE promo_codes SET ${sets.join(', ')} WHERE code=$1`, params);
+    if (!rowCount) return res.status(404).json({ error: 'not_found' });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
 
 // jackpot rounds with ticket totals
@@ -245,21 +353,25 @@ r.get('/payments', async (req, res, next) => {
 });
 
 r.post('/payments/:id/:action', async (req, res, next) => {
-  const action = req.params.action; // approve | reject (payout has its own route below)
-  if (action === 'payout') return next();
+  const action = req.params.action; // approve | reject (payout and check have their own routes below)
+  if (action === 'payout' || action === 'check') return next();
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'bad_action' });
-  const b = z.object({ amount: z.number().positive().max(1e8).optional(), reason: z.string().trim().max(200).optional(), reference: z.string().trim().max(80).optional(), note: z.string().trim().max(200).optional() }).safeParse(req.body || {});
+  const b = z.object({ amount: z.number().positive().max(1e8).optional(), reason: z.string().trim().max(200).optional(), reference: z.string().trim().max(80).optional(), note: z.string().trim().max(200).optional(),
+    reviewed: z.boolean().optional(), override: z.boolean().optional() }).safeParse(req.body || {});
   if (!b.success) return res.status(400).json({ error: 'invalid' });
   if (action === 'reject' && !(b.data.reason || '').length) return res.status(400).json({ error: 'reason_required' });
   try {
     await tx(async c => {
       const { rows } = await c.query('SELECT * FROM payments WHERE id=$1 AND status=\'pending\' FOR UPDATE', [req.params.id]);
       const p = rows[0]; if (!p) throw Object.assign(new Error('not_pending'), { status: 409 });
-      if (p.provider === 'paystack' && p.kind === 'deposit') throw Object.assign(new Error('api_payment'), { status: 409 });   // the payment API settles these itself
+      // the payment API settles these itself: a deposit is credited only when the provider confirms it, and a payout
+      // already sent cannot be marked paid or refunded by hand (it would pay twice)
+      if (gateway.isApi(p.provider)) throw Object.assign(new Error('api_payment'), { status: 409 });
       const ok = action === 'approve';
       // a deposit is credited with what actually arrived (the admin may correct the amount the player typed)
       const amount = p.kind === 'deposit' && ok && b.data.amount ? Math.round(b.data.amount * 100) / 100 : Number(p.amount);
-      const note = { by: req.user.id, at: new Date().toISOString(), ...(b.data.reason ? { reason: b.data.reason } : {}), ...(b.data.reference ? { payoutRef: b.data.reference } : {}), ...(b.data.note ? { note: b.data.note } : {}), ...(amount !== Number(p.amount) ? { claimed: Number(p.amount) } : {}) };
+      const note = { by: req.user.id, at: new Date().toISOString(), ...(b.data.reason ? { reason: b.data.reason } : {}), ...(b.data.reference ? { payoutRef: b.data.reference } : {}), ...(b.data.note ? { note: b.data.note } : {}), ...(amount !== Number(p.amount) ? { claimed: Number(p.amount) } : {}),
+        ...(p.kind === 'withdrawal' && ok ? { review: { by: req.user.id, at: new Date().toISOString(), reviewed: !!b.data.reviewed, override: !!b.data.override } } : {}) };
       await c.query(`UPDATE payments SET status=$2, amount=$4, updated_at=now(), details = details || $3::jsonb WHERE id=$1`, [p.id, ok ? 'success' : 'rejected', JSON.stringify(note), amount]);
       p.amount = amount;
       if (p.kind === 'withdrawal' && !ok) await move(c, p.user_id, 'refund', Number(p.amount), p.id, { reason: 'withdrawal_rejected' });
@@ -273,24 +385,122 @@ r.post('/payments/:id/:action', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Ghana: pay a withdrawal to Mobile Money through the payment API (the webhook marks it paid, or refunds it)
+// Ghana: pay a withdrawal to Mobile Money through the payment API (its webhook / status check marks it paid, or
+// refunds it). A payout the provider refused before any money moved goes back to the queue as a manual payout.
+// Sub-agents (lib/agents.js): make / stop an agent, the agents list, payout requests to approve or reject
+r.get('/agents', async (_req, res, next) => { try { res.json({ agents: await agents.listAgents(), rules: await agents.rules() }); } catch (e) { next(e); } });
+r.post('/users/:id/agent', async (req, res, next) => {
+  const p = z.object({ on: z.boolean() }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try { const a = await agents.setAgent(req.params.id, p.data.on); res.json({ ok: true, isAgent: a.is_agent, code: a.agent_code, link: a.agent_code ? agents.linkOf(a.agent_code) : null }); }
+  catch (e) { if (e.body) return res.status(e.status).json(e.body); next(e); }
+});
+r.get('/agent-payouts', async (req, res, next) => { try { res.json({ payouts: await agents.payoutQueue(['pending', 'paid', 'rejected', 'all'].includes(req.query.status) ? req.query.status : 'pending') }); } catch (e) { next(e); } });
+r.post('/agent-payouts/:id/:action', async (req, res, next) => {
+  const approve = req.params.action === 'approve';
+  if (!approve && req.params.action !== 'reject') return res.status(400).json({ error: 'bad_action' });
+  const reason = String((req.body && req.body.reason) || '').trim().slice(0, 200);
+  if (!approve && !reason) return res.status(400).json({ error: 'reason_required' });
+  try { res.json(await agents.decide(+req.params.id || 0, approve, req.user.id, reason)); }
+  catch (e) { if (e.body) return res.status(e.status).json(e.body); next(e); }
+});
+
+// Send money: from the payment API wallet to any MoMo number (lib/walletPayouts.js). The admin's password is asked
+// again for every send; wrong passwords are counted per admin (5 per 15 minutes).
+const sendTries = new Map();
+const walletErr = (res, e, next) => (e.body ? res.status(e.status).json(e.body) : next(e));
+r.get('/wallet', async (_req, res, next) => { try { res.json(await walletPay.overview()); } catch (e) { next(e); } });
+r.post('/wallet/lookup', async (req, res, next) => {
+  const p = z.object({ phone: z.string().max(20), network: z.enum(['mtn', 'telecel', 'at']) }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'momo_details' });
+  try { res.json(await walletPay.lookup(p.data)); } catch (e) { walletErr(res, e, next); }
+});
+r.post('/wallet/send', async (req, res, next) => {
+  const p = z.object({ phone: z.string().max(20), network: z.enum(['mtn', 'telecel', 'at']), amount: z.number().positive().max(1e7),
+    reason: z.string().trim().min(3).max(200), password: z.string().min(1).max(200) }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  const tries = (sendTries.get(req.user.id) || []).filter(t => Date.now() - t < 15 * 60000);
+  if (tries.length >= 5) return res.status(429).json({ error: 'too_many_attempts' });
+  try {
+    const { rows } = await q('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
+    if (!rows[0] || !(await verifyHash(p.data.password, rows[0].password_hash))) { tries.push(Date.now()); sendTries.set(req.user.id, tries); return res.status(403).json({ error: 'bad_password' }); }
+    sendTries.delete(req.user.id);
+    res.json(await walletPay.send({ phone: p.data.phone, network: p.data.network, amount: p.data.amount, reason: p.data.reason, adminId: req.user.id }));
+  } catch (e) { walletErr(res, e, next); }
+});
+r.post('/wallet/:id/check', async (req, res, next) => {
+  try {
+    const { rows } = await q('SELECT * FROM wallet_payouts WHERE id=$1', [+req.params.id || 0]);
+    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    const x = await walletPay.check(rows[0]); res.json({ id: Number(x.id), status: x.status, error: x.error });
+  } catch (e) { next(e); }
+});
+
+// The account checks an admin reviews before paying a withdrawal (lib/withdrawals.js); ?refresh=1 asks Moolre again
+r.get('/payments/:id/checks', async (req, res, next) => {
+  try {
+    const c = await withdrawalChecks(req.params.id, { refresh: req.query.refresh === '1' });
+    if (!c) return res.status(404).json({ error: 'not_found' });
+    res.json(c);
+  } catch (e) { next(e); }
+});
+
 r.post('/payments/:id/payout', async (req, res, next) => {
-  if (!paystack.enabled()) return res.status(400).json({ error: 'api_not_configured' });
+  const gw = gateway.active();
+  if (!gw) return res.status(400).json({ error: 'api_not_configured' });
+  const b = z.object({ reviewed: z.boolean().optional(), override: z.boolean().optional() }).safeParse(req.body || {});
+  if (!b.success) return res.status(400).json({ error: 'invalid' });
+  // nothing is sent without the admin having opened the account checks; red flags need an explicit override
+  if (!b.data.reviewed) return res.status(400).json({ error: 'review_required' });
   try {
     const { rows } = await q(`SELECT * FROM payments WHERE id=$1 AND kind='withdrawal' AND status='pending' AND method='mobile_money'`, [req.params.id]);
     const p = rows[0]; if (!p) return res.status(409).json({ error: 'not_pending' });
-    if (p.provider === 'paystack') return res.status(409).json({ error: 'already_sent' });
-    const d = p.details || {}, reference = 'lbw-' + String(p.id).replace(/-/g, '');
-    if (!d.phone || !NETWORKS[d.network]) return res.status(400).json({ error: 'momo_details' });
-    // lock it to the API first, so it cannot be paid twice
-    const u = await q(`UPDATE payments SET provider='paystack', provider_ref=$2, updated_at=now(), details = details || $3::jsonb WHERE id=$1 AND status='pending' AND coalesce(provider,'manual') <> 'paystack'`,
-      [p.id, reference, JSON.stringify({ sentBy: req.user.id, sentAt: new Date().toISOString() })]);
-    if (!u.rowCount) return res.status(409).json({ error: 'already_sent' });
-    let t;
-    try { t = await paystack.payout({ reference, amount: Number(p.amount), phone: d.phone, network: d.network, name: d.name || 'LetBetAfrika player' }); }
-    catch (e) { await q(`UPDATE payments SET provider='manual', provider_ref=NULL, details = details || $2::jsonb WHERE id=$1`, [p.id, JSON.stringify({ apiError: e.message })]); return res.status(502).json({ error: 'payout_failed', message: e.message }); }
-    if (t.status === 'success') { const { payoutResult } = await import('../payments/flows.js'); await payoutResult(reference, true); }
-    res.json({ ok: true, status: t.status });
+    if (gateway.isApi(p.provider)) return res.status(409).json({ error: 'already_sent' });
+    const chk = await withdrawalChecks(p.id);
+    if (chk.bad && !b.data.override) return res.status(409).json({ error: 'checks_failed', flags: chk.flags.filter(f => f.level === 'bad') });
+    await q(`UPDATE payments SET details = details || jsonb_build_object('review', $2::jsonb) WHERE id=$1`,
+      [p.id, JSON.stringify({ by: req.user.id, at: new Date().toISOString(), reviewed: true, override: !!b.data.override, flags: chk.flags.map(f => `${f.level}: ${f.text}`), momoName: chk.momo && chk.momo.name || null })]);
+    try { const t = await sendWithdrawal(p, { sentBy: req.user.id }); res.json({ ok: true, status: t.status }); }
+    catch (e) { if (!e.status) throw e; res.status(e.status).json({ error: e.message, ...(e.detail ? { message: e.detail } : {}) }); }
+  } catch (e) { next(e); }
+});
+
+/* ---------- Live support: the team's inbox (lib/support.js) ---------- */
+const sfail = (res, e, next) => (e.status ? res.status(e.status).json({ error: e.message }) : next(e));
+// GET /admin/support?status=active|closed|all – also marks the team as online for players
+r.get('/support', async (req, res, next) => {
+  try { await support.touchPresence(req.user); res.json({ threads: await support.inbox(String(req.query.status || 'active')), waiting: await support.waitingCount(), online: true }); }
+  catch (e) { sfail(res, e, next); }
+});
+r.get('/support/count', async (req, res, next) => { try { res.json({ waiting: await support.waitingCount() }); } catch (e) { sfail(res, e, next); } });
+r.get('/support/:id', async (req, res, next) => {
+  try {
+    await support.touchPresence(req.user);
+    const t = await support.thread(Number(req.params.id), Number(req.query.after) || 0);
+    if (!t) return res.status(404).json({ error: 'not_found' });
+    if (t.thread.unread) await support.staffRead(t.thread.id);
+    res.json(t);
+  } catch (e) { sfail(res, e, next); }
+});
+r.post('/support/:id/message', async (req, res, next) => {
+  try { res.json(await support.reply(Number(req.params.id), req.user, req.body && req.body.text)); } catch (e) { sfail(res, e, next); }
+});
+r.post('/support/:id/close', async (req, res, next) => {
+  try { res.json(await support.close(Number(req.params.id), req.user)); } catch (e) { sfail(res, e, next); }
+});
+
+// Do payouts through the payment API work? (the last attempt; set by lib/withdrawals.js sendMomo)
+r.get('/payout-health', async (_req, res, next) => {
+  try { res.json({ ok: true, ...((await getSetting('payout_health')) || {}), deposits: (await getSetting('deposit_health')) || { ok: true } }); } catch (e) { next(e); }
+});
+
+// Ask the provider now about a payout that was sent (otherwise the webhook or the minute sweep does it)
+r.post('/payments/:id/check', async (req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT * FROM payments WHERE id=$1`, [req.params.id]);
+    const p = rows[0]; if (!p) return res.status(404).json({ error: 'not_found' });
+    if (p.status === 'pending' && gateway.isApi(p.provider)) await (p.kind === 'deposit' ? checkApi(p) : checkPayout(p));
+    res.json({ payment: (await q(`SELECT id, kind, status, provider, amount FROM payments WHERE id=$1`, [p.id])).rows[0] });
   } catch (e) { next(e); }
 });
 
@@ -302,16 +512,27 @@ r.get('/kyc', async (_req, res, next) => {
     res.json({ users: rows });
   } catch (e) { next(e); }
 });
+// the player's ID photos (only admins can see them; never cached)
+r.get('/users/:id/kyc-photo/:side', async (req, res, next) => {
+  try {
+    if (!['front', 'back'].includes(req.params.side)) return res.status(404).end();
+    const { rows } = await q('SELECT mime, data FROM kyc_documents WHERE user_id=$1 AND side=$2 ORDER BY id DESC LIMIT 1', [req.params.id, req.params.side]);
+    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.set('cache-control', 'private, no-store').type(rows[0].mime).send(rows[0].data);
+  } catch (e) { next(e); }
+});
+// approve | reject (the player can send it again) | resubmit: ask for the ID again with a reason, at any time – also
+// after it was approved (a wrong or unclear ID found later). The player is told in the app and by email.
 r.post('/users/:id/kyc', async (req, res, next) => {
-  const p = z.object({ approve: z.boolean(), reason: z.string().trim().max(200).optional() }).safeParse(req.body);
+  const p = z.object({ approve: z.boolean(), resubmit: z.boolean().optional(), reason: z.string().trim().max(200).optional() }).safeParse(req.body);
   if (!p.success || (!p.data.approve && !(p.data.reason || '').length)) return res.status(400).json({ error: 'invalid' });
   try {
-    const st = p.data.approve ? 'verified' : 'rejected';
+    const st = p.data.approve ? 'verified' : p.data.resubmit ? 'resubmit' : 'rejected', now = new Date().toISOString();
     const { rows } = await q(`UPDATE users SET verified=$2, limits = jsonb_set(coalesce(limits,'{}'::jsonb), '{kyc}', coalesce(limits->'kyc','{}'::jsonb) || $3::jsonb) WHERE id=$1 RETURNING *`,
-      [req.params.id, p.data.approve, JSON.stringify({ status: st, decidedAt: new Date().toISOString(), ...(p.data.reason ? { reason: p.data.reason } : {}) })]);
+      [req.params.id, p.data.approve, JSON.stringify({ status: st, decidedAt: now, by: req.user.id, ...(st === 'resubmit' ? { requestedAt: now } : {}), ...(p.data.reason ? { reason: p.data.reason } : {}) })]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
     res.json({ ok: true, status: st });
-    sendEmail(p.data.approve ? 'kycVerified' : 'kycRejected', rows[0], { reason: p.data.reason });
+    sendEmail(p.data.approve ? 'kycVerified' : st === 'resubmit' ? 'kycResubmit' : 'kycRejected', rows[0], { reason: p.data.reason });
   } catch (e) { next(e); }
 });
 
@@ -321,12 +542,18 @@ const paySchema = z.object({
   NG: z.object({ bank: z.object({ bank: z.string().trim().max(60), number: z.string().trim().regex(/^\d{10}$|^$/), name: z.string().trim().max(80), note: z.string().trim().max(200).default('') }),
     minDeposit: money, maxDeposit: money, minWithdraw: money, maxWithdraw: money, payoutTime: z.string().trim().max(40) }),
   GH: z.object({ momo: z.object({ network: z.enum(['mtn', 'telecel', 'at']), number: z.string().trim().regex(/^0?\d{9}$|^$/), name: z.string().trim().max(80), note: z.string().trim().max(200).default('') }),
+    ussd: z.object({ code: z.string().trim().regex(/^\*\d{2,6}(\*\d{1,15})*#$|^$/), name: z.string().trim().max(80).default(''), note: z.string().trim().max(200).default('') }).optional(),
     minDeposit: money, maxDeposit: money, minWithdraw: money, maxWithdraw: money, payoutTime: z.string().trim().max(40) }),
 });
 r.get('/payment-settings', async (_req, res, next) => {
   try {
-    let api = { provider: 'paystack', enabled: paystack.enabled(), test: paystack.testMode(), webhook: `${(process.env.SITE_URL || '').replace(/\/$/, '')}/api/payments/paystack/webhook` };
-    if (api.enabled) api = { ...api, balance: await paystack.balance().catch(e => ({ error: e.message })) };
+    const gw = gateway.active(), site = (process.env.SITE_URL || '').replace(/\/$/, '');
+    let api = { provider: gw ? gw.name : 'none', label: gw ? gw.label : '', enabled: !!gw, test: gw ? gw.testMode() : false, webhook: gw ? site + gw.webhookPath : '' };
+    if (gw && gw.name === 'moolre') {
+      const acct = await gw.account().catch(e => ({ error: e.message }));
+      api = { ...api, signed: !!gw.webhookSecret(), balance: acct.error ? { error: acct.error } : [{ currency: 'GHS', balance: acct.balance }],
+        account: acct.error ? null : { name: acct.name, activated: acct.activated, callback: acct.callback, callbackOk: acct.callback === api.webhook } };
+    } else if (gw) api = { ...api, balance: await gw.balance().catch(e => ({ error: e.message })) };
     res.json({ settings: await payConfig(), api });
   } catch (e) { next(e); }
 });
@@ -365,6 +592,7 @@ r.post('/markets/:eventId/:key', async (req, res, next) => {
   const p = z.object({ suspended: z.boolean().optional(), outcome: z.string().optional(), price: z.number().min(1.01).nullable().optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   try {
+    if (p.data.suspended === false && (await q(`SELECT 1 FROM events WHERE id=$1 AND ext_id LIKE 'man:%' AND kickoff <= now()`, [+req.params.eventId])).rowCount) return res.status(409).json({ error: 'started' });
     if (p.data.suspended != null) await q('UPDATE markets SET suspended=$3, updated_at=now() WHERE event_id=$1 AND key=$2', [+req.params.eventId, req.params.key, p.data.suspended]);
     if (p.data.outcome) await q(`UPDATE markets SET outcomes = jsonb_set(outcomes, $3, (outcomes->$4) || jsonb_build_object('o', $5::numeric), false), updated_at=now() WHERE event_id=$1 AND key=$2`, [+req.params.eventId, req.params.key, `{${p.data.outcome}}`, p.data.outcome, p.data.price]);
     res.json({ ok: true });
@@ -376,6 +604,8 @@ r.post('/events/:id/result', async (req, res, next) => {
   const p = z.object({ home: z.number().int().min(0), away: z.number().int().min(0), htHome: z.number().int().optional(), htAway: z.number().int().optional(), cancelled: z.boolean().optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   try {
+    // a result can only be entered for a match that has started (cancelling – refund everything – is always allowed)
+    if (!p.data.cancelled && (await q('SELECT 1 FROM events WHERE id=$1 AND kickoff > now()', [+req.params.id])).rowCount) return res.status(409).json({ error: 'not_started' });
     await q(`UPDATE events SET status=$2, score_home=$3, score_away=$4, ht_home=coalesce($5, ht_home), ht_away=coalesce($6, ht_away), updated_at=now() WHERE id=$1`,
       [+req.params.id, p.data.cancelled ? 'cancelled' : 'finished', p.data.home, p.data.away, p.data.htHome ?? null, p.data.htAway ?? null]);
     const settled = await settleEvent(+req.params.id);

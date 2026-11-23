@@ -85,6 +85,8 @@ plus for real data:
 - `ODDS_LEAGUES` (optional, comma list of sport keys; overrides the automatic choice – default top 5 leagues + UCL + NBA, more on bigger plans, see §5), `ODDS_REGION` (default `uk`), `ODDS_LIVE_FRESH_SEC` (default 90)
 - `THESPORTSDB_KEY` (optional; free key `123` is the default)
 - `GAMES=off` (optional) stops the game schedulers on a replica (e.g. a worker that must not run them).
+- `SIGNUP_CODE` (default off): sign-up opens the account straight away with a phone or email and a password; `SIGNUP_CODE=on` asks for the 6-digit code again (only on channels that can deliver one). Password resets and email changes always need a code.
+- `ADMIN_ALERTS=off` (optional) stops the admin emails for withdrawals to review and manual deposits to confirm (they go to `ADMIN_EMAILS`). `EVENTS_CACHE_MS` (default 2000) – identical match-list requests share one database answer for this long.
 
 Email (see §7 step 1 and `server/EMAILS.md`): `EMAIL_PROVIDER` = `console` (default: logs only) | `smtp` | `resend` | `sendgrid`,
 `EMAIL_FROM`, and for SMTP `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 TLS), `SMTP_USER`, `SMTP_PASS`, optional `SMTP_SECURE=true`;
@@ -100,6 +102,13 @@ shows the code on screen.
 test servers only, and it is ignored when `NODE_ENV=production`).
 - Nigeria – the account players transfer to: `NG_BANK_NAME`, `NG_BANK_ACCOUNT`, `NG_BANK_HOLDER` (**Railway variables
   only, never in git**; the admin portal's *Payment settings* can change them and what an admin saves wins).
+- Ghana – **Moolre** (preferred; used ahead of Paystack): setting all four of `MOOLRE_USER` (the Moolre username),
+  `MOOLRE_PUBLIC_KEY`, `MOOLRE_PRIVATE_KEY` and `MOOLRE_ACCOUNT_NUMBER` turns on Mobile Money deposits, which are
+  credited automatically once Moolre's status call confirms them, and one-click payouts. Then run
+  `node server/scripts/moolre-setup.js` with those variables and `SITE_URL`: it registers
+  `https://letbetafrika.online/api/payments/moolre/webhook` on the wallet and prints the secret for
+  `MOOLRE_WEBHOOK_SECRET`. For payouts, whitelist the server's outbound IP in Moolre (API Services → Security →
+  Whitelist IP for Disbursement; on Railway, turn on static outbound IPs first). `MOOLRE_BASE` is for the sandbox and tests only.
 - Ghana – `PAYSTACK_SECRET_KEY` (`sk_test_…` for testing, `sk_live_…` for real money) turns on Mobile Money deposits and
   payouts; then paste the webhook URL `https://letbetafrika.online/api/payments/paystack/webhook` in Paystack →
   Settings → API Keys & Webhooks. Optional manual fallback: `GH_MOMO_NETWORK`, `GH_MOMO_NUMBER`, `GH_MOMO_NAME`.
@@ -226,6 +235,7 @@ Earn reward per country (₦1,000 / GH₵10).
 
 ## 5. The Odds API – important facts
 
+- **Spending knobs** (Railway variables): `ODDS_RESERVE` (credits kept for results only; once only the reserve is left, results are fetched only for matches with open bets or a jackpot round, and matches nobody bet on leave the board 2 h after they should be over), `ODDS_SPEND_UNTIL` (ISO date: spread the spare credits up to it, e.g. a weekend burst), `ODDS_STALE_HOURS` (default 72: real fixtures whose prices are older are locked). Set on 2026-11-20: reserve 100, spend until 2026-11-23.
 - Owner's key is on the **FREE plan: 500 credits/month**. With the NBA added, prices refresh about every 1–2 days for
   the 6 football leagues + NBA; live scores ~every 10–30 min, so live betting stays suspended. **Upgrading the plan
   speeds everything up and switches more sports on automatically** – no code change, same key:
@@ -264,6 +274,24 @@ Golden rules: the stake is taken **before** the result is drawn; results come fr
   Bets close at take-off (checked in SQL), cash-out uses the server clock, auto cash-outs are paid by the scheduler as
   the multiplier passes them, one live bet per player per round, a cancelled bet can be replaced. Rounds: 6 s betting,
   flight `crashFlyMs(point)`, 2.2 s pause.
+- **Virtual League play-out** (`games/virtual.js`): at kick-off betting closes, the result is drawn (CSPRNG) with
+  goals, corners and the **added time of each half** (1–3 and 2–5 min) and kept server-side; the match then plays
+  over `VLEAGUE_PLAY_SEC` (default 60 s): 1'…45+x', HT, 46'…90+x', FT, then `settleEvent()`. Players only ever see
+  what has happened by the current minute (`stats.goals` with `min` and optional `plus`, `stats.plus` = current
+  added minute, `stats.added` = added time per half, `stats.playMs` = play-out length).
+- **Match clock (one clock, every screen)**: `betting/app.js` `clockOf()` runs the server's rules to the second on
+  the **server's time** (`API.now()`, from each answer's `Date` header – phones are often minutes off), and a 250 ms
+  ticker updates clocks, scores and progress bars in place (`data-clk`, `data-sc`, `data-bar`; rows are not
+  re-rendered, so taps are never lost). Rules, kept in step with the server (`test/clock.test.js`):
+  real fixtures (`oddsapi.js liveClock`) 00:00–44:59, 45+1'…45+3', HT 15 min, 46:00–89:59, 90+1'…90+8', then
+  **"Awaiting result"** (in-play markets closed) until the feed reports full time; hand-added matches (`manual.js
+  clockOf`) first half from kick-off, HT / second half when the admin calls them, up to +15'; Virtual League as above.
+  The Virtual League clock runs 5 s behind the server (`VLAG`) so a goal – sent only once it has happened – appears
+  **exactly at its minute**, full time shows when the clock gets there (`pendingFT`), and "Last round" / winning-ticket
+  trophies wait for that moment (no spoilers). Rows on "Now playing" keep a fixed order.
+- **Full-time exit (front end)**: a match that goes live → finished keeps its row on the live screens for ~9 s with
+  an FT badge, the final score (winner highlighted) and a shrinking bar, then fades and collapses (`justFT`, CSS
+  `ft-out`). A real match that drops out of the live list is fetched once for its final score first.
 - **Instant Football** rounds are **sealed tokens** (AES-256-GCM, key derived from `JWT_SECRET`): opaque to the player,
   tamper-proof, valid 15 min, and held in no server memory – any replica can serve the play. The token's nonce is the
   `game_bets` id, so a round can be played once (tested across two servers).
@@ -297,15 +325,27 @@ The site is wired end to end. The owner's next steps are **SMTP → payments →
      KYC, password changes, limits, self-exclusion, jackpot tickets and the welcome bonus turning into cash.
    - Deliverability: Spaceship DNS for `letbetafrika.online` must have SPF, DKIM and DMARC (Spacemail sets them when
      the domain uses Spaceship DNS – check in the Spacemail dashboard).
-2. **Payments – MVP DONE** (§4 *Payments*). Next:
-   - **Ghana live**: create the Paystack account (Ghana business), set `PAYSTACK_SECRET_KEY` in Railway, paste the
-     webhook URL (shown in the portal's *Payment settings*) in Paystack, test with `sk_test_…`, then switch to
-     `sk_live_…`. Keep enough Paystack balance for payouts.
+2. **Payments – MVP DONE** (§4 *Payments*). **Ghana: Moolre integrated** (`server/src/payments/moolre.js`,
+   `gateway.js` picks Moolre → Paystack → none). Deposits are credited only by `flows.creditApi()` after the provider's
+   status call says paid. That check runs on the webhook (signature checked, then confirmed with the status call), on
+   the player's poll, and in the leader's `payments` sweep every minute. Payouts are sent from the admin portal, get a
+   new reference for every attempt and an Idempotency-Key, and an unknown outcome stays pending until Moolre answers.
+   Next:
+   - **Ghana live**: set the four Moolre variables, run `scripts/moolre-setup.js`, set `MOOLRE_WEBHOOK_SECRET`,
+     whitelist the static outbound IP for payouts, then do one small real deposit and payout to your own number.
    - **Nigeria automatic** (when volume grows): a dedicated virtual account per player (Paystack DVA / Monnify /
      Flutterwave) – the transfer webhook calls `creditPaystack()`-style code in `payments/flows.js` (lock the row, only
      if `pending`, `creditDeposit()`), so admins no longer confirm transfers by hand. Bank payouts through the same
      provider's transfer API + name enquiry.
    - Cards: a hosted checkout (`next = {url}` – the deposit page already redirects for it) once a provider is approved.
+   - **Promo codes – DONE** (`server/src/lib/promos.js`, tables `promo_codes` / `promo_redemptions`, admin page *Promo
+     codes*, player box on Me → Bonuses). A code becomes a locked bonus (`bonuses.kind = 'promo:<CODE>'`) released
+     by `bonus.addTurnover()` like the welcome bonus, or cash at once with wagering 0. Each player can use a code
+     once, and the code row is locked during redemption so `max_uses` is exact. Codes need a deposit first by default.
+   - **Matches added by hand – DONE** (`server/src/lib/manual.js`, Trading desk → *Add match*, `ext_id 'man:…'`).
+     They are priced from the admin's 1X2 with the feed's model (FT markets only; under 2% or over 35% margin is
+     refused). Betting closes at kick-off, and the leader's `manual` tick marks them started with markets closed;
+     reopening after kick-off is refused. Results are accepted only after kick-off, for every event. Cancel refunds.
 3. **Admin portal – DONE** (`/admin.html`, `docs/ADMIN.md`). Next: two-factor sign-in for admins (TOTP), roles
    (support vs finance vs trading), and alerts (email/Slack) for large withdrawals and a long payments queue.
 4. **10,000 concurrent users**:
@@ -369,6 +409,19 @@ production after QA.
   OTP, decline, webhook signature + replay, Paystack payout success / failure → refund, demo mode off in production)
   and the browser walk-through `node tools/qa/e2e_admin.js <outDir> http://127.0.0.1:8096/ <dbUrl>` (portal sign-in,
   bank account saved, player deposit → admin credit, ID approval, payout, Ghana MoMo, every portal page, audit log).
+- **Moolre** (no demo shortcuts): `node tools/qa/mock_moolre.js 9099 http://127.0.0.1:8097`, a server with
+  `PORT=8097 MOOLRE_BASE=http://127.0.0.1:9099 MOOLRE_USER=letbet MOOLRE_PUBLIC_KEY=pub_mock MOOLRE_PRIVATE_KEY=priv_mock
+  MOOLRE_ACCOUNT_NUMBER=10000000001 MOOLRE_WEBHOOK_SECRET=whsec_mock PAYMENTS_SWEEP_MS=1500 PAYMENTS_SWEEP_AGE_SEC=2` on a
+  fresh test database, then `MOOLRE_API_URL=http://127.0.0.1:8097 DATABASE_URL=<that db> node --test test/moolre-api.test.js`.
+  It covers the prompt, the first-time SMS code, wrong code, forged / unsigned / stale / replayed webhooks, a signed
+  webhook while Moolre still says pending, declines, a missed webhook credited by the poll and by the sweep, admin hand
+  credits refused, and payouts paid / failed → refunded / refused → back to the queue / dropped answer → settled by webhook.
+  No local Postgres? `npm i embedded-postgres` in a scratch folder starts one.
+  `test/promos-matches.test.js` runs on the same server (start it with `MANUAL_TICK_MS=1000`). It covers promo
+  validation, deposit first, once per player, country, use limit, concurrent last use, cash codes, pause, unlocking
+  through settled bets, and hand-added matches: pricing, unsafe odds, duplicates, closing at kick-off, no reopen, no
+  result before kick-off, settlement and cancel refunds. The older API suites now move a match's kick-off into the
+  past before entering its result.
 - Browser (Playwright, pre-installed in cloud sessions): `tools/qa/smoke.js` (every route, demo + live: no JS errors,
   no horizontal scroll, no empty page), `e2e_games.js` (every game against the real API, server balance checked
   after each play), `e2e_games_demo.js`, `e2e_instant.js`, `e2e_email.js` (email sign-up, login, reset, email change –

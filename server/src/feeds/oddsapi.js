@@ -22,6 +22,7 @@ import { upsertEvent } from './index.js';
 import { footballMarkets, marketNeeds, price } from './demo.js';
 import { getSetting, setSetting } from '../lib/settings.js';
 import { attachLogos } from '../lib/logos.js';
+import { inplayRules, pastClose } from '../lib/inplay.js';
 
 export const syncEvery = 60 * 1000;    // the scheduler decides what is actually due
 export const tickEvery = 20 * 1000;
@@ -107,7 +108,7 @@ const TIERS = [
 const creditsPerCall = key => (sportOf(key) === 'football' ? 2 : 3);
 async function enabled() {
   if (process.env.ODDS_LEAGUES) return process.env.ODDS_LEAGUES.split(',').map(s => s.trim()).filter(k => LEAGUES[k]);
-  const b = await budget(), daily = b.startRemaining == null ? 0 : b.startRemaining / daysLeftInMonth();
+  const b = await budget(), daily = b.startRemaining == null ? 0 : dailyAllowance(b.startRemaining);
   const keys = new Set(DEFAULT);
   for (const [min, list] of TIERS) if (daily >= min) (list || Object.keys(LEAGUES)).forEach(k => keys.add(k));
   const act = await activeSports();
@@ -127,6 +128,21 @@ async function activeSports() {
 
 /* ---------------- credit budget ---------------- */
 const daysLeftInMonth = () => { const d = new Date(); const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)); return Math.max(1, Math.ceil((end - d) / 864e5)); };
+// Spending knobs (Railway variables):
+//   ODDS_RESERVE      credits kept for results only: prices never spend them, and in-play score polling stops once
+//                     only the reserve is left, so every bet on a real match can still be settled (default 0).
+//   ODDS_SPEND_UNTIL  ISO date: spread the spare credits (remaining − reserve) up to this date instead of over the
+//                     rest of the month – e.g. spend them over a weekend. After it, the normal monthly spread resumes.
+//   ODDS_STALE_HOURS  real-feed fixtures whose prices are older than this are locked until refreshed (default 72).
+export const reserve = () => Math.max(0, Math.floor(+process.env.ODDS_RESERVE || 0));
+export function spreadDays(now = Date.now()) {
+  const until = Date.parse(process.env.ODDS_SPEND_UNTIL || '');
+  if (Number.isFinite(until) && until > now) return Math.max(1, Math.ceil((until - now) / 864e5));
+  return daysLeftInMonth();
+}
+/** Credits the feed may spend per day: the spare credits (above the reserve) over the spread days. */
+export const dailyAllowance = (startRemaining, now) => Math.max(0, startRemaining - reserve()) / spreadDays(now);
+const STALE_H = () => Math.max(6, +process.env.ODDS_STALE_HOURS || 72);
 async function budget() {
   const b = (await getSetting('oddsapi_budget')) || {};
   const today = new Date().toISOString().slice(0, 10);
@@ -136,7 +152,7 @@ async function budget() {
 async function allowanceLeft() {
   const b = await budget();
   if (b.startRemaining == null) return 50; // first run of the day before we have seen the header
-  const daily = Math.floor(b.startRemaining / daysLeftInMonth());
+  const daily = Math.floor(dailyAllowance(b.startRemaining));
   return Math.max(0, daily - (b.spent || 0));
 }
 async function call(path, cost) {
@@ -304,7 +320,9 @@ async function syncScores(key, withCompleted) {
     const get = n => +(ev.scores.find(s => s.name === n)?.score ?? NaN);
     const h = get(ev.home_team), a = get(ev.away_team); if (Number.isNaN(h) || Number.isNaN(a)) continue;
     const { rows } = await q(`UPDATE events SET score_home=$2, score_away=$3, status=CASE WHEN $4 THEN 'finished' ELSE (CASE WHEN status='scheduled' THEN 'live' ELSE status END) END,
-      stats = stats || jsonb_build_object('scoreAt', $5::text, 'noScore', false), updated_at=now() WHERE ext_id=$1 AND status IN ('scheduled','live') RETURNING id, status`, ['oa:' + ev.id, h, a, !!ev.completed, fresh]);
+      stats = stats || jsonb_build_object('scoreAt', $5::text, 'noScore', false)
+        || CASE WHEN status='live' AND (score_home IS DISTINCT FROM $2 OR score_away IS DISTINCT FROM $3) THEN jsonb_build_object('betStopUntil', $6::text) ELSE '{}'::jsonb END,
+      updated_at=now() WHERE ext_id=$1 AND status IN ('scheduled','live') RETURNING id, status`, ['oa:' + ev.id, h, a, !!ev.completed, fresh, new Date(Date.now() + 10000).toISOString()]);
     if (rows[0]?.status === 'finished') finished.push(rows[0].id);
   }
   await setSetting(`oddsapi_scores_${key}`, { at: Date.now() });
@@ -312,13 +330,20 @@ async function syncScores(key, withCompleted) {
 }
 
 /* ---------------- live state (no credits) ---------------- */
-function liveClock(kickoff) {
-  const el = Math.floor((Date.now() - new Date(kickoff)) / 60000);
-  if (el <= 45) return { minute: Math.max(1, el), period: 'H1' };
-  if (el <= 60) return { minute: 45, period: 'HT' };
-  return { minute: Math.min(90, el - 15), period: 'H2' };
+// Estimated from kick-off (the feed has no clock), like a TV clock: 00:00–44:59, 45+1'…45+3', a 15-minute break,
+// 46:00–89:59, 90+1'…90+8', then "awaiting result" (markets closed) until the feed reports full time.
+// betting/app.js runs the same clock to the second (clockOf) – keep the two in step.
+export function liveClock(kickoff, now = Date.now()) {
+  const el = Math.floor((now - new Date(kickoff)) / 60000);   // whole minutes since kick-off
+  if (el < 45) return { minute: Math.max(1, el), plus: 0, period: 'H1' };
+  if (el < 48) return { minute: 45, plus: el - 44, period: 'H1' };
+  if (el < 63) return { minute: 45, plus: 0, period: 'HT' };
+  const m = el - 17;
+  if (m < 90) return { minute: m, plus: 0, period: 'H2' };
+  return { minute: 90, plus: Math.min(8, m - 89), period: 'H2', awaiting: m - 89 > 8 };
 }
-async function liveTick() {
+export async function liveTick() {
+  const R = await inplayRules(), now = Date.now();
   const { rows } = await q(`SELECT e.id, e.sport, e.kickoff, e.status, e.score_home, e.score_away, e.home, e.away, e.model, e.stats, l.ext_id AS lext
     FROM events e JOIN leagues l ON l.id=e.league_id WHERE e.ext_id LIKE 'oa:%' AND (e.status='live' OR (e.status='scheduled' AND e.kickoff <= now()))`);
   for (const e of rows) {
@@ -330,11 +355,19 @@ async function liveTick() {
       }
       continue;
     }
+    const st = e.stats || {};
+    // the live-score feed (feeds/livescores.js) runs this match while its score is fresh
+    if (st.liveSource === 'apifootball' && now - Date.parse(st.scoreAt || 0) < 120000) continue;
     const c = liveClock(e.kickoff);
-    const scoreAt = e.stats?.scoreAt ? Date.parse(e.stats.scoreAt) : 0;
-    const fresh = Date.now() - scoreAt < FRESH_MS() && c.period !== 'HT';
-    await q(`UPDATE events SET status='live', minute=$2, period=$3, stats = stats || jsonb_build_object('minuteEstimated', true, 'live', $4::boolean), updated_at=now() WHERE id=$1`, [e.id, c.minute, c.period, fresh]);
-    if (fresh && e.model) {
+    const scoreAt = st.scoreAt ? Date.parse(st.scoreAt) : 0;
+    const fresh = now - scoreAt < FRESH_MS();
+    const stopped = st.betStopUntil && Date.parse(st.betStopUntil) > now;   // a new score just came in
+    // open: a fresh score – or, with no live score at all, "blind" (Settings -> inplay): last known score + clock, stake caps
+    const blind = !fresh && R.blind;
+    const open = (fresh || blind) && c.period !== 'HT' && !c.awaiting && !stopped && !pastClose(c.period, c.minute, R) && !!e.model;
+    // no score from the feed yet: show "–" instead of a made-up 0-0
+    await q(`UPDATE events SET status='live', minute=$2, period=$3, stats = stats || jsonb_build_object('minuteEstimated', true, 'live', $4::boolean, 'noScore', NOT (stats ? 'scoreAt'), 'plus', $5::int, 'awaiting', $6::boolean, 'blind', $7::boolean), updated_at=now() WHERE id=$1`, [e.id, c.minute, c.period, open, c.plus, !!c.awaiting, open && blind]);
+    if (open) {
       const m = { lh: e.model.lh, la: e.model.la, status: 'live', minute: c.minute, score: [e.score_home, e.score_away], home: e.home, away: e.away };
       for (const mk of card(m)) await q(`INSERT INTO markets (event_id, key, name, grp, cols, outcomes, suspended, updated_at) VALUES ($1,$2,$3,$4,$5,$6,false,now())
         ON CONFLICT (event_id, key) DO UPDATE SET outcomes=EXCLUDED.outcomes, suspended=false, updated_at=now()`, [e.id, mk.key, mk.name, mk.group, mk.cols, JSON.stringify(mk.outcomes)]);
@@ -359,13 +392,28 @@ export async function sync() {
     const keys = await enabled();
     let left = await allowanceLeft();
     const now = Date.now();
+    // credits above the reserve (prices may only use these); unknown until the first answer of the day
+    const bud = await budget();
+    let spare = bud.remaining == null ? Infinity : bud.remaining - reserve();
+    // stale prices never take bets: lock real fixtures whose prices were not refreshed for ODDS_STALE_HOURS (no credits)
+    await q(`UPDATE markets m SET suspended=true, updated_at=m.updated_at FROM events e WHERE m.event_id=e.id AND e.ext_id LIKE 'oa:%'
+      AND e.status='scheduled' AND NOT m.suspended AND m.updated_at < now() - make_interval(hours => $1)`, [STALE_H()]);
+    // Only the reserve left (ODDS_RESERVE): results are fetched only for matches with money on them – an open bet or a
+    // jackpot round. A match nobody bet on is taken off the board 2 h after it should be over, without spending a credit.
+    const low = reserve() > 0 && spare <= 0;
+    const MONEY = `(EXISTS (SELECT 1 FROM bet_legs g JOIN bets b ON b.id=g.bet_id WHERE g.event_id=e.id AND b.status='open')
+      OR EXISTS (SELECT 1 FROM jackpot_rounds r WHERE r.status <> 'settled' AND e.id = ANY(r.event_ids)))`;
+    if (low) await q(`UPDATE events e SET status='cancelled', stats = e.stats || '{"noResult": true}'::jsonb, updated_at=now()
+      WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff < now() - (${LENGTH_SQL} + 120) * interval '1 minute' AND NOT ${MONEY}`);
     // 1) results first: leagues with matches past ~110 min that are not finished yet
     // all_done: every started game of the league should be over by now (a night's NBA slate is fetched in one call)
     const { rows: due } = await q(`SELECT l.ext_id, bool_and(e.kickoff <= now() - ${LENGTH_SQL} * interval '1 minute') AS all_done FROM events e JOIN leagues l ON l.id=e.league_id
-      WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff <= now() GROUP BY l.ext_id HAVING bool_or(e.kickoff <= now() - ${LENGTH_SQL} * interval '1 minute')`);
+      WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff <= now() AND (NOT $1 OR ${MONEY})
+      GROUP BY l.ext_id HAVING bool_or(e.kickoff <= now() - ${LENGTH_SQL} * interval '1 minute')`, [low]);
     // in-play scores: football always (its live prices need them); other sports only when credits are plentiful
-    const { rows: inplay } = await q(`SELECT DISTINCT l.ext_id FROM events e JOIN leagues l ON l.id=e.league_id WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff <= now() AND e.kickoff > now() - ${LENGTH_SQL} * interval '1 minute' AND (e.sport='football' OR $1)`, [left >= 40]);
-    const finished = [];
+    // (none once only the reserve is left: the reserve is for results)
+    const { rows: inplay } = spare <= 0 ? { rows: [] } : await q(`SELECT DISTINCT l.ext_id FROM events e JOIN leagues l ON l.id=e.league_id WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff <= now() AND e.kickoff > now() - ${LENGTH_SQL} * interval '1 minute' AND (e.sport='football' OR $1)`, [left >= 40]);
+    const finished = []; let scoresFetched = false;
     const scoreGap = left >= 40 ? 60e3 : left >= 15 ? 10 * 60e3 : 30 * 60e3;
     for (const { ext_id } of [...due, ...inplay]) {
       const key = ext_id.slice(3); if (!LEAGUES[key]) continue;
@@ -374,19 +422,22 @@ export async function sync() {
       const two = sportOf(key) !== 'football', settleGap = (two ? 40 : 15) * 60e3;   // results calls while a game is overdue
       // other sports: one results call once the whole slate should be over (or 3 h after the last one) – saves credits
       if (overdue && two && !due.find(d => d.ext_id === ext_id).all_done && last && now - last < 3 * 3600e3) continue;
-      if (now - last < (overdue ? Math.max(scoreGap, settleGap) : scoreGap) || left < (overdue ? 2 : 1)) continue;
-      finished.push(...await syncScores(key, overdue)); left -= overdue ? 2 : 1;
+      // results may use the reserve (that is what it is for), even when today's allowance is spent
+      if (now - last < (overdue ? Math.max(scoreGap, settleGap) : scoreGap) || (left < (overdue ? 2 : 1) && !(overdue && reserve() > 0 && (bud.remaining ?? 0) >= 2))) continue;
+      finished.push(...await syncScores(key, overdue)); left -= overdue ? 2 : 1; spare -= overdue ? 2 : 1; scoresFetched = true;
     }
     // 2) prices: oldest league first, as often as the daily allowance allows
     const perRound = keys.reduce((n, k) => n + creditsPerCall(k), 0);
     const oddsGap = Math.min(48, Math.max(1, Math.round(24 * perRound / Math.max(1, left * 0.6)))) * 3600e3;
     const ages = await Promise.all(keys.map(async k => [k, (await getSetting(`oddsapi_odds_${k}`))?.at || 0]));
     for (const [k, at] of ages.sort((a, b) => a[1] - b[1])) {
-      if (left < creditsPerCall(k) || (at && now - at < oddsGap)) continue;
-      try { finished.push(...await syncOdds(k)); left -= creditsPerCall(k); await setSetting(`oddsapi_odds_${k}`, { at: now }); }
+      if (left < creditsPerCall(k) || spare < creditsPerCall(k) || (at && now - at < oddsGap)) continue;
+      try { finished.push(...await syncOdds(k)); left -= creditsPerCall(k); spare -= creditsPerCall(k); await setSetting(`oddsapi_odds_${k}`, { at: now }); }
       catch (e) { console.error('[oddsapi] odds', k, e.message); }
     }
     pending.push(...finished);
+    // a new score re-prices the in-play markets at once (no credits), not on the next 20 s tick
+    if (scoresFetched) await liveTick().catch(e => console.error('[oddsapi] live', e.message));
   } finally { busy = false; }
 }
 const pending = [];
@@ -403,5 +454,6 @@ async function retireDemo() {
 }
 export async function status() {
   const b = await budget();
-  return { provider: 'oddsapi', leagues: await enabled(), remaining: b.remaining ?? null, spentToday: b.spent || 0, allowanceLeftToday: await allowanceLeft(), daysLeft: daysLeftInMonth(), lastCall: b.lastCall || null };
+  return { provider: 'oddsapi', leagues: await enabled(), remaining: b.remaining ?? null, spentToday: b.spent || 0, allowanceLeftToday: await allowanceLeft(), daysLeft: daysLeftInMonth(),
+    reserve: reserve(), spreadDays: spreadDays(), spendUntil: process.env.ODDS_SPEND_UNTIL || null, lastCall: b.lastCall || null };
 }

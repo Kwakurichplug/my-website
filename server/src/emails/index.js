@@ -79,6 +79,22 @@ export function logEmail(userId, template, subject, status, error) {
     [userId || null, template, String(subject).replace(/\b\d{6}\b/g, '••••••'), status, error || null]).catch(() => {});
 }
 
+/** Tell the admins (ADMIN_EMAILS) that a payment is waiting for them: a withdrawal to review or a manual deposit to
+ *  confirm. ADMIN_ALERTS=off turns it off. Never throws. */
+export async function notifyAdmins(kind, payment, user, extra = {}) {
+  if (String(process.env.ADMIN_ALERTS || '').toLowerCase() === 'off') return false;
+  const to = String(process.env.ADMIN_EMAILS || process.env.SUPPORT_EMAIL || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!to.length) return false;
+  const site = String(process.env.SITE_URL || '').replace(/\/$/, '');
+  try {
+    const m = render('adminAlert', { kind, amount: Number(payment.amount), cc: user.country, method: extra.method || payment.method, account: extra.account, paymentId: payment.id, when: new Date(),
+      player: { uid: user.uid, name: user.full_name || '', contact: user.phone ? (user.country === 'GH' ? '+233 ' : '+234 ') + user.phone : user.email || '' },
+      link: kind === 'agent' ? `${site}/admin.html#/agents` : kind === 'support' ? `${site}/admin.html#/support/${payment.id}` : kind === 'kyc' ? `${site}/admin.html#/kyc` : `${site}/admin.html#/payments/pending:${kind}` });
+    for (const addr of to) { const status = await deliver({ to: addr, subject: m.subject, html: m.html, text: m.text }); logEmail(null, 'adminAlert', m.subject, status); }
+    return true;
+  } catch (e) { console.error('[email] adminAlert', describe(e)); logEmail(null, 'adminAlert', kind, 'failed', describe(e)); return false; }
+}
+
 /** Send a template to a user record (needs user.email). Never throws. */
 export async function sendEmail(name, user, data = {}) {
   if (!user?.email) return false;

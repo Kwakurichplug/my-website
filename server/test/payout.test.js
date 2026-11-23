@@ -17,7 +17,8 @@ async function api(path, body, method) {
 }
 const balance = async () => (await api('/wallet')).balance;
 const oddOf = (ev, mk = '1x2', ok = '1') => ev.markets.find(m => m.key === mk).outcomes[ok].o;
-const result = (id, home, away, cancelled) => api(`/admin/events/${id}/result`, { home, away, cancelled });
+// a result is only accepted after kick-off (admin.js): the match "kicks off" first, like a real one
+const result = async (id, home, away, cancelled) => { if (!cancelled) await db.query(`UPDATE events SET kickoff = least(kickoff, now() - interval '1 second') WHERE id=$1`, [id]); return api(`/admin/events/${id}/result`, { home, away, cancelled }); };
 const bet = async (type, sels, stake) => (await api('/bets/place', { type, selections: sels.map(([ev, mk = '1x2', ok = '1']) => ({ eventId: ev.id, market: mk, outcome: ok, odd: oddOf(ev, mk, ok) })), ...(type === 'single' ? { stakes: sels.map(() => stake) } : { stake }), acceptChanges: false })).bets;
 const betRow = async id => (await db.query('SELECT status, paid::float FROM bets WHERE id=$1', [id])).rows[0];
 

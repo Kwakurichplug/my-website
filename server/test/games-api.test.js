@@ -124,7 +124,7 @@ test('Rocket Crash: bet, cancel, re-bet, cash out, auto cash-out, round audit', 
 });
 
 test('Weekly Jackpot: tickets must match the round; graded and paid automatically', { timeout: 60000 }, async t => {
-  const { round, prizes } = await api('/jackpot/round');
+  const { round, prizes, fund } = await api('/jackpot/round');
   if (!round) return t.skip('fewer than 12 open football fixtures in this test database – a round cannot be formed');
   assert.equal(round.events.length, 12);
   const ids = round.events.map(e => e.id), pick = (over = {}) => ids.map(id => ({ eventId: id, outcomes: over[id] || ['1'] }));
@@ -136,14 +136,20 @@ test('Weekly Jackpot: tickets must match the round; graded and paid automaticall
   assert.equal(A.cost, prizes.NG.line); assert.equal(B.cost, 2 * prizes.NG.line);
   assert.equal(await balance(), r2(b0 - A.cost - B.cost));
   // game 1 is a draw, the other 11 are home wins → A has 11 correct; B has one 12/12 line and one 11/12 line
+  await db.query(`UPDATE events SET kickoff = least(kickoff, now() - interval '1 second') WHERE id = ANY($1)`, [ids]);   // results only after kick-off
   for (const [i, id] of ids.entries()) await api(`/admin/events/${id}/result`, i ? { home: 1, away: 0 } : { home: 1, away: 1 }, T);
   const b1 = await balance();
   const st = await api('/admin/jackpot/settle', { round: round.code }, T);
   assert.deepEqual(st.settled, [round.code]);
   const tk = (await api('/jackpot/tickets', null, T)).tickets, ta = tk.find(t => t.ref === A.ref), tb = tk.find(t => t.ref === B.ref);
   const sum = (await api('/jackpot/results')).rounds.find(x => x.code === round.code).summary.NG;
-  assert.equal(ta.status, 'won'); assert.equal(ta.prize, prizes.NG.t11); assert.deepEqual(ta.hits, { 12: 0, 11: 1, 10: 0 });
-  assert.equal(tb.status, 'won'); assert.equal(tb.prize, r2(sum.t12.prize + prizes.NG.t11)); assert.ok(sum.t12.lines >= 1);
+  assert.equal(ta.status, 'won'); assert.deepEqual(ta.hits, { 12: 0, 11: 1, 10: 0 });
+  assert.equal(ta.prize, sum.t11.prize); assert.equal(tb.status, 'won'); assert.equal(tb.prize, r2(sum.t12.prize + sum.t11.prize)); assert.ok(sum.t12.lines >= 1);
+  if (fund) {   // prize fund: what is paid comes out of the round's sales (+ the jackpot carry-over), never more than the caps
+    assert.ok(sum.sales >= A.cost + B.cost);
+    assert.ok(sum.t11.prize <= prizes.NG.t11 && sum.t11.prize * sum.t11.lines <= sum.sales * fund.t11 + 0.01, 'the 11-correct prizes share their fund');
+    assert.ok(sum.t12.prize <= prizes.NG.jackpot);
+  } else assert.equal(ta.prize, prizes.NG.t11, 'a round opened before the fund keeps its fixed prizes');
   assert.equal(await balance(), r2(b1 + ta.prize + tb.prize));
   const next = await api('/jackpot/round');
   assert.ok(!next.round || next.round.code !== round.code, 'a settled round is not sold again');
@@ -164,13 +170,14 @@ test('Virtual League: real bets, settled when the round is played', { timeout: 6
   const ev = evs[0], o = ev.markets.find(m => m.key === '1x2').outcomes['1'].o, b0 = await balance();
   const { bets } = await api('/bets/place', { type: 'single', selections: [{ eventId: ev.id, market: '1x2', outcome: '1', odd: o }], stakes: [200] }, T);
   assert.equal(await balance(), r2(b0 - 200));
-  await db.query(`UPDATE events SET kickoff = now() - interval '1 second' WHERE sport='vfootball' AND status='scheduled' AND kickoff = $1`, [ev.kickoff]);
+  // a round plays out live over VLEAGUE_PLAY_SEC (at most 100 s): start it far enough back that full time is due now
+  await db.query(`UPDATE events SET kickoff = now() - interval '101 seconds' WHERE sport='vfootball' AND status='scheduled' AND kickoff = $1`, [ev.kickoff]);
   let bet;
   for (let i = 0; i < 40; i++) { bet = (await api('/bets?status=settled', null, T)).bets.find(x => x.id === bets[0].id); if (bet) break; await sleep(500); }
   assert.ok(bet && ['won', 'lost'].includes(bet.status), 'the virtual bet settled');
   assert.equal(await balance(), r2(b0 - 200 + (bet.status === 'won' ? 200 * o : 0)));
   let fresh = [];
-  for (let i = 0; i < 15; i++) { fresh = (await api('/events?sport=vfootball&status=scheduled&limit=20')).events.filter(e => new Date(e.kickoff) > new Date()); if (fresh.length >= 6) break; await sleep(200); }
+  for (let i = 0; i < 15; i++) { fresh = (await api(`/events?sport=vfootball&status=scheduled&limit=20&fresh=${Date.now()}`)).events.filter(e => new Date(e.kickoff) > new Date()); if (fresh.length >= 6) break; await sleep(200); }
   assert.ok(fresh.length >= 6 && fresh[0].id !== ev.id, 'the next round is already open');
   await ledgerOk(T);
 });

@@ -66,8 +66,8 @@ export async function settleEvent(eventId) {
 // the welcome bonus turned into cash: tell the player (after the settlement has committed)
 async function bonusReleased(userId, list) {
   const { rows } = await q('SELECT * FROM users WHERE id=$1', [userId]);
-  for (const x of list) sendEmail('bonusCredited', rows[0], { amount: x.amount, name: 'Welcome Bonus', balance: x.balance,
-    terms: 'You reached the wagering target, so your welcome bonus is now cash in your balance. Bet with it or withdraw it.' });
+  for (const x of list) sendEmail('bonusCredited', rows[0], { amount: x.amount, name: x.promo ? `Promo bonus ${x.promo}` : 'Welcome Bonus', balance: x.balance,
+    terms: `You reached the wagering target, so your ${x.promo ? 'promo' : 'welcome'} bonus is now cash in your balance. Bet with it or withdraw it.` });
 }
 
 async function notify(b, ls, status, paid, balance) {

@@ -11,6 +11,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const BASE = () => process.env.PAYSTACK_BASE || 'https://api.paystack.co';   // override for tests (mock server)
 const KEY = () => process.env.PAYSTACK_SECRET_KEY || '';
+export const name = 'paystack', label = 'Paystack', webhookPath = '/api/payments/paystack/webhook';
 export const enabled = () => !!KEY();
 export const testMode = () => KEY().startsWith('sk_test_');
 
@@ -36,7 +37,9 @@ export async function chargeMomo({ reference, amount, email, phone, network }) {
   });
   return { status: d.status, display: d.display_text || d.gateway_response || '' };
 }
-export async function submitOtp(reference, otp) {
+/** `p` is our payment row (or its reference). */
+export async function submitOtp(p, otp) {
+  const reference = typeof p === 'string' ? p : p.provider_ref;
   const d = await call('POST', '/charge/submit_otp', { otp, reference });
   return { status: d.status, display: d.display_text || d.gateway_response || '' };
 }

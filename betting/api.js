@@ -16,10 +16,12 @@
 
   const setToken = t => { token = t; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch {} };
 
+  // server time = Date.now() + skew, from each answer's Date header (match clocks run on it, not on the phone's clock)
+  let skew = 0, skewN = 0;
   async function call(method, path, body, { timeout = 8000 } = {}) {
     if (!BASE) throw Object.assign(new Error('offline'), { offline: true });
     const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeout);
-    let res;
+    let res; const t0 = Date.now();
     try {
       res = await fetch(BASE + '/api' + path, {
         method, signal: ctrl.signal,
@@ -28,6 +30,8 @@
       });
     } catch (e) { throw Object.assign(new Error('offline'), { offline: true, cause: e }); }
     finally { clearTimeout(t); }
+    const d = Date.parse(res.headers.get('date') || ''), t1 = Date.now();
+    if (d && t1 - t0 < 3000) { const est = d + 500 - (t0 + t1) / 2; skew = skewN++ ? skew * 0.8 + est * 0.2 : est; }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401 && token) setToken(null);
@@ -38,7 +42,7 @@
   const get = (p, o) => call('GET', p, null, o), post = (p, b, o) => call('POST', p, b, o), patch = (p, b) => call('PATCH', p, b), put = (p, b) => call('PUT', p, b);
 
   const API = {
-    base: BASE, enabled: !!BASE,
+    base: BASE, enabled: !!BASE, now: () => Date.now() + skew,
     get token() { return token; }, setToken,
     async ping() { try { await get('/events/leagues', { timeout: 4000 }); return true; } catch { return false; } },
 
@@ -52,7 +56,7 @@
       me: () => get('/auth/me').then(r => r.user),
       logout: () => setToken(null),
       password: (current, password) => post('/auth/password', { current, password }),
-      verify: d => post('/auth/verify', d),
+      verify: d => post('/auth/verify', d, { timeout: 90000 }),   // carries two ID photos
       email: email => post('/auth/email', { email }),   // sends a code to the new address
       emailConfirm: (email, code) => post('/auth/email/confirm', { email, code }).then(r => r.user),
       limits: d => post('/auth/limits', d),
@@ -67,9 +71,21 @@
       // `who` is a phone number (string) or { email }
       transfer: (who, amount, note) => post('/wallet/transfer', { ...(typeof who === 'object' ? who : { phone: who }), amount, note }),
       bonuses: () => get('/wallet/bonuses'),
+      promo: code => post('/wallet/promo', { code }),                            // redeem a promo code
       options: () => get('/wallet/options'),                                     // ways to pay open for this country
       payment: id => get('/wallet/payments/' + encodeURIComponent(id)),           // { payment, balance }
       otp: (id, otp) => post('/wallet/deposit/' + encodeURIComponent(id) + '/otp', { otp }),
+    },
+    agent: {
+      dashboard: () => get('/agent'),                                            // the agent's own screen
+      payout: () => post('/agent/payout', {}),                                   // ask for everything available
+    },
+    support: {                                                                   // Live support (the player's chat)
+      get: after => get('/support' + (after ? '?after=' + after : '')),
+      unread: () => get('/support/unread').then(r => r.unread),
+      read: () => post('/support/read', {}),
+      send: text => post('/support/message', { text }),
+      human: () => post('/support/human', {}),
     },
     jackpot: {
       round: () => get('/jackpot/round'),
@@ -100,7 +116,7 @@
       search: q => get('/events/search?q=' + encodeURIComponent(q)).then(r => r.events),
     },
     bets: {
-      place: d => post('/bets/place', d),
+      place: d => post('/bets/place', d, { timeout: 30000 }),   // in-play bets are confirmed after a short wait
       list: status => get('/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       cashout: id => post(`/bets/${id}/cashout`),
       book: selections => post('/bets/book', { selections }).then(r => r.code),
@@ -115,15 +131,52 @@
       payments: status => get('/admin/payments?status=' + (status || 'pending')).then(r => r.payments),
       // approve: { amount (deposit: what arrived), reference (withdrawal: payout ref), note } · reject: { reason }
       payment: (id, action, body) => post(`/admin/payments/${id}/${action}`, typeof body === 'string' ? { reason: body } : (body || {})),
-      payout: id => post(`/admin/payments/${id}/payout`, {}),        // Ghana MoMo payout through the payment API
+      payout: (id, d) => post(`/admin/payments/${id}/payout`, d || {}),   // Ghana MoMo payout through the payment API: { reviewed: true, override? }
+      paymentChecks: (id, refresh) => get(`/admin/payments/${id}/checks${refresh ? '?refresh=1' : ''}`),   // account checks before paying a withdrawal
       kyc: () => get('/admin/kyc').then(r => r.users),
-      kycDecide: (id, approve, reason) => post(`/admin/users/${id}/kyc`, { approve, ...(reason ? { reason } : {}) }),
+      kycDecide: (id, approve, reason, resubmit) => post(`/admin/users/${id}/kyc`, { approve, ...(resubmit ? { resubmit: true } : {}), ...(reason ? { reason } : {}) }),
+      // the ID photo as an object URL (admin-only, sent with the token)
+      kycPhoto: async (id, side) => { const r = await fetch(BASE + `/api/admin/users/${id}/kyc-photo/${side}`, { headers: { authorization: 'Bearer ' + token } }); if (!r.ok) return null; return URL.createObjectURL(await r.blob()); },
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
       bets: status => get('/admin/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       voidBet: id => post(`/admin/bets/${id}/void`),
       market: (eventId, key, d) => post(`/admin/markets/${eventId}/${key}`, d),
       result: (eventId, d) => post(`/admin/events/${eventId}/result`, d),
+      // matches added by hand: { league: {id} | {name, country, flag}, home, away, kickoff (ISO), odds: {home, draw, away} }
+      leagues: () => get('/admin/leagues').then(r => r.leagues),
+      previewMatch: odds => post('/admin/events/preview', { odds }),
+      createMatch: d => post('/admin/events', d),
+      liveDesk: () => get('/admin/live-desk'),
+      payoutHealth: () => get('/admin/payout-health'),                                          // your own matches in play
+      setLiveBetting: (id, on) => post(`/admin/events/${id}/inplay`, { on }),            // before kick-off: open live betting at kick-off or not
+      flags: () => get('/admin/flags').then(r => r.flags),
+      teams: q => get('/admin/teams?q=' + encodeURIComponent(q || '')).then(r => r.teams),
+      crestUpload: (name, image) => post('/admin/teams/crest', { name, image }),
+      crestLink: (name, url) => post('/admin/teams/crest-link', { name, url }),
+      crestFind: name => post('/admin/teams/crest-find', { name }),
+      crestFlag: (name, flag) => post('/admin/teams/crest-flag', { name, flag }),
+      liveScore: (id, d) => post(`/admin/events/${id}/live`, d),        // hand-added match: { home, away, period: H1 | HT | H2 }
+      checkPayment: id => post(`/admin/payments/${id}/check`, {}),
+      // Send money: from the payment API wallet to any MoMo number (password asked again)
+      wallet: () => get('/admin/wallet'),
+      walletLookup: (phone, network) => post('/admin/wallet/lookup', { phone, network }),
+      walletSend: d => post('/admin/wallet/send', d),
+      walletCheck: id => post(`/admin/wallet/${id}/check`, {}),
+      // sub-agents
+      agents: () => get('/admin/agents'),
+      setAgent: (userId, on) => post(`/admin/users/${userId}/agent`, { on }),
+      agentPayouts: status => get('/admin/agent-payouts?status=' + (status || 'pending')).then(r => r.payouts),
+      agentPayout: (id, action, reason) => post(`/admin/agent-payouts/${id}/${action}`, reason ? { reason } : {}),
+      support: status => get('/admin/support?status=' + (status || 'active')),     // Live support inbox
+      supportCount: () => get('/admin/support/count').then(r => r.waiting),
+      supportThread: (id, after) => get(`/admin/support/${id}` + (after ? '?after=' + after : '')),
+      supportReply: (id, text) => post(`/admin/support/${id}/message`, { text }),
+      supportClose: id => post(`/admin/support/${id}/close`, {}),
+      // promo codes
+      promos: () => get('/admin/promos').then(r => r.promos),
+      createPromo: d => post('/admin/promos', d),
+      updatePromo: (code, d) => post('/admin/promos/' + encodeURIComponent(code), d),
       settings: () => get('/admin/settings'),
       setSetting: (key, value) => put('/admin/settings/' + key, { value }),
       series: (days, cc) => get('/admin/series?days=' + (days || 14) + (cc ? '&cc=' + cc : '')).then(r => r.days),

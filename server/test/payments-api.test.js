@@ -7,6 +7,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
+const ID_PHOTO = 'data:image/jpeg;base64,' + Buffer.alloc(9000, 7).toString('base64');   // front / back of the ID
 
 const BASE = process.env.PAY_API_URL, MOCK = process.env.MOCK_PAYSTACK || 'http://127.0.0.1:9098';
 const skip = !BASE && 'set PAY_API_URL (a server without demo payments) to run';
@@ -95,6 +96,7 @@ test('withdrawals: held at request, paid by the admin or refunded on rejection',
   const p = await player('NG');
   const d = await api('/wallet/deposit', { amount: 20000, method: 'bank_transfer', details: { sender: 'Ada Test' } }, p.token);
   await api(`/admin/payments/${d.paymentId}/approve`, {}, ADMIN);
+  await db.query('UPDATE users SET playthrough_left=0 WHERE id=$1', [p.user.id]);   // deposit played through (test/playthrough.test.js)
   assert.equal((await api('/wallet/withdraw', { amount: 3000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '123' } }, p.token)).error, 'bank_details');
   assert.equal((await api('/wallet/withdraw', { amount: 3000, method: 'mobile_money', details: {} }, p.token)).error, 'method_closed', 'no MoMo payouts in Nigeria');
   const w1 = await api('/wallet/withdraw', { amount: 3000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Test' } }, p.token);
@@ -111,14 +113,14 @@ test('withdrawals: held at request, paid by the admin or refunded on rejection',
 
 test('ID checks: rejected with a reason (player sees it), resubmitted, approved', { skip }, async () => {
   const p = await player('NG');
-  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901' }, p.token);
+  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901', front: ID_PHOTO, back: ID_PHOTO }, p.token);
   assert.ok((await api('/admin/kyc', null, ADMIN)).users.some(u => u.id === p.user.id));
   assert.equal((await api(`/admin/users/${p.user.id}/kyc`, { approve: false }, ADMIN)).error, 'invalid', 'a rejection needs a reason');
   await api(`/admin/users/${p.user.id}/kyc`, { approve: false, reason: 'Photo unreadable' }, ADMIN);
   let me = (await api('/auth/me', null, p.token));
   me = me.user || me;
   assert.equal(me.verified, false); assert.equal(me.limits.kyc.status, 'rejected'); assert.equal(me.limits.kyc.reason, 'Photo unreadable');
-  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901' }, p.token);
+  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901', front: ID_PHOTO, back: ID_PHOTO }, p.token);
   await api(`/admin/users/${p.user.id}/kyc`, { approve: true }, ADMIN);
   me = (await api('/auth/me', null, p.token)); me = me.user || me;
   assert.equal(me.verified, true);
@@ -159,8 +161,9 @@ test('Ghana: Telecel code step, a late webhook (our own check credits), a declin
   const st = await api(`/wallet/payments/${d.paymentId}`, null, p.token);
   assert.equal(st.payment.status, 'success'); assert.equal(st.balance, 50);
   // declined at once (the mock declines numbers ending 0000)
-  const g = await player('GH', { phone: '241230000' });
-  const f = await api('/wallet/deposit', { amount: 20, method: 'mobile_money', details: { phone: '241230000', network: 'mtn' } }, g.token);
+  const dphone = '24' + rnd().slice(0, 3) + '0000';   // a fresh number each run (the mock declines numbers ending 0000)
+  const g = await player('GH', { phone: dphone });
+  const f = await api('/wallet/deposit', { amount: 20, method: 'mobile_money', details: { phone: dphone, network: 'mtn' } }, g.token);
   assert.equal(f.status, 'failed'); assert.equal((await payment(f.paymentId)).status, 'failed');
 });
 
@@ -168,15 +171,16 @@ test('Ghana: payout through the API – paid by webhook, or refunded when it fai
   const p = await player('GH');
   const d = await api('/wallet/deposit', { amount: 200, method: 'mobile_money', details: { phone: p.phone, network: 'mtn' } }, p.token);
   await fetch(`${MOCK}/__approve/${(await payment(d.paymentId)).provider_ref}`, { method: 'POST' }); await sleep(400);
+  await db.query('UPDATE users SET playthrough_left=0 WHERE id=$1', [p.user.id]);   // deposit played through (test/playthrough.test.js)
   const w = await api('/wallet/withdraw', { amount: 50, method: 'mobile_money', details: { phone: p.phone, network: 'mtn', name: 'Ada Test' } }, p.token);
   assert.equal(w.status, 'pending');
-  assert.equal((await api(`/admin/payments/${w.paymentId}/payout`, {}, ADMIN)).ok, true);
-  assert.equal((await api(`/admin/payments/${w.paymentId}/payout`, {}, ADMIN)).error, 'already_sent', 'cannot be sent twice');
+  assert.equal((await api(`/admin/payments/${w.paymentId}/payout`, { reviewed: true }, ADMIN)).ok, true);
+  assert.equal((await api(`/admin/payments/${w.paymentId}/payout`, { reviewed: true }, ADMIN)).error, 'already_sent', 'cannot be sent twice');
   await sleep(900);
   assert.equal((await payment(w.paymentId)).status, 'success');
   await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ failTransfers: true }) });
   const w2 = await api('/wallet/withdraw', { amount: 40, method: 'mobile_money', details: { phone: p.phone, network: 'mtn', name: 'Ada Test' } }, p.token);
-  await api(`/admin/payments/${w2.paymentId}/payout`, {}, ADMIN); await sleep(900);
+  await api(`/admin/payments/${w2.paymentId}/payout`, { reviewed: true }, ADMIN); await sleep(900);
   await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ failTransfers: false }) });
   assert.equal((await payment(w2.paymentId)).status, 'failed');
   assert.equal(await bal(p.token), 150, 'the failed payout went back to the balance');

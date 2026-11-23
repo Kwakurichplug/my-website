@@ -1,12 +1,14 @@
 // Weekly Jackpot – the server fixes the 12 games of each round, tickets must cover exactly those games,
 // and when every game is over the round is graded and paid automatically.
-//   12 correct: the jackpot, shared equally between all 12/12 lines in the country
-//   11 correct / 10 correct: fixed prize per line (settings 'jackpot')
+//   Prizes come from the round's prize fund (settings 'jackpot_fund', share of the round's ticket sales per country):
+//   12 correct share t12 of sales + the carry-over from rounds nobody won (settings 'jackpot_pool'), at most the
+//   advertised jackpot; 11 / 10 correct share t11 / t10 of sales, at most the advertised amount per line.
+//   Rounds opened before the fund keep their fixed prizes (rules = null).
 // A cancelled game, or one not finished 48 h after kick-off, gets its result drawn at random,
 // weighted by the 1X2 prices (CSPRNG) – as the rules on the Jackpot page say.
 import { q, tx } from '../db/pool.js';
 import { move } from '../lib/wallet.js';
-import { getSetting } from '../lib/settings.js';
+import { getSetting, setSetting } from '../lib/settings.js';
 import { rng, r2 } from './rng.js';
 
 const outcome = (h, a) => (h > a ? '1' : h === a ? 'X' : '2');
@@ -24,8 +26,9 @@ export async function currentRound() {
     const { rows: evs } = await c.query(`SELECT e.id, e.kickoff FROM events e JOIN markets m ON m.event_id = e.id AND m.key = '1x2' AND NOT m.suspended
       WHERE e.sport = 'football' AND e.status = 'scheduled' AND e.kickoff > now() + interval '20 minutes' ORDER BY e.kickoff, e.id LIMIT 12`);
     if (evs.length < 12) return null;
-    const { rows } = await c.query(`INSERT INTO jackpot_rounds (code, event_ids, closes_at)
-      VALUES ((SELECT coalesce(max(id), 0) + 1001 FROM jackpot_rounds)::text, $1, $2) RETURNING *`, [evs.map(e => e.id), evs[0].kickoff]);
+    const rules = { fund: (await getSetting('jackpot_fund')) || { t12: 0.35, t11: 0.15, t10: 0.10 }, caps: await getSetting('jackpot') };
+    const { rows } = await c.query(`INSERT INTO jackpot_rounds (code, event_ids, closes_at, rules)
+      VALUES ((SELECT coalesce(max(id), 0) + 1001 FROM jackpot_rounds)::text, $1, $2, $3) RETURNING *`, [evs.map(e => e.id), evs[0].kickoff, rules]);
     return rows[0];
   });
 }
@@ -71,15 +74,37 @@ export async function settleRound(r) {
   await tx(async c => {
     const { rows } = await c.query(`SELECT * FROM jackpot_tickets WHERE round_id=$1 AND status='open' FOR UPDATE`, [r.id]);
     const per = rows.map(t => ({ t, h: tiers(t.picks, oc) })), summary = {};
+    const pool = r.rules ? { NG: 0, GH: 0, ...((await getSetting('jackpot_pool')) || {}) } : null;
     for (const cc of ['NG', 'GH']) {
-      const mine = per.filter(x => x.t.country === cc), sum = k => mine.reduce((s, x) => s + x.h[k], 0), k = cfg[cc];
-      const w12 = sum(12);
-      summary[cc] = { t12: { lines: w12, prize: w12 ? r2(k.jackpot / w12) : 0 }, t11: { lines: sum(11), prize: k.t11 }, t10: { lines: sum(10), prize: k.t10 } };
+      const mine = per.filter(x => x.t.country === cc), sum = k => mine.reduce((s, x) => s + x.h[k], 0);
+      const w12 = sum(12), w11 = sum(11), w10 = sum(10);
+      if (!r.rules) {   // a round opened before the prize fund: its fixed prizes
+        const k = cfg[cc];
+        summary[cc] = { t12: { lines: w12, prize: w12 ? r2(k.jackpot / w12) : 0 }, t11: { lines: w11, prize: k.t11 }, t10: { lines: w10, prize: k.t10 } };
+        continue;
+      }
+      const f = r.rules.fund, k = (r.rules.caps || cfg)[cc], sales = mine.reduce((s, x) => s + Number(x.t.cost), 0);
+      const jp = Math.max(Number((f.seed || {})[cc]) || 0, Number(pool[cc] || 0) + sales * f.t12);   // the pot: share of sales + carry-over (at least the optional seed)
+      const p12 = w12 ? r2(Math.min(k.jackpot, jp) / w12) : 0;
+      pool[cc] = r2(Math.max(0, jp - p12 * w12));            // nobody won (or the cap was reached): it carries over
+      const share = (frac, lines, cap) => (lines ? r2(Math.min(cap, (sales * frac) / lines)) : 0);
+      summary[cc] = { sales: r2(sales), t12: { lines: w12, prize: p12 }, t11: { lines: w11, prize: share(f.t11, w11, k.t11) }, t10: { lines: w10, prize: share(f.t10, w10, k.t10) }, carryOver: pool[cc] };
     }
+    if (pool) await setSetting('jackpot_pool', pool);
     await pay(c, per, summary, r.code);
     await c.query(`UPDATE jackpot_rounds SET status='settled', outcomes=$2, summary=$3, settled_at=now() WHERE id=$1`, [r.id, oc, summary]);
   });
   return true;
+}
+
+/** The jackpot pot of the open round now, per country: its share of the sales so far + the carry-over (for the page). */
+export async function currentPot(round) {
+  if (!round || !round.rules) return null;
+  const pool = (await getSetting('jackpot_pool')) || {}, f = round.rules.fund, caps = round.rules.caps || {};
+  const { rows } = await q(`SELECT country, coalesce(sum(cost),0)::float AS s FROM jackpot_tickets WHERE round_id=$1 GROUP BY country`, [round.id]);
+  const out = {};
+  for (const cc of ['NG', 'GH']) { const s = (rows.find(x => x.country === cc) || {}).s || 0; out[cc] = { pot: r2(Math.min((caps[cc] || {}).jackpot || Infinity, Math.max(Number((f.seed || {})[cc]) || 0, Number(pool[cc] || 0) + s * f.t12))), cap: (caps[cc] || {}).jackpot, sales: r2(s) }; }
+  return out;
 }
 
 export async function tick() {

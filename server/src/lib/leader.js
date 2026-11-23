@@ -22,3 +22,11 @@ export async function isLeader() {
   } catch { if (client) { try { client.release(); } catch {} } client = null; }
   return false;
 }
+
+/** On shutdown (a deploy): give the lock back at once, so the new replica takes the schedulers over without waiting. */
+export async function resign() {
+  if (!client) return;
+  try { if (leader) await client.query('SELECT pg_advisory_unlock($1)', [KEY]); } catch {}
+  try { client.release(); } catch {}
+  client = null; leader = false;
+}

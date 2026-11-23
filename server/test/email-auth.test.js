@@ -41,9 +41,15 @@ test('sign up with email: code to the address, account without a phone number, w
   assert.ok(await logged(r.user.id, 'welcome'), 'welcome email sent to the new address');
   // the same address cannot register twice, in any letter case or country
   await fails(api('/auth/otp', { country: 'GH', email: email.toUpperCase(), purpose: 'register' }), 'email_taken');
-  // a wrong code is refused
-  const other = mail('b'), o = await api('/auth/otp', { country: 'NG', email: other, purpose: 'register' });
-  await fails(api('/auth/register', { country: 'NG', email: other, code: o.devCode === '000000' ? '111111' : '000000', password: 'Strong123' }), 'bad_code');
+  // SIGNUP_CODE=on: a wrong code is refused; off (default): sign-up needs no code at all
+  const other = mail('b');
+  if ((await api('/auth/methods')).signupCode) {
+    const o = await api('/auth/otp', { country: 'NG', email: other, purpose: 'register' });
+    await fails(api('/auth/register', { country: 'NG', email: other, code: o.devCode === '000000' ? '111111' : '000000', password: 'Strong123' }), 'bad_code');
+  } else {
+    const n = await api('/auth/register', { country: 'NG', email: other, password: 'Strong123' });
+    assert.equal(n.user.email, other, 'account opened without a code');
+  }
 });
 
 test('log in with email from either country site; wrong password refused', async () => {

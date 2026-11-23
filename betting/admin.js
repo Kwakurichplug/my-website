@@ -10,6 +10,7 @@
 
   /* ---------- icons ---------- */
   const IC = {
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
     trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
     ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/></svg>',
@@ -31,6 +32,9 @@
     unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>',
     id: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16.2c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h4M14.5 13.5h3"/></svg>',
     bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 4l9 5.5M4.5 10v8M9.5 10v8M14.5 10v8M19.5 10v8M3 20h18"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12M12 9c-1.5-3-5-4.5-6-2.5S8 9 12 9zM12 9c1.5-3 5-4.5 6-2.5S16 9 12 9z"/></svg>',
+    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   };
   document.body.innerHTML = document.body.innerHTML.replace(/\$\{ic\.(\w+)\}/g, (_, k) => IC[k] || '');
 
@@ -56,8 +60,14 @@
   const ERR = { admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
   Object.assign(ERR, { not_pending: 'Someone already handled this one – the list is refreshed.', reason_required: 'Write the reason the player will see.',
     api_payment: 'Paid through the payment API – it is settled automatically.', api_not_configured: 'The payment API is not connected yet.', already_sent: 'This payout was already sent.',
-    payout_failed: 'The payment API refused the payout.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
-  const errMsg = e => ERR[e && e.message] || (e && e.detail) || (e && e.message) || 'Something went wrong';
+    payout_failed: 'The payment API refused the payout.', review_required: 'Open Review and check the account first.', checks_failed: 'Red flags on this account – tick that you checked them to approve.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
+  Object.assign(ERR, { started: 'This match has kicked off – its markets stay closed until you enter the result.', not_started: 'The match has not kicked off yet – enter the result after the final whistle (or cancel it).',
+    kickoff_too_soon: 'Kick-off must be at least 5 minutes from now.', kickoff_too_far: 'Kick-off must be within 60 days.', same_teams: 'Home and away must be different teams.',
+    odds_too_high: 'These odds pay out more than is staked (margin under 2%). Lower at least one price.', odds_too_low: 'These odds carry over 35% margin. Raise the prices.',
+    duplicate: 'This match is already on the book for that day.', league_not_found: 'Pick a league.', code_taken: 'That code already exists.',
+    amount_too_high: 'That amount is above the limit for one promo code.', bad_password: 'That password is not right.', over_transfer_limit: 'Above the limit for one transfer.', over_daily_limit: 'Above the 24-hour sending limit.', no_wallet: 'There is no MoMo wallet on this number.', ends_in_past: 'The end date is in the past.' });
+  // the server's own explanation (e.g. why a payout was refused) beats a generic line
+  const errMsg = e => (e && e.data && e.data.message) || ERR[e && e.message] || (e && e.detail) || (e && e.message) || 'Something went wrong';
   const toast = (msg, kind) => { const t = document.createElement('div'); t.className = 'toast ' + (kind || ''); t.textContent = msg; $('#toasts').appendChild(t); setTimeout(() => t.remove(), 3200); };
   const initials = u => ((u.full_name || u.fullName || '').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2) || (u.phone || 'A').slice(-2)).toUpperCase();
 
@@ -111,16 +121,29 @@
       const k = $('#navKyc'); k.hidden = !o.pending_kyc; k.textContent = o.pending_kyc || ''; state.pending = o;
     } catch {}
     try { state.api = (await API.admin.paymentSettings()).api; } catch {}
+    supportBadge();
+    try { const d = await API.admin.liveDesk(); deskBadge(d.matches, d.freshSec); } catch {}
+  }
+  // Live support badge: chats waiting for a person (or with a new message from the player); a toast when one arrives
+  async function supportBadge(n) {
+    try {
+      if (n == null) n = await API.admin.supportCount();
+      const b = $('#navSupport'); if (b) { b.hidden = !n; b.textContent = n; }
+      if (state.supportWaiting != null && n > state.supportWaiting && state.page !== 'support') toast('A player is waiting in Live support', 'ok');
+      state.supportWaiting = n;
+      document.title = (n ? `(${n}) ` : '') + 'LetBetAfrika Admin';
+    } catch {}
   }
 
   /* ---------- router ---------- */
-  const TITLES = { overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', paysettings: 'Payment settings' };
+  const TITLES = { livedesk: 'Live desk', support: 'Live support', overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', promos: 'Promo codes', sendmoney: 'Send money', agents: 'Agents', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', paysettings: 'Payment settings' };
   function route() {
     const [page = 'overview', arg = null] = location.hash.replace(/^#\/?/, '').split('/');
     state.page = TITLES[page] ? page : 'overview'; state.arg = arg ? decodeURIComponent(arg) : null;
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.nav === state.page));
     $('#pageTitle').textContent = TITLES[state.page];
     document.body.classList.remove('nav-open');
+    if (state.drawer) closeDrawer();   // a drawer from the last page never covers the new one
     render();
   }
   async function render(silent) {
@@ -137,13 +160,15 @@
   /* ---------- Overview ---------- */
   PAGES.overview = async (main, silent) => {
     const cc = state.cc || state.me.country || 'NG';
-    const [o, days, pend, live, ps] = await Promise.all([API.admin.overview(cc), API.admin.series(14, cc), API.admin.paymentsQ('pending'), API.admin.events('open'), API.admin.paymentSettings().catch(() => null)]);
+    const [o, days, pend, live, ps, ph] = await Promise.all([API.admin.overview(cc), API.admin.series(14, cc), API.admin.paymentsQ('pending'), API.admin.events('open'), API.admin.paymentSettings().catch(() => null), API.admin.payoutHealth().catch(() => null)]);
     state.overview = o; keepPays(pend);
     const setup = [];
+    if (ph && ph.ok === false && Date.now() - Date.parse(ph.at) < 3 * 86400000) setup.push(['Moolre payouts are failing', `Last attempt refused: ${ph.message || 'error'} – open Payments for the fix.`, '#/payments']);
+    if (depFail(ph)) setup.push(['Moolre deposits are not being confirmed', `Moolre refused the payment check: ${ph.deposits.message || 'error'} – deposits stay pending until this is fixed. Open Payments.`, '#/payments']);
     if (ps) {
       const b = ps.settings.NG.bank, m = ps.settings.GH.momo; state.api = ps.api;
       if (!(b.bank && b.number && b.name)) setup.push(['Nigerian players cannot deposit yet', 'Add the bank account players pay into.', '#/paysettings']);
-      if (!ps.api.enabled && !(m.number && m.name)) setup.push(['Ghana deposits are closed', 'Connect the payment API (PAYSTACK_SECRET_KEY) or add a MoMo number.', '#/paysettings']);
+      if (!ps.api.enabled && !(m.number && m.name)) setup.push(['Ghana deposits are closed', 'Connect the payment API (Moolre keys in Railway) or add a MoMo number.', '#/paysettings']);
     }
     const today = days[days.length - 1] || {};
     const ggr = (o.staked_today || 0) - (o.paid_today || 0) + (o.game_staked_today || 0) - (o.game_paid_today || 0);
@@ -204,13 +229,18 @@
     $('#pq').onsubmit = e => { e.preventDefault(); location.hash = '#/players/' + encodeURIComponent($('#pq input').value.trim()); };
   };
 
+  // paid in or out through a payment API (Moolre, Paystack): settled by the provider, never by hand
+  const isApiPay = p => !!p && (p.provider === 'moolre' || p.provider === 'paystack');
+  const apiPill = p => isApiPay(p) ? ` <span class="pill info">${p.provider === 'moolre' ? 'Moolre' : 'Paystack'}</span>` : '';
+  const apiName = () => (state.api && state.api.label) || 'the payment API';
+
   async function openUser(id) {
     openDrawer('<div class="loading">Loading player…</div>');
     const d = await API.admin.user(id);
     const u = d.user, cc = u.country;
     const tab = (t) => {
       if (t === 'bets') return `<table class="mini"><thead><tr><th>Ticket</th><th>Type</th><th class="r">Stake</th><th class="r">Odds</th><th>Status</th><th class="r">Paid</th><th>Placed</th></tr></thead><tbody>${d.bets.map(b => `<tr><td><span class="lnk" data-bet="${esc(b.id)}">${esc(b.id)}</span></td><td>${b.type}</td><td class="r">${money(b.stake, cc)}</td><td class="r">${Number(b.odds).toFixed(2)}</td><td>${pill(b.status, P_BET)}</td><td class="r">${b.paid != null ? money(b.paid, cc) : '–'}</td><td class="muted">${when(b.placed_at)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No bets yet</td></tr>'}</tbody></table>`;
-      if (t === 'pay') return `<table class="mini"><thead><tr><th>Kind</th><th>Method</th><th class="r">Amount</th><th>Status</th><th>When</th><th></th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${p.kind}</td><td>${esc(mName(p))}${p.provider === 'paystack' ? ' <span class="pill info">API</span>' : ''}</td><td class="r">${money(p.amount, cc)}</td><td>${payPill(p)}</td><td class="muted">${when(p.created_at)}</td><td>${p.status === 'pending' ? `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Approve</button> <button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No payments yet</td></tr>'}</tbody></table>`;
+      if (t === 'pay') return `<table class="mini"><thead><tr><th>Kind</th><th>Method</th><th class="r">Amount</th><th>Status</th><th>When</th><th></th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${p.kind}</td><td>${esc(mName(p))}${apiPill(p)}</td><td class="r">${money(p.amount, cc)}</td><td>${payPill(p)}</td><td class="muted">${when(p.created_at)}</td><td>${p.status === 'pending' && !isApiPay(p) ? `${p.kind === 'withdrawal' ? `<button class="btn xs primary" data-review="${p.id}">Review</button>` : `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Approve</button>`} <button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No payments yet</td></tr>'}</tbody></table>`;
       if (t === 'tx') return `<table class="mini"><thead><tr><th>Type</th><th class="r">Amount</th><th class="r">Balance</th><th>Ref</th><th>When</th></tr></thead><tbody>${d.transactions.map(x => `<tr><td>${esc(x.type)}${x.meta && x.meta.reason ? `<div class="muted small">${esc(x.meta.reason)}</div>` : ''}</td><td class="r amt ${Number(x.amount) >= 0 ? 'in' : 'out'}">${Number(x.amount) >= 0 ? '+' : ''}${money(x.amount, cc)}</td><td class="r">${money(x.balance_after, cc)}</td><td class="id">${esc(x.ref || '')}</td><td class="muted">${when(x.created_at)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No transactions yet</td></tr>'}</tbody></table>`;
       if (t === 'games') return `<table class="mini"><thead><tr><th>Game</th><th class="r">Plays</th><th class="r">Staked</th><th class="r">Paid</th><th class="r">Hold</th></tr></thead><tbody>${d.games.map(g => `<tr><td>${esc(g.game)}</td><td class="r">${int(g.plays)}</td><td class="r">${money(g.staked, cc)}</td><td class="r">${money(g.paid, cc)}</td><td class="r">${g.staked > 0 ? ((1 - g.paid / g.staked) * 100).toFixed(1) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No game plays yet</td></tr>'}</tbody></table>`;
     };
@@ -222,10 +252,12 @@
       <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
       <div class="d-actions">
         <button class="btn sm primary" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
-        ${u.verified ? `<button class="btn sm" data-kyc="reject" data-id="${u.id}">Revoke ID check</button>` : kyc.status === 'pending' ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : ''}
+        ${u.is_agent ? '' : kyc.status === 'pending' && !u.verified ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : `<button class="btn sm" data-kyc="resubmit" data-id="${u.id}">${kyc.status === 'resubmit' ? 'Ask for ID again (sent)' : 'Ask for ID again'}</button>`}
         ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
+        ${u.is_agent ? `<button class="btn sm" data-agent-set="${u.id}" data-v="false">Stop agent</button>` : `<button class="btn sm" data-agent-set="${u.id}" data-v="true">Make agent</button>`}
       </div>
+      ${u.is_agent && u.agent_code ? `<div class="agent-box"><b>Agent</b> · code <span class="mono">${esc(u.agent_code)}</span><div class="agent-link"><input readonly value="${esc(location.origin + '/?agent=' + u.agent_code)}" onclick="this.select()"><a class="btn xs" href="#/agents">Agents page</a></div></div>` : ''}
       <dl class="kv"><dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
@@ -234,16 +266,25 @@
   }
 
   /* ---------- Payments ---------- */
+  // a banner while payouts through the payment API fail (wrong key, account not activated…)
+  const depFail = h => !!(h && h.deposits && h.deposits.ok === false && Date.now() - Date.parse(h.deposits.at) < 3 * 86400000);
+  const depositBanner = h => depFail(h)
+    ? `<div class="banner bad"><b>Moolre deposits are not being confirmed</b> – the last payment check (${when(h.deposits.at)}) was refused: <span class="mono">${esc(h.deposits.message || 'error')}</span>. Deposits stay pending (no player is credited) until Moolre accepts the check. ${/AIN|auth|key/i.test(h.deposits.message || '') ? 'Copy the current <b>public key</b> from the Moolre dashboard (API keys) into the Railway variable <span class="mono">MOOLRE_PUBLIC_KEY</span>, and check <span class="mono">MOOLRE_USER</span> and <span class="mono">MOOLRE_ACCOUNT_NUMBER</span>.' : 'Check the Moolre account and keys.'} Pending deposits are checked again every minute and settle by themselves once it works.</div>`
+    : '';
+  const payoutBanner = h => h && h.ok === false && Date.now() - Date.parse(h.at) < 3 * 86400000
+    ? `<div class="banner bad"><b>Moolre payouts are failing</b> – the last attempt (${when(h.at)}) was refused: <span class="mono">${esc(h.message || 'error')}</span>. ${/AIN0?1|auth/i.test(h.message || '') ? 'The private key in Railway is not accepted: copy the current <b>private key</b> from the Moolre dashboard (API keys) into the Railway variable <span class="mono">MOOLRE_PRIVATE_KEY</span>.' : /AIN0?4|activ/i.test(h.message || '') ? 'API access is not activated on the Moolre account – ask Moolre to activate payouts (transfers) for your API keys.' : 'Check the Moolre account and keys.'} Until then, pay withdrawals by hand and mark them paid. This disappears after the next payout goes through.</div>` : '';
   PAGES.payments = async main => {
     const [status = 'pending', kind = ''] = (state.arg || '').split(':');
-    const rows = keepPays(await API.admin.paymentsQ(status, kind || undefined));
+    const [rows0, ph] = await Promise.all([API.admin.paymentsQ(status, kind || undefined), API.admin.payoutHealth().catch(() => null)]);
+    const rows = keepPays(rows0);
     const seg = (cur, items, fn) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" data-f="${fn}" data-v="${v}">${l}</button>`).join('')}</div>`;
     main.innerHTML = `
       <div class="page-head"><div><h2>Payments</h2><p>Deposits waiting for you to confirm the money arrived, and withdrawals waiting for payout. Confirm a deposit only when you can see it in the account; mark a withdrawal paid only after you have sent it. Rejecting a withdrawal refunds the player at once. Mobile Money through the payment API settles by itself.</p></div></div>
+      ${depositBanner(ph)}${payoutBanner(ph)}
       <div class="card"><div class="toolbar">${seg(status, [['pending', 'Pending'], ['success', 'Done'], ['rejected', 'Rejected'], ['failed', 'Failed'], ['cancelled', 'Cancelled'], ['all', 'All']], 'status')}${seg(kind, [['', 'Both'], ['withdrawal', 'Withdrawals'], ['deposit', 'Deposits']], 'kind')}<span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Requested</th><th>Player</th><th>Kind</th><th>Method</th><th class="wrap">Pay to / reference</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>
         ${rows.map(p => `<tr><td class="muted">${when(p.created_at)}<div class="small">${ago(p.created_at)}</div></td><td><div class="who"><b class="lnk" data-user="${p.user_id}">${esc(p.full_name || phoneFmt(p.country, p.phone))}</b><small>ID ${p.uid} · ${flag(p.country)}${esc(phoneFmt(p.country, p.phone))}</small></div></td>
-          <td>${p.kind === 'withdrawal' ? pill('w', { w: ['warn', 'Withdrawal'] }) : pill('d', { d: ['info', 'Deposit'] })}</td><td>${esc(mName(p))}${p.provider === 'paystack' ? ' <span class="pill info">API</span>' : ''}</td><td class="wrap small">${payDetails(p)}</td><td class="r amt ${p.kind === 'deposit' ? 'in' : 'out'}">${money(p.amount, p.country)}</td><td>${payPill(p)}</td>
+          <td>${p.kind === 'withdrawal' ? pill('w', { w: ['warn', 'Withdrawal'] }) : pill('d', { d: ['info', 'Deposit'] })}</td><td>${esc(mName(p))}${apiPill(p)}</td><td class="wrap small">${payDetails(p)}</td><td class="r amt ${p.kind === 'deposit' ? 'in' : 'out'}">${money(p.amount, p.country)}</td><td>${payPill(p)}</td>
           <td><div class="acts">${payActs(p)}</div></td></tr>`).join('') || `<tr><td colspan="8"><div class="empty"><b>Nothing here</b>No ${status === 'all' ? '' : status} payments${kind ? ' of this kind' : ''}.</div></td></tr>`}
       </tbody></table></div></div>`;
     $$('#main [data-f]').forEach(b => b.onclick = () => { const s = b.dataset.f === 'status' ? b.dataset.v : status, k = b.dataset.f === 'kind' ? b.dataset.v : kind; location.hash = `#/payments/${s}:${k}`; });
@@ -251,7 +292,8 @@
   const payDetails = p => {
     const d = p.details || {}, out = [];
     if (p.kind === 'deposit') {
-      if (d.sender) out.push('From <b>' + esc(d.sender) + '</b>');
+      if (d.txid) out.push('USSD · transaction <b class="mono">' + esc(d.txid) + '</b>');
+      else if (d.sender) out.push('From <b>' + esc(d.sender) + '</b>');
       if (d.phone) out.push(esc((NET[d.network] || d.network || 'MoMo') + ' · 0' + d.phone));
       if (p.provider_ref) out.push('Ref <span class="mono">' + esc(p.provider_ref) + '</span>');
       if (d.claimed) out.push('player said ' + money(d.claimed, p.country));
@@ -262,15 +304,62 @@
       if (d.payoutRef) out.push('Paid ref <span class="mono">' + esc(d.payoutRef) + '</span>');
     }
     if (d.reason && p.status !== 'success') out.push('<span class="muted">' + esc(d.reason) + '</span>');
+    if (d.providerReason && p.status !== 'success') out.push('<span class="muted mono">' + esc(d.providerReason) + '</span>');
+    if (d.apiError && p.status === 'pending' && !isApiPay(p)) out.push('<span class="pill bad">Not sent: ' + esc(d.apiError) + '</span>');
     return out.join(' · ') || '–';
   };
   const payActs = p => {
     if (p.status !== 'pending') { const at = d => d && (d.at || d.paidAt || d.confirmedAt); return `<span class="muted small">${at(p.details) ? 'handled ' + ago(at(p.details)) : ''}</span>`; }
-    if (p.provider === 'paystack') return `<span class="muted small">${p.kind === 'deposit' ? 'Waiting for the player to approve on their phone' : 'Sent via the payment API – waiting for confirmation'}</span>`;
-    return `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">${p.kind === 'withdrawal' ? 'Mark paid' : 'Confirm'}</button>${p.kind === 'withdrawal' && p.method === 'mobile_money' && state.api && state.api.enabled ? `<button class="btn xs" data-payout="${p.id}">Send via Paystack</button>` : ''}<button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
+    if (isApiPay(p)) return `<span class="muted small">${p.kind === 'deposit' ? 'Waiting for the player to approve on their phone – credited automatically when the payment is confirmed' : 'Sent – waiting for confirmation (refunded automatically if it fails)'}</span>`;
+    // a withdrawal is only paid from the Review screen, after the account checks
+    if (p.kind === 'withdrawal') return `<button class="btn xs primary" data-review="${p.id}">Review</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
+    return `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Confirm</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
   };
 
-  function payAction(id, action) {
+  /* Withdrawal review: the account checks (lib/withdrawals.js), then Approve & send / Mark paid / Reject. Red flags
+     must be acknowledged before anything can be paid; the server enforces it for API payouts and records it. */
+  const KYC_PILL = { verified: ['ok', 'Verified'], pending: ['warn', 'Waiting'], rejected: ['bad', 'Rejected'], none: ['bad', 'Not verified'] };
+  const NAME_PILL = { match: ['ok', 'Matches the player'], partial: ['warn', 'Partly matches'], mismatch: ['bad', 'Does not match'], unknown: ['', 'Not compared'] };
+  async function reviewModal(id, refresh) {
+    openModal('<div class="loading">Checking the account…</div>');
+    let c;
+    try { c = await API.admin.paymentChecks(id, refresh); } catch (e) { closeModal(); return toast(errMsg(e), 'err'); }
+    const p = c.payment, pl = c.player, m = c.money, cc = pl.country || 'GH', n = c.number;
+    if (p.status !== 'pending') { closeModal(); render(true); return toast('This withdrawal was already handled', 'ok'); }
+    const momo = !c.momo ? '–' : c.momo.status === 'found' ? `<b>${esc(c.momo.name)}</b> ${pill(c.momo.match, NAME_PILL)}`
+      : c.momo.status === 'not_found' ? '<span class="pill bad">No MoMo wallet on this number</span>' : `<span class="muted">${esc(c.momo.reason || 'Lookup unavailable')}</span>`;
+    const api = p.method === 'mobile_money' && state.api && state.api.enabled;
+    const payTo = p.details.account || [p.details.bank, p.details.acct, p.details.name].filter(Boolean).join(' · ') || '–';
+    openModal(`<h3>Review withdrawal · ${money(p.amount, cc)}</h3><p class="sub">Check the account before paying. Nothing is paid until you approve it here; rejecting returns the money to the player.</p>
+      <div class="rv-flags">${c.flags.length ? c.flags.map(f => `<div class="rv-flag ${f.level}">${f.level === 'bad' ? '✕' : '!'} ${esc(f.text)}</div>`).join('') : '<div class="rv-flag ok">✓ No flags – the account checks are clean</div>'}</div>
+      <dl class="kv">
+        <dt>Pay to</dt><dd><span class="mono">${esc(payTo)}</span>${p.details.name ? ` · name given: ${esc(p.details.name)}` : ''}</dd>
+        ${c.momo ? `<dt>MoMo name</dt><dd>${momo} <button class="btn xs" id="rvRefresh">Check again</button></dd>` : ''}
+        <dt>Player</dt><dd>${esc(pl.name || '–')} · ID ${pl.uid} · ${esc(pl.phone ? phoneFmt(cc, pl.phone) : pl.email || '')} · joined ${when(pl.createdAt)}</dd>
+        <dt>ID check</dt><dd>${pill(pl.kyc, KYC_PILL)} · account ${esc(String(pl.status).replace('_', ' '))}</dd>
+        <dt>Deposits</dt><dd>${money(m.deposits, cc)} <span class="muted">(${m.depositCount})</span>${m.lastDepositAt ? ` · last ${ago(m.lastDepositAt)}` : ''}</dd>
+        <dt>Withdrawn</dt><dd>${money(m.withdrawn, cc)} <span class="muted">(${m.withdrawCount} paid)</span>${m.pendingCount ? ` · <b>${m.pendingCount} more waiting</b> (${money(m.pending, cc)})` : ''}</dd>
+        <dt>Staked</dt><dd>${money(m.staked, cc)} in total · ${money(m.stakedSinceDeposit, cc)} since the last deposit</dd>
+        <dt>Balance</dt><dd>${money(m.balance, cc)} ${m.ledgerOk ? '<span class="pill ok">matches the ledger</span>' : '<span class="pill bad">does not match the ledger</span>'}</dd>
+        ${n ? `<dt>This number</dt><dd>${n.depositsFromIt ? `${n.depositsFromIt} deposit${n.depositsFromIt === 1 ? '' : 's'} from it by this player` : 'never deposited from by this player'}${n.otherAccounts.length ? ` · <b>also used by ID ${n.otherAccounts.map(esc).join(', ')}</b>` : ' · no other account uses it'}</dd>` : ''}
+      </dl>
+      ${c.bad ? '<label class="chk"><input type="checkbox" id="rvOverride"> I have checked the red flags above and still approve this payout</label>' : ''}
+      <div class="m-actions"><button class="btn danger" id="rvReject">Reject</button><span class="spacer"></span><button class="btn" id="rvManual">Mark paid (sent by hand)</button>${api ? `<button class="btn primary" id="rvSend">Approve &amp; send via ${esc(apiName())}</button>` : ''}</div>`);
+    const allowed = () => !c.bad || $('#rvOverride').checked;
+    const sync = () => { for (const b of [$('#rvSend'), $('#rvManual')]) if (b) b.disabled = !allowed(); };
+    if (c.bad) { $('#rvOverride').onchange = sync; sync(); }
+    const review = () => ({ reviewed: true, override: !!c.bad });
+    if ($('#rvRefresh')) $('#rvRefresh').onclick = () => reviewModal(id, true);
+    $('#rvReject').onclick = () => payAction(id, 'reject');
+    $('#rvManual').onclick = () => { if (allowed()) payAction(id, 'approve', review()); };
+    if ($('#rvSend')) $('#rvSend').onclick = async () => {
+      if (!allowed()) return;
+      try { $('#rvSend').disabled = true; $('#rvSend').textContent = 'Sending…'; const r = await API.admin.payout(id, review()); closeModal(); toast(r.status === 'success' ? 'Paid' : `Sent – waiting for ${apiName()} to confirm`, 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
+      catch (e) { toast(errMsg(e), 'err'); closeModal(); render(true); }
+    };
+  }
+
+  function payAction(id, action, review) {
     const p = state.payRows.get(id) || {}, approve = action === 'approve', dep = p.kind === 'deposit', cc = p.country || 'NG';
     const quick = approve ? [] : dep ? ['No transfer received', 'The amount does not match the transfer', 'The sender name does not match'] : ['The account name does not match yours', 'The account details are not valid', 'Please verify your ID first'];
     openModal(`<h3>${approve ? (dep ? 'Confirm this deposit' : 'Mark this withdrawal as paid') : (dep ? 'Reject this deposit' : 'Reject this withdrawal')}</h3>
@@ -286,18 +375,12 @@
       const body = {};
       if (approve) {
         if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; }
-        else { const r = $('#mRef').value.trim(); if (r) body.reference = r; }
+        else { const r = $('#mRef').value.trim(); if (r) body.reference = r; if (review) Object.assign(body, review); }
         const n = $('#mNote').value.trim(); if (n) body.note = n;
       } else { const r = $('#mReason').value.trim(); if (!r) return $('#mReason').focus(); body.reason = r; }
       try { $('#mGo').disabled = true; await API.admin.payment(id, action, body); closeModal(); toast(approve ? (dep ? 'Deposit confirmed – player credited' : 'Withdrawal marked as paid') : 'Payment rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
       catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; if (e.message === 'not_pending') { closeModal(); render(true); } }
     };
-  }
-  function payoutAction(id) {
-    const p = state.payRows.get(id) || {};
-    openModal(`<h3>Send this payout through Paystack?</h3><p class="sub">${money(p.amount, p.country)} goes to ${esc((p.details && p.details.account) || 'the player’s MoMo wallet')} from your Paystack balance. It is marked paid when Paystack confirms; if the transfer fails, the money goes back to the player.</p>
-      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Send ${money(p.amount, p.country)}</button></div>`);
-    $('#mGo').onclick = async () => { try { $('#mGo').disabled = true; const r = await API.admin.payout(id); closeModal(); toast(r.status === 'success' ? 'Paid' : 'Sent – waiting for Paystack to confirm', 'ok'); chips(); render(true); } catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; } };
   }
 
 
@@ -346,7 +429,7 @@
     const cc = state.me.country, f = state.feed || {};
     main.innerHTML = `
       <div class="page-head"><div><h2>Trading desk</h2><p>Every event on the book with its markets and open exposure. Suspend a market during a key moment, correct a price, or enter a result when the feed cannot.</p></div>
-        <div class="page-actions"><span class="chip ${(f.provider || 'demo') === 'demo' ? 'warn' : 'ok'}"><i class="dot"></i>${(f.provider || 'demo') === 'demo' ? 'Demo odds feed' : 'Feed: ' + esc(f.provider)}</span></div></div>
+        <div class="page-actions"><span class="chip ${(f.provider || 'demo') === 'demo' ? 'warn' : 'ok'}"><i class="dot"></i>${(f.provider || 'demo') === 'demo' ? 'Demo odds feed' : 'Feed: ' + esc(f.provider)}</span><button class="btn primary" id="addMatch">${IC.plus} Add match</button></div></div>
       <div class="card"><div class="toolbar"><div class="seg">${[['open', 'Open'], ['live', 'Live'], ['scheduled', 'Upcoming'], ['finished', 'Finished'], ['cancelled', 'Cancelled']].map(([v, l]) => `<button class="${v === status ? 'on' : ''}" data-st="${v}">${l}</button>`).join('')}</div>
         <form class="search" id="eq"><i>${IC.search}</i><input placeholder="Team, league or event ID" value="${esc(q)}"></form><span class="spacer"></span><span class="muted small">${rows.length} events</span></div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Event</th><th>Kick-off</th><th>Status</th><th class="r">Markets</th><th class="r">Exposure</th><th></th></tr></thead><tbody>
@@ -357,7 +440,220 @@
       </tbody></table></div></div>`;
     $$('#main [data-st]').forEach(x => x.onclick = () => { location.hash = `#/trading/${x.dataset.st}:${encodeURIComponent(q)}`; });
     $('#eq').onsubmit = e => { e.preventDefault(); location.hash = `#/trading/${status}:${encodeURIComponent($('#eq input').value.trim())}`; };
+    $('#addMatch').onclick = () => addMatchModal().catch(e => toast(errMsg(e), 'err'));
   };
+
+  /* ---------- Hand-added matches: crests, flags, Add match, live scoring ---------- */
+  // country / region names for every flag the site has (betting/img/flags), from the browser's own list
+  const SPECIAL_REGIONS = { 'gb-eng': 'England', 'gb-sct': 'Scotland', 'gb-wls': 'Wales', 'gb-nir': 'Northern Ireland', eu: 'Europe', un: 'United Nations', arab: 'Arab League',
+    cefta: 'CEFTA', eac: 'East African Community', xk: 'Kosovo', pc: 'Pacific Community', 'sh-ac': 'Ascension Island', 'sh-hl': 'Saint Helena', 'sh-ta': 'Tristan da Cunha', world: 'International' };
+  let regionNames = null; try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch {}
+  const regionName = c => SPECIAL_REGIONS[c] || (() => { try { return regionNames && /^[a-z]{2}$/.test(c) ? regionNames.of(c.toUpperCase()) : c.toUpperCase(); } catch { return c.toUpperCase(); } })();
+  let FLAG_LIST = null;
+  const flagList = async () => FLAG_LIST || (FLAG_LIST = (await API.admin.flags()).map(code => ({ code, name: regionName(code) })).sort((a, b) => a.name.localeCompare(b.name)));
+  const flagImg = code => code && code !== 'world' ? `<img class="fl-img" src="img/flags/${esc(code)}.svg" alt="">` : '<span class="fl-img fl-none"></span>';
+  /** A searchable list of every flag inside `host`; onPick(code). */
+  async function flagPicker(host, onPick) {
+    const list = await flagList();
+    host.hidden = false;
+    host.innerHTML = `<input class="fp-q" placeholder="Search a country or region…" autocomplete="off"><div class="fp-list"></div>`;
+    const box = host.querySelector('.fp-list'), q = host.querySelector('.fp-q');
+    const draw = v => { const t = v.trim().toLowerCase(); box.innerHTML = list.filter(f => !t || f.name.toLowerCase().includes(t) || f.code === t).slice(0, 90)
+      .map(f => `<button type="button" class="fp-it" data-fp="${esc(f.code)}">${flagImg(f.code)}<span>${esc(f.name)}</span></button>`).join('') || '<p class="muted small">Nothing found</p>'; };
+    draw(''); q.oninput = () => draw(q.value); q.focus();
+    box.onclick = e => { const b = e.target.closest('[data-fp]'); if (b) { host.hidden = true; onPick(b.dataset.fp); } };
+  }
+  const teamInitials = n => String(n || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  const tileHTML = (logo, name) => (logo ? `<img src="${esc(logo)}" alt="">` : `<span>${esc(teamInitials(name))}</span>`);
+  /** Shrink an image file to ≤160 px and ≤44 KB (WebP, else PNG) as a data URL. */
+  async function shrinkImage(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('This file is not an image we can read.')); i.src = url; });
+      const W = img.naturalWidth || 160, H = img.naturalHeight || 160;
+      for (const size of [160, 128, 96]) {
+        const k = Math.min(1, size / Math.max(W, H)), w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
+        const cv = Object.assign(document.createElement('canvas'), { width: w, height: h }); cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        for (const [type, qual] of [['image/webp', 0.9], ['image/png'], ['image/webp', 0.7]]) {
+          const d = cv.toDataURL(type, qual);
+          if (d.startsWith('data:' + type) && d.length * 0.75 < 44000) return d;
+        }
+      }
+      throw new Error('This image is too large even after shrinking – use a simpler logo.');
+    } finally { URL.revokeObjectURL(url); }
+  }
+  /** Crest tile + Upload / Flag / Link / Find for one team. getName() = the team name now; the crest is remembered
+   *  for that name, so every match of the team shows it. */
+  function crestEditor(box, getName, logo) {
+    box.classList.add('ct');
+    box.innerHTML = `<div class="ct-tile" title="Crest">${tileHTML(logo, getName())}</div>
+      <div class="ct-acts"><button type="button" class="btn xs" data-ct="upload">Upload</button><button type="button" class="btn xs" data-ct="flag">Flag</button><button type="button" class="btn xs" data-ct="link">Link</button><button type="button" class="btn xs" data-ct="find">Find</button>
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></div>
+      <div class="ct-pop" hidden></div>`;
+    const tile = box.querySelector('.ct-tile'), pop = box.querySelector('.ct-pop'), file = box.querySelector('input[type=file]');
+    const show = url => { logo = url; tile.innerHTML = tileHTML(url, getName()); };
+    const named = () => { const n = getName().trim(); if (n.length < 2) { toast('Type the team name first', 'err'); return null; } return n; };
+    const run = async (fn, okMsg) => {
+      tile.classList.add('busy');
+      try { const r = await fn(); if (r && r.logo) { show(r.logo); toast(okMsg, 'ok'); } else toast('No crest found for this name – upload one or use a flag', 'err'); }
+      catch (e) { toast(errMsg(e), 'err'); } finally { tile.classList.remove('busy'); }
+    };
+    box.querySelector('.ct-acts').onclick = e => {
+      const b = e.target.closest('[data-ct]'); if (!b) return;
+      const n = named(); if (!n) return;
+      const k = b.dataset.ct;
+      if (k === 'upload') return file.click();
+      if (k === 'find') return run(() => API.admin.crestFind(n), 'Crest found');
+      if (k === 'flag') return flagPicker(pop, code => run(() => API.admin.crestFlag(n, code), 'Flag set as the crest'));
+      pop.hidden = false;
+      pop.innerHTML = '<div class="ct-link"><input placeholder="https://…/crest.png" autocomplete="off"><button type="button" class="btn xs primary">Use</button></div>';
+      const i = pop.querySelector('input'); i.focus();
+      pop.querySelector('button').onclick = () => { const u = i.value.trim(); if (!/^https:\/\/\S{6,}$/.test(u)) return toast('Use an https:// link to an image', 'err'); pop.hidden = true; run(() => API.admin.crestLink(n, u), 'Crest saved'); };
+    };
+    file.onchange = async () => {
+      const f = file.files[0]; file.value = ''; if (!f) return;
+      const n = named(); if (!n) return;
+      try { const d = await shrinkImage(f); await run(() => API.admin.crestUpload(n, d), 'Crest uploaded'); } catch (e) { toast(e.message, 'err'); }
+    };
+    return { show };
+  }
+  /** Type-ahead from teams already seen (with their crests) for a team input; keeps the crest tile in step. */
+  function teamInput(input, list, editor) {
+    const known = new Map(); let t = 0;
+    const look = async () => { try { const rows = await API.admin.teams(input.value.trim()); rows.forEach(r => known.set(r.name, r.logo || null)); list.innerHTML = rows.map(r => `<option value="${esc(r.name)}"></option>`).join(''); sync(); } catch {} };
+    const sync = () => { const v = input.value.trim(); editor.show(known.has(v) ? known.get(v) : null); };
+    input.addEventListener('input', () => { sync(); clearTimeout(t); t = setTimeout(look, 220); });
+    look();
+  }
+  const pad2 = n => String(n).padStart(2, '0');
+  const localInput = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  function kickoffChips() {
+    const now = new Date(), out = [], at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x; };
+    const add = (label, d) => { if (d - now > 10 * 60000 && !out.some(o => +o[1] === +d)) out.push([label, d]); };
+    add('In 1 hour', new Date(Math.ceil((now.getTime() + 3600e3) / 9e5) * 9e5));
+    [13, 15, 16, 18, 20].forEach(h => add(`Today ${h}:00`, at(now, h)));
+    const tom = new Date(now.getTime() + 864e5); [15, 18].forEach(h => add(`Tomorrow ${h}:00`, at(tom, h)));
+    for (let i = 2; i <= 7; i++) { const d = new Date(now.getTime() + i * 864e5); if (d.getDay() === 6 || d.getDay() === 0) add(`${d.toLocaleDateString([], { weekday: 'short' })} 15:00`, at(d, 15)); }
+    return out.slice(0, 8);
+  }
+
+  // A real fixture the odds feed does not carry. The admin sets the teams (crests), the kick-off and the 1X2; the
+  // server prices every other full-time market from it. Betting closes at kick-off; settle with the real score.
+  async function addMatchModal(pre = {}) {
+    const leagues = await API.admin.leagues();
+    let lgSel = pre.leagueId ? String(pre.leagueId) : pre.leagueName ? String((leagues.find(l => l.name === pre.leagueName && l.country === pre.leagueCountry) || {}).id || '') : '';
+    let newFlag = 'gh';
+    const ko0 = pre.ko || (() => { const d = new Date(Date.now() + 3 * 3600e3); d.setMinutes(0, 0, 0); return localInput(d); })();
+    const odd = (id, l) => `<label class="field"><span>${l}</span><input id="${id}" type="number" inputmode="decimal" step="0.01" min="1.01" max="100" placeholder="e.g. 2.10"></label>`;
+    const team = side => `<div class="am-team"><div class="am-crest" id="mCr${side}"></div><label class="field"><span>${side === 'H' ? 'Home team' : 'Away team'}</span><input id="m${side === 'H' ? 'Home' : 'Away'}" maxlength="60" list="mTeams${side}" autocomplete="off" placeholder="Type or pick a team"><datalist id="mTeams${side}"></datalist></label></div>`;
+    openModal(`<h3>Add a match</h3><p class="sub">A real fixture the odds feed does not carry. Pick the teams (their crests are remembered), the kick-off and your 1X2 odds; every other full-time market is priced from them. Betting closes at kick-off. Score it live from the match drawer if you like, then settle it with the real final score.</p>
+      <div class="am-lg"><span class="am-lgflag" id="mLgFlagShow"></span><label class="field"><span>League</span><select id="mLg"><option value="">Choose a league…</option>${leagues.map(l => `<option value="${l.id}" ${String(l.id) === lgSel ? 'selected' : ''}>${esc(l.country)} · ${esc(l.name)}</option>`).join('')}<option value="new">+ New league…</option></select></label></div>
+      <div id="mNewLg" hidden><div class="field-row"><label class="field"><span>League name</span><input id="mLgName" maxlength="60" placeholder="e.g. Division One League"></label><label class="field"><span>Country / region</span><input id="mLgCountry" maxlength="40" placeholder="e.g. Ghana"></label></div>
+        <div class="am-flagpick"><span>Flag</span><button type="button" class="btn sm" id="mFlagBtn"></button></div><div class="ct-pop" id="mFlagPop" hidden></div></div>
+      <div class="am-teams">${team('H')}<span class="am-vs">vs</span>${team('A')}</div>
+      <label class="field"><span>Kick-off (your local time)</span><input id="mKo" type="datetime-local" value="${esc(ko0)}"></label>
+      <div class="ko-chips">${kickoffChips().map(([l, d]) => `<button type="button" class="btn xs" data-ko="${localInput(d)}">${esc(l)}</button>`).join('')}</div>
+      <div class="field-row">${odd('mO1', 'Home win (1)')}${odd('mOX', 'Draw (X)')}${odd('mO2', 'Away win (2)')}</div>
+      <p class="help" id="mPrev">Enter the three prices to see the margin and some of the markets priced from them.</p>
+      <label class="chk am-live"><input type="checkbox" id="mLive" checked><span><b>Live betting during the match</b><small>Opens by itself at kick-off; stays open while you keep the score on the Live desk.</small></span></label>
+      <p class="form-err" id="mErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Add match</button></div>`);
+    const lgFlag = () => { const v = $('#mLg').value, l = leagues.find(x => String(x.id) === v); $('#mLgFlagShow').innerHTML = v === 'new' ? flagImg(newFlag) : l ? flagImg(l.flag) : ''; };
+    const flagBtn = () => { $('#mFlagBtn').innerHTML = `${flagImg(newFlag)}<span>${esc(regionName(newFlag))}</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>`; lgFlag(); };
+    $('#mLg').onchange = () => { $('#mNewLg').hidden = $('#mLg').value !== 'new'; lgFlag(); };
+    $('#mFlagBtn').onclick = () => flagPicker($('#mFlagPop'), code => { newFlag = code; if (!$('#mLgCountry').value.trim()) $('#mLgCountry').value = regionName(code); flagBtn(); });
+    flagBtn(); lgFlag();
+    const edH = crestEditor($('#mCrH'), () => $('#mHome').value), edA = crestEditor($('#mCrA'), () => $('#mAway').value);
+    teamInput($('#mHome'), $('#mTeamsH'), edH); teamInput($('#mAway'), $('#mTeamsA'), edA);
+    $$('#modalBody [data-ko]').forEach(b => b.onclick = () => { $('#mKo').value = b.dataset.ko; $$('#modalBody [data-ko]').forEach(x => x.classList.toggle('primary', x === b)); });
+    const odds = () => ({ home: +$('#mO1').value, draw: +$('#mOX').value, away: +$('#mO2').value });
+    let timer = 0, seq = 0;
+    const preview = () => {
+      clearTimeout(timer);
+      const o = odds(); if (!(o.home >= 1.01 && o.draw >= 1.01 && o.away >= 1.01)) { $('#mPrev').textContent = 'Enter the three prices to see the margin and some of the markets priced from them.'; return; }
+      timer = setTimeout(async () => {
+        const n = ++seq;
+        try {
+          const r = await API.admin.previewMatch(o); if (n !== seq) return;
+          const pick = (k, o2) => { const m = r.sample.find(x => x.key === k); const v = m && m.outcomes[o2]; return v && v.o ? Number(v.o).toFixed(2) : '–'; };
+          $('#mPrev').innerHTML = `Margin <b>${r.margin}%</b> · ${r.markets} markets · e.g. 1X ${pick('dc', '1X')} · X2 ${pick('dc', 'X2')} · Over 2.5 ${pick('ou', 'o2.5')} · Under 2.5 ${pick('ou', 'u2.5')} · Both score ${pick('gg', 'gg')}`;
+        } catch (e) { if (n === seq) $('#mPrev').textContent = errMsg(e); }
+      }, 250);
+    };
+    ['#mO1', '#mOX', '#mO2'].forEach(s => { $(s).oninput = preview; });
+    $('#mGo').onclick = async () => {
+      const er = $('#mErr'), show = m => { er.textContent = m; er.hidden = false; }; er.hidden = true;
+      const lg = $('#mLg').value, home = $('#mHome').value.trim(), away = $('#mAway').value.trim(), when0 = new Date($('#mKo').value), o = odds();
+      if (!lg) return show('Pick a league (or add a new one).');
+      const league = lg === 'new' ? { name: $('#mLgName').value.trim(), country: $('#mLgCountry').value.trim(), flag: newFlag } : { id: +lg };
+      if (lg === 'new' && (league.name.length < 2 || league.country.length < 2)) return show('Give the new league a name and a country.');
+      if (home.length < 2 || away.length < 2) return show('Enter both team names.');
+      if (isNaN(when0)) return show('Set the kick-off date and time.');
+      if (!(o.home >= 1.01 && o.draw >= 1.01 && o.away >= 1.01)) return show('Enter the three 1X2 prices (1.01 or more).');
+      try {
+        $('#mGo').disabled = true;
+        const r = await API.admin.createMatch({ league, home, away, kickoff: when0.toISOString(), odds: o, inplay: $('#mLive') ? $('#mLive').checked : true });
+        const again = lg === 'new' ? { leagueName: league.name, leagueCountry: league.country, ko: $('#mKo').value } : { leagueId: +lg, ko: $('#mKo').value };
+        $('#modalBody').innerHTML = `<div class="am-done"><div class="am-done-ic">${IC.check}</div><h3>Match added</h3>
+          <p class="sub">${esc(home)} vs ${esc(away)} · ${when(when0)} · ID ${r.id} · ${r.markets} markets open until kick-off.${r.homeLogo && r.awayLogo ? '' : ' Missing crests are being looked up; you can also set them in the match.'}</p>
+          <div class="m-actions"><button class="btn" data-close-modal>Done</button><button class="btn" id="mOpen">Open the match</button><button class="btn primary" id="mAgain">Add another in this league</button></div></div>`;
+        $('#mOpen').onclick = () => { closeModal(); openEvent(r.id); };
+        $('#mAgain').onclick = () => addMatchModal(again).catch(e => toast(errMsg(e), 'err'));
+        render(true);
+      } catch (e) { show(errMsg(e)); $('#mGo').disabled = false; }
+    };
+  }
+
+  /** Hand-added match in the drawer: crests for both teams and, once it has kicked off, live scoring. */
+  function manualPanel(e) {
+    const started = new Date(e.kickoff) <= new Date(), open = e.status === 'scheduled' || e.status === 'live';
+    const per = e.period || 'H1', st = e.stats || {};
+    const side = (name, logo, sc, k) => `<div class="lsc-row"><span class="lsc-team"><span class="lsc-crest">${tileHTML(logo, name)}</span><b>${esc(name)}</b></span>
+      <button class="btn sm" data-lsc="${k}-" aria-label="Take a goal back">−</button><b class="lsc-sc">${sc}</b><button class="btn sm primary" data-lsc="${k}+">+ Goal</button></div>`;
+    return `<div class="section-t">Teams &amp; crests <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· remembered for every match of the team</span></div>
+      <div class="tm-crests"><div class="tm-c"><b>${esc(e.home)}</b><div data-crest-ed="home"></div></div><div class="tm-c"><b>${esc(e.away)}</b><div data-crest-ed="away"></div></div></div>
+      ${!open ? '' : !started ? '<p class="muted small" style="margin:12px 0">Live scoring opens at kick-off.</p>' : `
+      <div class="section-t">Live scoring <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· players see the score and a running clock</span></div>
+      <div class="lsc-bet ${st.inplay ? 'on' : ''}"><div><b>Live betting ${st.inplay ? 'ON' : 'OFF'}</b><small>${st.inplay ? 'Markets are open while you keep the score up to date: enter every goal, or tap <b>Score is still</b> at least every 3 minutes. If you stop, betting closes by itself. A goal pauses betting for 10 seconds.' : 'Turn on to let players bet while the match plays – only if you are following it live.'}</small>
+        ${st.inplay ? `<span class="lsc-left" data-lsc-left="${esc(st.scoreAt || '')}"></span>` : ''}</div>
+        <div class="acts">${st.inplay ? `<button class="btn sm primary" data-lsc-ok>Score is still ${e.score_home}–${e.score_away} ✓</button>` : ''}<button class="btn sm ${st.inplay ? 'danger' : 'primary'}" data-lsc-bet="${st.inplay ? 'off' : 'on'}">${st.inplay ? 'Stop live betting' : 'Turn on live betting'}</button></div></div>
+      <div class="lsc">${side(e.home, e.home_logo, e.score_home, 'h')}${side(e.away, e.away_logo, e.score_away, 'a')}
+        <div class="seg lsc-per">${[['H1', '1st half'], ['HT', 'Half-time'], ['H2', '2nd half']].map(([v, l]) => `<button data-lsp="${v}" class="${per === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${st.liveScoring ? `<p class="muted small">Clock: ${per === 'HT' ? 'half-time' : `${e.minute}'`} · goals: ${(st.goals || []).map(g => `${g.side ? esc(e.away) : esc(e.home)} ${g.min}'`).join(', ') || 'none yet'}</p>` : '<p class="muted small">Until you enter something here, players see the match as started without a score.</p>'}
+        <div class="d-actions"><button class="btn primary" data-lsc-ft>Full time – settle ${e.score_home}–${e.score_away}…</button></div></div>`}`;
+  }
+  function wireManualPanel(e) {
+    const body = $('#drawerBody');
+    const hb = body.querySelector('[data-crest-ed="home"]'), ab = body.querySelector('[data-crest-ed="away"]');
+    if (hb) crestEditor(hb, () => e.home, e.home_logo);
+    if (ab) crestEditor(ab, () => e.away, e.away_logo);
+    let sc = { home: e.score_home, away: e.score_away, period: e.period || 'H1' }, busy = false;
+    const send = async next => {
+      if (busy) return; busy = true;
+      try { await API.admin.liveScore(e.id, next); toast(`Live: ${e.home} ${next.home}–${next.away} ${e.away}${next.period === 'HT' ? ' · half-time' : ''}`, 'ok'); openEvent(e.id); render(true); }
+      catch (x) { toast(errMsg(x), 'err'); } finally { busy = false; }
+    };
+    $$('#drawerBody [data-lsc]').forEach(b => b.onclick = () => {
+      const [k, op] = [b.dataset.lsc[0], b.dataset.lsc[1]], key = k === 'h' ? 'home' : 'away';
+      const v = Math.max(0, sc[key] + (op === '+' ? 1 : -1)); if (v === sc[key]) return;
+      send({ ...sc, [key]: v });
+    });
+    $$('#drawerBody [data-lsp]').forEach(b => b.onclick = () => { if (b.dataset.lsp !== sc.period) send({ ...sc, period: b.dataset.lsp }); });
+    const okB = body.querySelector('[data-lsc-ok]'); if (okB) okB.onclick = () => send({ ...sc });   // same score again = confirmed
+    const betB = body.querySelector('[data-lsc-bet]');
+    if (betB) betB.onclick = () => { const on = betB.dataset.lscBet === 'on'; if (on && !confirm('Open live betting on this match? Only do this if you are following it live – keep the score up to date.')) return; send({ ...sc, inplay: on }); };
+    // countdown until live betting closes by itself without a new score / confirmation
+    const left = body.querySelector('[data-lsc-left]');
+    clearInterval(state.lscTimer);
+    if (left && left.dataset.lscLeft) state.lscTimer = setInterval(() => {
+      if (!document.body.contains(left)) return clearInterval(state.lscTimer);
+      const s = Math.round((Date.parse(left.dataset.lscLeft) + 180000 - Date.now()) / 1000);
+      left.textContent = s > 0 ? `Open for ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} – confirm the score to keep it open` : 'Closed – the score is stale. Confirm it to reopen.';
+      left.classList.toggle('bad', s <= 30);
+    }, 1000);
+    const ft = body.querySelector('[data-lsc-ft]');
+    if (ft) ft.onclick = () => resultModal(e.id, false, { home: e.score_home, away: e.score_away, htHome: e.ht_home, htAway: e.ht_away });
+  }
   async function openEvent(id) {
     openDrawer('<div class="loading">Loading event…</div>');
     const { event: e, markets, exposure } = await API.admin.event(id); const cc = state.me.country;
@@ -366,14 +662,18 @@
     const allOff = markets.length && markets.every(m => m.suspended);
     const maxL = Math.max(...exposure.map(x => x.liability), 1);
     const open = e.status === 'scheduled' || e.status === 'live';
+    // a hand-added match that has kicked off: no in-play betting, so its markets cannot be reopened
+    const closedLive = String(e.ext_id || '').startsWith('man:') && new Date(e.kickoff) <= new Date();
     $('#drawerBody').innerHTML = `
       <div class="d-head"><div><h3>${esc(e.home)} – ${esc(e.away)}</h3><p>${esc(e.country)} · ${esc(e.league)} · ID ${e.id} · ${when(e.kickoff)}</p></div></div>
       <div class="d-actions">${e.status === 'live' ? `${pill('live', P_EV)} <b class="num">${e.minute}' ${e.score_home}–${e.score_away}</b>` : pill(e.status, P_EV)}${e.ht_home != null ? ` <span class="muted small">HT ${e.ht_home}–${e.ht_away}</span>` : ''}</div>
-      ${open ? `<div class="d-actions"><button class="btn sm ${allOff ? 'primary' : 'danger'}" data-suspend-all="${e.id}" data-v="${allOff ? 'false' : 'true'}">${allOff ? IC.unlock + ' Reopen all markets' : IC.lock + ' Suspend all markets'}</button><button class="btn sm" data-result="${e.id}">Enter result</button><button class="btn sm" data-cancel="${e.id}">Cancel event</button></div>` : ''}
+      ${open ? `<div class="d-actions">${closedLive ? '<span class="muted small">Markets closed at kick-off</span>' : `<button class="btn sm ${allOff ? 'primary' : 'danger'}" data-suspend-all="${e.id}" data-v="${allOff ? 'false' : 'true'}">${allOff ? IC.unlock + ' Reopen all markets' : IC.lock + ' Suspend all markets'}</button>`}<button class="btn sm" data-result="${e.id}">Enter result</button><button class="btn sm" data-cancel="${e.id}">Cancel event</button></div>` : ''}
       ${exposure.length ? `<div class="section-t">Open exposure (${exposure.length} selections)</div><div class="exp">${exposure.slice(0, 10).map(x => `<div class="exp-row"><span>${esc(x.label)} <span class="muted">· ${esc(x.market_key)}</span></span><span class="muted">${x.n} bets</span><span class="bar"><i style="width:${(x.liability / maxL) * 100}%"></i></span><b class="r num">${compact(x.liability, cc)}</b></div>`).join('')}</div>` : '<p class="muted small" style="margin:10px 0">No open bets on this event.</p>'}
+      ${String(e.ext_id || '').startsWith('man:') ? manualPanel(e) : ''}
       <div class="section-t">Markets (${markets.length}) <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· tap a price to change it, the lock to suspend</span></div>
-      <div class="mk-grid">${markets.map(m => { const outs = Object.entries(m.outcomes).sort((a, b) => (a[1].i ?? 0) - (b[1].i ?? 0)); return `<div class="mk ${m.suspended ? 'susp' : ''}"><div class="mk-h"><span>${esc(m.name)}</span><span class="grp">${esc(m.grp)}</span><button class="btn xs ${m.suspended ? 'primary' : ''}" data-mk-susp="${esc(m.key)}" data-ev="${e.id}" data-v="${m.suspended ? 'false' : 'true'}">${m.suspended ? 'Reopen' : 'Suspend'}</button></div>
+      <div class="mk-grid">${markets.map(m => { const outs = Object.entries(m.outcomes).sort((a, b) => (a[1].i ?? 0) - (b[1].i ?? 0)); return `<div class="mk ${m.suspended ? 'susp' : ''}"><div class="mk-h"><span>${esc(m.name)}</span><span class="grp">${esc(m.grp)}</span>${closedLive && m.suspended ? '' : `<button class="btn xs ${m.suspended ? 'primary' : ''}" data-mk-susp="${esc(m.key)}" data-ev="${e.id}" data-v="${m.suspended ? 'false' : 'true'}">${m.suspended ? 'Reopen' : 'Suspend'}</button>`}</div>
         <div class="mk-o" style="--c:${Math.min(m.cols || 3, 3)}">${outs.slice(0, 12).map(([k, o]) => `<button data-price="${esc(k)}" data-mk="${esc(m.key)}" data-ev="${e.id}" data-l="${esc(o.l)}" data-o="${o.o ?? ''}" class="${o.o == null ? 'off' : ''}"><span>${esc(o.l)}</span><b>${o.o == null ? '–' : Number(o.o).toFixed(2)}</b></button>`).join('')}${outs.length > 12 ? `<button class="muted" data-mk-more="${esc(m.key)}">+${outs.length - 12} more</button>` : ''}</div></div>`; }).join('')}</div>`;
+    if (String(e.ext_id || '').startsWith('man:')) wireManualPanel(e);
     state.drawer = { type: 'event', id };
   }
   function priceModal(ev, mk, ok, label, cur) {
@@ -383,11 +683,11 @@
     $('#mPrice').focus();
     $('#mGo').onclick = async () => { const v = +$('#mPrice').value; if (!(v >= 1.01)) return $('#mPrice').focus(); try { await API.admin.market(ev, mk, { outcome: ok, price: v }); closeModal(); toast('Price updated', 'ok'); openEvent(ev); } catch (e) { toast(errMsg(e), 'err'); } };
   }
-  function resultModal(ev, cancel) {
+  function resultModal(ev, cancel, pre) {
     openModal(cancel ? `<h3>Cancel event ${ev}?</h3><p class="sub">Every open bet on this event is voided and the stakes refunded. Use it for postponed or abandoned matches.</p><div class="m-actions"><button class="btn" data-close-modal>Back</button><button class="btn danger solid" id="mGo">Cancel event and refund</button></div>`
-      : `<h3>Enter the final result</h3><p class="sub">Event ${ev} is marked finished and every bet on it is settled at once. Only do this when the feed has not delivered the result.</p>
-        <div class="field-row"><label class="field"><span>Home goals (FT)</span><input id="rH" type="number" min="0" value="0"></label><label class="field"><span>Away goals (FT)</span><input id="rA" type="number" min="0" value="0"></label></div>
-        <div class="field-row"><label class="field"><span>Home goals (HT)</span><input id="rHH" type="number" min="0" placeholder="optional"></label><label class="field"><span>Away goals (HT)</span><input id="rHA" type="number" min="0" placeholder="optional"></label></div>
+      : `<h3>Enter the final result</h3><p class="sub">Event ${ev} is marked finished and every bet on it is settled at once. Enter the real final score (for feed matches, only when the feed has not delivered it).</p>
+        <div class="field-row"><label class="field"><span>Home goals (FT)</span><input id="rH" type="number" min="0" value="${pre ? pre.home : 0}"></label><label class="field"><span>Away goals (FT)</span><input id="rA" type="number" min="0" value="${pre ? pre.away : 0}"></label></div>
+        <div class="field-row"><label class="field"><span>Home goals (HT)</span><input id="rHH" type="number" min="0" placeholder="optional" value="${pre && pre.htHome != null ? pre.htHome : ''}"></label><label class="field"><span>Away goals (HT)</span><input id="rHA" type="number" min="0" placeholder="optional" value="${pre && pre.htAway != null ? pre.htAway : ''}"></label></div>
         <p class="help">Half-time goals settle the half markets; leave them blank to void those markets instead.</p>
         <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Settle event</button></div>`);
     $('#mGo').onclick = async () => {
@@ -479,6 +779,10 @@
         <div class="card set-card" data-set="boost"><div class="card-b"><h4>Accumulator win boost</h4><div class="desc">Extra percentage added to winnings by number of selections (each at odds 1.20 or more).</div>
           <div class="boost-rows" id="boostRows">${boost.map(([n, p]) => `<div class="boost-row"><input type="number" min="2" value="${n}" placeholder="selections"><input type="number" min="0" value="${p}" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>`).join('')}</div>
           <div class="set-foot"><button class="btn sm" id="boostAdd">Add tier</button><span class="spacer" style="flex:1"></span><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="boost">Save</button></div></div></div>
+        <div class="card set-card" data-set="inplay"><div class="card-b"><h4>In-play betting</h4><div class="desc">Football markets stay open from kick-off until the closing minute and move with the score and the clock; a new score pauses betting for 10 s, and every in-play bet is confirmed after a short delay (a goal in between refuses it). Real matches without a fresh live score (no live-score feed): <b>1</b> = still open with the stake cap per player per match, <b>0</b> = paused until a fresh score.</div>
+          ${[['closeMinute', 'Close at minute', '1'], ['delaySec', 'Bet delay (s)', '1'], ['blind', 'Open without a live score (1 / 0)', '1'], ['blindDelaySec', 'Bet delay without a live score (s)', '1']].map(([f, l, st2]) => `<div class="set-row one"><label>${l}</label><input type="number" step="${st2}" data-f="${f}" value="${esc((s.inplay || {})[f] ?? '')}"></div>`).join('')}
+          <div class="set-row"><label>Stake cap without a live score</label><input type="number" step="any" data-f="blindMaxStake.NG" value="${esc(((s.inplay || {}).blindMaxStake || {}).NG ?? '')}" placeholder="NG ₦"><input type="number" step="any" data-f="blindMaxStake.GH" value="${esc(((s.inplay || {}).blindMaxStake || {}).GH ?? '')}" placeholder="GH ₵"></div>
+          <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="inplay">Save</button></div></div></div>
         <div class="card set-card" data-set="referral"><div class="card-b"><h4>Refer &amp; Earn</h4><div class="desc">Reward paid to the referrer once the friend has staked the reward amount.</div><div class="set-head"><span></span><span>${flag('NG')}Nigeria</span><span>${flag('GH')}Ghana</span></div>
           <div class="set-row"><label>Reward</label><input type="number" step="any" data-f="NG" value="${esc((s.referral || {}).NG ?? '')}"><input type="number" step="any" data-f="GH" value="${esc((s.referral || {}).GH ?? '')}"></div>
           <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="referral">Save</button></div></div></div>
@@ -509,25 +813,341 @@
     const users = await API.admin.kyc();
     main.innerHTML = `
       <div class="page-head"><div><h2>ID checks</h2><p>Players who sent their ID details. Approve when they match the account; reject with a reason the player will see – they can send them again.</p></div></div>
-      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Sent</th><th>Player</th><th>Name on ID</th><th>Date of birth</th><th>ID</th><th></th></tr></thead><tbody>
-        ${users.map(u => { const k = u.kyc || {}; return `<tr><td class="muted">${when(k.submittedAt)}<div class="small">${ago(k.submittedAt)}</div></td>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Sent</th><th>Player</th><th>ID photos</th><th>Name on ID</th><th>Date of birth</th><th>ID</th><th></th></tr></thead><tbody>
+        ${users.map(u => { const k = u.kyc || {}; state.kycRows = state.kycRows || new Map(); state.kycRows.set(String(u.id), u); return `<tr><td class="muted">${when(k.submittedAt)}<div class="small">${ago(k.submittedAt)}</div></td>
           <td><div class="who"><b class="lnk" data-user="${u.id}">${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid} · ${flag(u.country)}${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')}</small></div></td>
+          <td>${(k.photos || []).length ? `<button class="kyc-thumbs" data-kycview="${u.id}">${(k.photos || []).map(s => `<img data-kycimg="${u.id}|${s}" alt="${s}">`).join('')}<span>Open</span></button>` : '<span class="muted small">No photos (sent before photos were required)</span>'}</td>
           <td>${esc(k.fullName || '')}</td><td>${esc(k.dob || '')}</td><td>${esc(k.idType || '')}<div class="mono small">${esc(k.idNumber || '')}</div></td>
           <td><div class="acts"><button class="btn xs primary" data-kyc="approve" data-id="${u.id}">Approve</button><button class="btn xs danger" data-kyc="reject" data-id="${u.id}">Reject</button></div></td></tr>`; }).join('')
-          || '<tr><td colspan="6"><div class="empty"><b>No ID checks waiting</b>New submissions appear here.</div></td></tr>'}
+          || '<tr><td colspan="7"><div class="empty"><b>No ID checks waiting</b>New submissions appear here.</div></td></tr>'}
       </tbody></table></div></div>`;
+    // thumbnails (fetched with the admin's token; ID photos are never public)
+    $$('[data-kycimg]', main).forEach(async img => { const [id, side] = img.dataset.kycimg.split('|'); const url = await API.admin.kycPhoto(id, side).catch(() => null); if (url) img.src = url; else img.remove(); });
+    if (!main._kycView) { main._kycView = true; main.addEventListener('click', e => { const v = e.target.closest('[data-kycview]'); if (v) kycView(v.dataset.kycview); }); }
   };
+  // full-size ID photos next to the details, with Approve / Reject
+  async function kycView(id) {
+    const u = (state.kycRows && state.kycRows.get(String(id))) || {}, k = u.kyc || {};
+    openModal(`<h3>ID check · ${esc(u.full_name || k.fullName || 'Player')}</h3>
+      <p class="sub">Compare the photos with the details and the account. Approve if they match; reject with a reason the player sees (they can send it again).</p>
+      <div class="kyc-big">${(k.photos || ['front', 'back']).map(s => `<figure><figcaption>${s === 'front' ? 'Front' : 'Back'}</figcaption><a target="_blank" rel="noopener" data-kycfull="${s}"><img data-kycbig="${s}" alt="${s} of the ID"></a></figure>`).join('')}</div>
+      <dl class="kv"><dt>Account</dt><dd>${esc(u.full_name || '–')} · ID ${u.uid} · ${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')}</dd><dt>Name on ID</dt><dd><b>${esc(k.fullName || '')}</b></dd><dt>Date of birth</dt><dd>${esc(k.dob || '')}</dd><dt>Document</dt><dd>${esc(k.idType || '')} · <span class="mono">${esc(k.idNumber || '')}</span></dd><dt>Sent</dt><dd>${when(k.submittedAt)}</dd></dl>
+      <div class="m-actions"><button class="btn" data-close-modal>Close</button><button class="btn danger solid" id="kvReject">Reject…</button><button class="btn primary" id="kvApprove">Approve</button></div>`);
+    $$('#modalBody [data-kycbig]').forEach(async img => { const url = await API.admin.kycPhoto(id, img.dataset.kycbig).catch(() => null); if (url) { img.src = url; img.closest('a').href = url; } else img.closest('figure').innerHTML += '<p class="muted small">Not sent</p>'; });
+    $('#kvApprove').onclick = () => { closeModal(); kycAction(id, 'approve'); };
+    $('#kvReject').onclick = () => { closeModal(); kycAction(id, 'reject'); };
+  }
   function kycAction(id, action) {
-    const approve = action === 'approve';
-    const quick = ['The name does not match your account', 'The ID number is not valid', 'The date of birth does not match', 'The details could not be read'];
-    openModal(`<h3>${approve ? 'Approve this ID?' : 'Reject this ID?'}</h3><p class="sub">${approve ? 'The player is told by email and can withdraw.' : 'The player is told by email with your reason and can send their details again.'}</p>
-      ${approve ? '' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason"></label>`}
-      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : 'danger solid'}" id="mGo">${approve ? 'Approve' : 'Reject'}</button></div>`);
+    const approve = action === 'approve', again = action === 'resubmit';
+    const quick = ['The photos are not clear – please retake them', 'This is not your ID – please upload your own ID', 'The name does not match your account', 'The ID number is not valid', 'The date of birth does not match', 'The back of the ID is missing', 'Please send the front and the back of the same ID', 'The ID has expired'];
+    const title = approve ? 'Approve this ID?' : again ? 'Ask for the ID again?' : 'Reject this ID?';
+    const sub = approve ? 'The player is told by email and can withdraw.' : again ? 'The player is asked in the app and by email to send their ID again, with your reason. Their ID check is open again until they do.' : 'The player is told by email with your reason and can send their details again.';
+    openModal(`<h3>${title}</h3><p class="sub">${sub}</p>
+      ${approve ? '' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason" maxlength="200"></label>`}
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : again ? 'primary' : 'danger solid'}" id="mGo">${approve ? 'Approve' : again ? 'Ask for ID again' : 'Reject'}</button></div>`);
     $$('#modalBody [data-quick]').forEach(b => b.onclick = () => { $('#mReason').value = b.dataset.quick; });
     $('#mGo').onclick = async () => {
       const reason = approve ? '' : $('#mReason').value.trim(); if (!approve && !reason) return $('#mReason').focus();
-      try { $('#mGo').disabled = true; await API.admin.kycDecide(id, approve, reason || undefined); closeModal(); toast(approve ? 'ID approved' : 'ID rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
+      try { $('#mGo').disabled = true; await API.admin.kycDecide(id, approve, reason || undefined, again); closeModal(); toast(approve ? 'ID approved' : again ? 'The player was asked to send the ID again' : 'ID rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
       catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+
+  /* ---------- Sub-agents ---------- */
+  const P_AGP = { pending: ['warn', 'Waiting'], paid: ['ok', 'Paid'], rejected: ['bad', 'Rejected'] };
+  /* ---------- Live support ---------- */
+  const SUP_ST = { waiting: ['Waiting', 'bad'], open: ['Open', 'ok'], bot: ['Assistant', ''], closed: ['Closed', ''] };
+  const SUP_CANNED = ['Hi, I am checking this for you now.', 'Your deposit has been confirmed and credited to your balance.', 'Your withdrawal has been approved and sent – it should arrive in a few minutes.',
+    'Please send the transaction ID from your MoMo SMS so I can trace the payment.', 'Thanks for waiting – it is sorted now.', 'Is there anything else I can help you with?'];
+  const supMsg = m => m.from === 'system' ? `<div class="sup-sys">${esc(m.text)}</div>`
+    : `<div class="sup-m ${m.from}"><small>${m.from === 'user' ? 'Player' : m.from === 'bot' ? 'Assistant' : esc(m.name || 'Support')} · ${when(m.at)}</small><div>${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
+  PAGES.support = async (main, silent) => {
+    const tab = state.supTab || 'active', sel = state.arg ? Number(state.arg) : null;
+    const [inbox, chat] = await Promise.all([API.admin.support(tab), sel ? API.admin.supportThread(sel) : null]);
+    supportBadge(inbox.waiting);
+    if (silent && main.querySelector('.sup')) return supRefresh(inbox, chat);
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Live support</h2><p>Players chat with the assistant first – it answers from their own account. When they ask for a person (or the assistant cannot help) the chat lands here. While this page is open players see the team as <b>online</b>. Their profile, payments and bets are next to the chat, with the tools to fix things.</p></div></div>
+      <div class="sup">
+        <div class="card sup-list"><div class="sup-tabs"><button data-suptab="active" class="${tab === 'active' ? 'on' : ''}">Active</button><button data-suptab="closed" class="${tab === 'closed' ? 'on' : ''}">Closed</button></div><div id="supItems"></div></div>
+        <div class="card sup-chat" id="supChat"></div>
+      </div>`;
+    const box = main.querySelector('.sup');
+    box.addEventListener('click', async e => {
+      const t = e.target;
+      const tb = t.closest('[data-suptab]'); if (tb) { state.supTab = tb.dataset.suptab; return render(); }
+      const it = t.closest('[data-sup]'); if (it) { location.hash = '#/support/' + it.dataset.sup; return; }
+      const cn = t.closest('[data-canned]'); if (cn) { const ta = $('#supText'); ta.value = cn.dataset.canned; ta.focus(); return; }
+      const ck = t.closest('[data-supcheck]');
+      if (ck) { ck.disabled = true; try { const r = await API.admin.checkPayment(ck.dataset.supcheck); toast(r && r.status ? `Payment: ${r.status}` : 'Checked with the provider', 'ok'); render(true); } catch (err) { toast(errMsg(err), 'err'); ck.disabled = false; } return; }
+      if (t.closest('[data-supclose]')) { const id = state.arg; if (!confirm('Close this chat? The player can start a new one any time.')) return; try { await API.admin.supportClose(id); toast('Chat closed', 'ok'); render(true); } catch (err) { toast(errMsg(err), 'err'); } }
+    });
+    box.addEventListener('submit', async e => {
+      if (!e.target.matches('#supForm')) return; e.preventDefault();
+      const ta = $('#supText'), text = ta.value.trim(), id = state.arg; if (!text || !id) return;
+      const btn = e.target.querySelector('button'); btn.disabled = true;
+      try { await API.admin.supportReply(id, text); ta.value = ''; render(true); } catch (err) { toast(errMsg(err), 'err'); } finally { btn.disabled = false; }
+    });
+    box.addEventListener('keydown', e => { if (e.target.id === 'supText' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#supForm').requestSubmit(); } });
+    supRefresh(inbox, chat, true);
+    clearInterval(state.supTimer);
+    state.supTimer = setInterval(() => { if (state.page !== 'support') return clearInterval(state.supTimer); if (!document.hidden && !document.querySelector('.modal.open')) render(true); }, 4000);
+  };
+  function supRefresh(inbox, chat, first) {
+    const sel = state.arg ? Number(state.arg) : null;
+    $('#supItems').innerHTML = inbox.threads.map(t => { const s = SUP_ST[t.status] || [t.status, '']; return `<button class="sup-it${t.id == sel ? ' on' : ''}" data-sup="${t.id}">
+        <span class="sup-top"><b>${esc(t.full_name || phoneFmt(t.country, t.phone) || t.email || 'Player')}</b>${t.staff_unread ? `<i class="sup-n">${t.staff_unread}</i>` : ''}<span class="pill ${s[1]}">${s[0]}</span></span>
+        <small class="sup-last">${esc(t.last || '')}</small><small class="muted">ID ${t.uid} · ${flag(t.country)}${t.is_agent ? ' · agent' : ''} · ${ago(t.last_at)}</small></button>`; }).join('') || `<div class="empty"><b>No ${state.supTab === 'closed' ? 'closed' : 'active'} chats</b>${state.supTab === 'closed' ? '' : 'When a player asks for a person, the chat appears here.'}</div>`;
+    const el = $('#supChat');
+    if (!chat) { el.innerHTML = '<div class="empty"><b>Pick a chat</b>Waiting chats are at the top.</div>'; return; }
+    const P = chat.player, cc = P.country, list = el.querySelector('.sup-msgs');
+    const keepText = $('#supText') ? $('#supText').value : '', hadFocus = document.activeElement && document.activeElement.id === 'supText';
+    const atBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+    const st = SUP_ST[chat.thread.status] || ['', ''];
+    const PST = { success: 'Paid', pending: 'Pending', failed: 'Failed', rejected: 'Rejected', cancelled: 'Cancelled' }, MNAME = { mobile_money: 'Mobile Money', bank_transfer: 'Bank transfer' };
+    const payRow = p => `<tr><td><b>${p.kind === 'deposit' ? 'Deposit' : 'Withdrawal'}</b> <span class="pill ${p.status === 'success' ? 'ok' : p.status === 'pending' ? 'warn' : 'bad'}">${PST[p.status] || esc(p.status)}</span><div class="small muted">${when(p.created_at)} · ${esc(p.account || MNAME[p.method] || p.method || '')}</div>${p.reason ? `<div class="small muted">${esc(p.reason)}</div>` : ''}</td><td class="r"><b>${money(p.amount, cc)}</b></td>
+      <td>${p.status === 'pending' && p.provider && p.provider !== 'manual' ? `<button class="btn xs" data-supcheck="${p.id}">Check now</button>` : p.status === 'pending' && p.kind === 'withdrawal' ? `<button class="btn xs primary" data-review="${p.id}">Review</button>` : ''}</td></tr>`;
+    el.innerHTML = `
+      <div class="sup-head"><div class="who"><b>${esc(P.name || 'No name yet')}</b><small>ID ${P.uid} · ${flag(cc)} ${esc(P.phone ? phoneFmt(cc, P.phone) : P.email || '')}</small></div>
+        <div class="acts"><span class="pill ${st[1]}">${st[0]}</span><button class="btn xs" data-user="${P.id}">Full profile &amp; tools</button>${chat.thread.status !== 'closed' ? '<button class="btn xs danger" data-supclose>Close chat</button>' : ''}</div></div>
+      <div class="sup-body">
+        <div class="sup-conv">
+          <div class="sup-msgs">${chat.messages.map(supMsg).join('')}</div>
+          ${chat.thread.status !== 'closed' ? `<div class="sup-canned">${SUP_CANNED.map(c => `<button type="button" class="btn xs" data-canned="${esc(c)}">${esc(c.length > 34 ? c.slice(0, 32) + '…' : c)}</button>`).join('')}</div>
+          <form id="supForm" class="sup-form"><textarea id="supText" rows="2" maxlength="4000" placeholder="Reply to the player… (Enter sends, Shift+Enter for a new line)"></textarea><button class="btn primary">Send</button></form>` : '<div class="empty small">This chat is closed. A new message from the player opens a new chat.</div>'}
+        </div>
+        <div class="sup-ctx">
+          <div class="sup-kpis"><div><small>Balance</small><b>${money(P.balance, cc)}</b></div><div><small>Deposited</small><b>${money(P.deposited, cc)}</b></div><div><small>Withdrawn</small><b>${money(P.withdrawn, cc)}</b></div><div><small>Open bets</small><b>${int(P.openBets)}</b></div></div>
+          <dl class="kv small"><dt>Account</dt><dd>${P.status === 'active' ? 'Active' : esc(P.status)}${P.isAgent ? ' · <b>Agent</b>' : ''}</dd><dt>ID check</dt><dd>${P.isAgent ? 'Not needed (agent)' : P.verified ? 'Verified' : P.kyc ? esc(P.kyc) : 'Not submitted'}</dd><dt>Joined</dt><dd>${when(P.joined)}</dd></dl>
+          <h4 class="sup-h">Payments</h4><div class="tbl-wrap"><table class="tbl"><tbody>${chat.payments.map(payRow).join('') || '<tr><td><span class="muted">No payments yet</span></td></tr>'}</tbody></table></div>
+          <h4 class="sup-h">Recent bets</h4><div class="tbl-wrap"><table class="tbl"><tbody>${chat.bets.map(b => `<tr class="click" data-bet="${esc(b.id)}"><td class="mono small">${esc(b.id)}</td><td class="r">${money(b.stake, cc)}</td><td>${esc(b.status)}</td><td class="r">${b.paid != null ? money(b.paid, cc) : '–'}</td></tr>`).join('') || '<tr><td><span class="muted">No bets yet</span></td></tr>'}</tbody></table></div>
+        </div>
+      </div>`;
+    const ta = $('#supText'); if (ta && keepText) ta.value = keepText;
+    const nl = el.querySelector('.sup-msgs'); if (nl && (first || atBottom)) nl.scrollTop = nl.scrollHeight;
+    if (ta && (first || hadFocus)) ta.focus();
+  }
+
+  /* ---------- Live desk: run live betting on your own matches ---------- */
+  PAGES.livedesk = async (main, silent) => {
+    const { matches, freshSec } = await API.admin.liveDesk();
+    state.desk = { matches, freshSec, at: Date.now() };
+    const live = matches.filter(m => m.status === 'live'), soon = matches.filter(m => m.status !== 'live');
+    deskBadge(matches, freshSec);
+    const card = m => {
+      const st = m.stats || {}, c = m.clock || {}, on = !!st.inplay;
+      const crestImg = (logo, name) => `<span class="ld-crest">${logo ? `<img src="${esc(logo)}" alt="">` : esc((name || '?').slice(0, 2).toUpperCase())}</span>`;
+      const clk = m.period === 'HT' ? 'Half-time' : `${c.minute || m.minute || 1}${c.plus ? '+' + c.plus : ''}'`;
+      return `<div class="card ld-card${on ? ' on' : ''}" data-desk="${m.id}">
+        <div class="ld-top"><span class="muted small">${esc(m.league)} · ${esc(m.country)}</span><span class="ld-clock">${m.status === 'live' ? `<i class="dot live"></i>${clk}` : 'Kicks off ' + when(m.kickoff)}</span></div>
+        ${[['home', m.home, m.home_logo, m.score_home, 'h'], ['away', m.away, m.away_logo, m.score_away, 'a']].map(([, n, lg, sc, k]) => `<div class="ld-row">${crestImg(lg, n)}<b class="ld-team">${esc(n)}</b>
+          ${m.status === 'live' ? `<button class="btn sm" data-dk="${k}-" aria-label="Take a goal back">−</button><b class="ld-sc">${sc}</b><button class="btn sm primary" data-dk="${k}+">+ Goal</button>` : ''}</div>`).join('')}
+        ${m.status === 'live' ? `<div class="seg ld-per">${[['H1', '1st half'], ['HT', 'Half-time'], ['H2', '2nd half']].map(([v, l]) => `<button data-dkp="${v}" class="${(m.period || 'H1') === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <div class="ld-state" data-dkstate="${m.id}"></div>
+          <div class="ld-acts">${on ? `<button class="btn primary" data-dk-ok>Score is still ${m.score_home}–${m.score_away} ✓</button>` : ''}
+            <button class="btn ${on ? 'danger' : 'primary'}" data-dk-bet="${on ? 'off' : 'on'}">${on ? 'Stop live betting' : 'Turn on live betting'}</button>
+            <button class="btn" data-dk-ft>Full time…</button></div>
+          <div class="small muted">${m.open_bets ? `${int(m.open_bets)} open tickets · ${money(m.stake, state.me.country)} staked` : 'No open tickets on this match'}</div>`
+        : `<div class="small muted">${on ? 'Live betting opens by itself at kick-off (score 0–0); keep the score here.' : 'Live betting is off for this match.'}</div>
+           <div class="ld-acts"><button class="btn ${on ? '' : 'primary'}" data-dk-pre="${on ? 'off' : 'on'}">${on ? 'Don’t open live betting' : 'Open live betting at kick-off'}</button></div>`}
+      </div>`;
+    };
+    if (!silent || !main.querySelector('.ld-grid')) {
+      main.innerHTML = `<div class="page-head"><div><h2>Live desk</h2><p>Your own matches in play. Live betting opens by itself at kick-off and stays open while you keep the score: <b>+ Goal</b> for every goal, or <b>Score is still</b> at least every ${Math.round(freshSec / 60)} minutes. A goal pauses betting for 10 seconds; odds move with the score and the clock. If nobody keeps the score, that match pauses by itself (you hear a beep 30 seconds before) and reopens the moment you tap.</p></div></div>
+        <div class="ld-grid" id="ldGrid"></div>`;
+      const grid = $('#ldGrid');
+      grid.addEventListener('click', async e => {
+        const cardEl = e.target.closest('[data-desk]'); if (!cardEl) return;
+        const m = state.desk.matches.find(x => String(x.id) === cardEl.dataset.desk); if (!m) return;
+        const sc = { home: m.score_home, away: m.score_away, period: m.period || 'H1' };
+        const go = async (next, msg) => { try { const r = await API.admin.liveScore(m.id, next); toast(msg || `${m.home} ${r.home}–${r.away} ${m.away}${r.open ? ' · betting open' : ' · betting paused'}`, 'ok'); render(true); } catch (x) { toast(errMsg(x), 'err'); } };
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.dk) { const key = b.dataset.dk[0] === 'h' ? 'home' : 'away', v = Math.max(0, sc[key] + (b.dataset.dk[1] === '+' ? 1 : -1)); if (v !== sc[key]) go({ ...sc, [key]: v }); return; }
+        if (b.dataset.dkp) { if (b.dataset.dkp !== sc.period) go({ ...sc, period: b.dataset.dkp }); return; }
+        if ('dkOk' in b.dataset) return go({ ...sc }, `${m.home} v ${m.away}: score confirmed`);
+        if (b.dataset.dkBet) { const on = b.dataset.dkBet === 'on'; if (on && !confirm('Open live betting on this match? Only while you are following it live – keep the score up to date.')) return; return go({ ...sc, inplay: on }); }
+        if (b.dataset.dkPre) { try { await API.admin.setLiveBetting(m.id, b.dataset.dkPre === 'on'); toast('Saved', 'ok'); render(true); } catch (x) { toast(errMsg(x), 'err'); } return; }
+        if ('dkFt' in b.dataset) return resultModal(m.id, false, { home: m.score_home, away: m.score_away, htHome: m.ht_home, htAway: m.ht_away });
+      });
+    }
+    $('#ldGrid').innerHTML = [...live, ...soon].map(card).join('') || '<div class="card"><div class="empty"><b>No matches of yours in play</b>Matches you add appear here from 30 minutes before kick-off.</div></div>';
+    deskTick();
+    clearInterval(state.deskTimer);
+    state.deskTimer = setInterval(() => { if (state.page !== 'livedesk') return clearInterval(state.deskTimer); deskTick(); if (Date.now() - state.desk.at > 4000 && !document.querySelector('.modal.open')) render(true); }, 1000);
+  };
+  // each card's live-betting state, to the second (open · closes in / paused for a goal / closed – stale / off)
+  function deskTick() {
+    const d = state.desk; if (!d) return;
+    let beep = false;
+    for (const m of d.matches.filter(x => x.status === 'live')) {
+      const el = document.querySelector(`[data-dkstate="${m.id}"]`); if (!el) continue;
+      const st = m.stats || {}, now = Date.now(), until = st.scoreAt ? Date.parse(st.scoreAt) + d.freshSec * 1000 : 0, left = Math.round((until - now) / 1000);
+      const stop = st.betStopUntil && Date.parse(st.betStopUntil) > now;
+      let cls = '', txt = '';
+      if (!st.inplay) { cls = 'off'; txt = 'Live betting off'; }
+      else if (stop) { cls = 'wait'; txt = 'Goal – betting paused for a few seconds'; }
+      else if (left > 0) { cls = left <= 30 ? 'warn' : 'ok'; txt = `Betting OPEN · confirm the score within ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; if (left <= 30 && left > 0 && !(state.deskBeeped || {})[m.id + ':' + st.scoreAt]) { (state.deskBeeped ||= {})[m.id + ':' + st.scoreAt] = true; beep = true; } }
+      else { cls = 'bad'; txt = 'PAUSED – the score is stale. Tap + Goal or Score is still to reopen'; }
+      el.className = 'ld-state ' + cls; el.textContent = txt;
+      el.closest('.ld-card').classList.toggle('alert', cls === 'warn' || cls === 'bad');
+    }
+    if (beep) deskBeep();
+  }
+  function deskBeep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 350); } catch {} }
+  function deskBadge(matches, freshSec) {
+    const now = Date.now(), need = matches.filter(m => m.status === 'live' && m.stats && m.stats.inplay && (!m.stats.scoreAt || Date.parse(m.stats.scoreAt) + freshSec * 1000 - now < 60000)).length;
+    const b = $('#navDesk'); if (b) { b.hidden = !need; b.textContent = need; }
+  }
+
+  PAGES.agents = async main => {
+    const [{ agents, rules }, queue, done] = await Promise.all([API.admin.agents(), API.admin.agentPayouts('pending'), API.admin.agentPayouts('all')]);
+    const nb = $('#navAgents'); if (nb) { nb.hidden = !queue.length; nb.textContent = queue.length; }
+    state.agentPays = new Map(queue.map(p => [String(p.id), p]));
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Agents</h2><p>An agent earns <b>${rules.pct}%</b> of each new player's <b>first deposit</b>. The earning can be requested once that player has staked ${rules.turnover > 0 ? `${rules.turnover}× their deposit` : 'anything'} on settled bets, so deposits made only to be withdrawn earn nothing. Agents request payouts from their account; approve one to add it to the agent's balance (they withdraw like any player). Make a player an agent from their drawer (Players → the player → Make agent). Change the rules in Settings (<span class="mono">agents</span>).</p></div></div>
+      <div class="card"><div class="card-h"><h3>Payout requests <span class="sub">${queue.length} waiting</span></h3></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Requested</th><th>Agent</th><th class="r">Amount</th><th class="wrap">From these players' first deposits</th><th></th></tr></thead><tbody>
+        ${queue.map(p => `<tr><td class="muted">${when(p.created_at)}<div class="small">${ago(p.created_at)}</div></td><td><div class="who"><b>${esc(p.full_name || phoneFmt(p.country, p.phone))}</b><small>ID ${p.uid} · ${flag(p.country)}<span class="mono">${esc(p.agent_code || '')}</span></small></div></td>
+          <td class="r amt in">${money(p.amount, p.country)}</td><td class="wrap small">${p.players.map(x => `${esc(x.name || 'Player')} (ID ${x.uid}) · deposit ${money(x.deposit, p.country)} → ${money(x.earning, p.country)}`).join('<br>') || '–'}</td>
+          <td><div class="acts"><button class="btn xs primary" data-agpay="${p.id}" data-act="approve">Approve</button><button class="btn xs danger" data-agpay="${p.id}" data-act="reject">Reject</button></div></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty"><b>No requests waiting</b>Agents\' payout requests appear here.</div></td></tr>'}
+      </tbody></table></div></div>
+      <div class="card"><div class="card-h"><h3>Agents <span class="sub">${agents.filter(a => a.is_agent).length} active</span></h3></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Agent</th><th>Code &amp; link</th><th class="r">Players</th><th class="r">First deposits</th><th class="r">Waiting for play</th><th class="r">Owed</th><th class="r">Paid</th><th></th></tr></thead><tbody>
+        ${agents.map(a => `<tr><td><div class="who"><b class="lnk" data-user="${a.id}">${esc(a.full_name || phoneFmt(a.country, a.phone))}</b><small>ID ${a.uid} · ${flag(a.country)}${a.is_agent ? '' : ' · <span class="pill">stopped</span>'}</small></div></td>
+          <td><span class="mono">${esc(a.agent_code || '')}</span>${a.link ? `<div class="agent-link"><input readonly value="${esc(location.origin + '/?agent=' + a.agent_code)}" onclick="this.select()"></div>` : ''}</td>
+          <td class="r">${int(a.players)}</td><td class="r">${int(a.deposited)}<div class="small muted">${money(a.deposits, a.country)}</div></td><td class="r">${money(a.pending, a.country)}</td><td class="r"><b>${money(a.owed, a.country)}</b></td><td class="r">${money(a.paid, a.country)}</td>
+          <td>${a.is_agent ? `<button class="btn xs" data-agent-set="${a.id}" data-v="false">Stop</button>` : `<button class="btn xs" data-agent-set="${a.id}" data-v="true">Restart</button>`}</td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No agents yet</b>Open a player (Players) and press Make agent.</div></td></tr>'}
+      </tbody></table></div></div>
+      ${done.filter(p => p.status !== 'pending').length ? `<div class="card"><div class="card-h"><h3>Decided payouts</h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Decided</th><th>Agent</th><th class="r">Amount</th><th>Status</th></tr></thead><tbody>
+        ${done.filter(p => p.status !== 'pending').slice(0, 50).map(p => `<tr><td class="muted">${when(p.decided_at)}</td><td>${esc(p.full_name || '')} · ID ${p.uid}</td><td class="r">${money(p.amount, p.country)}</td><td>${pill(p.status, P_AGP)}${p.reason ? `<div class="small muted">${esc(p.reason)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+  };
+  function agentPayoutAction(id, act) {
+    const p = (state.agentPays && state.agentPays.get(String(id))) || {}, ok = act === 'approve', cc = p.country || 'GH';
+    openModal(`<h3>${ok ? 'Approve this agent payout' : 'Reject this agent payout'}</h3>
+      <p class="sub">${ok ? `${money(p.amount, cc)} goes into the agent's balance at once (ledger: agent commission). They can then withdraw it like any player – their withdrawal is reviewed as usual.` : 'The earnings go back to the agent as available; tell them why.'}</p>
+      <dl class="kv"><dt>Agent</dt><dd>${esc(p.full_name || '')} · ID ${p.uid} · <span class="mono">${esc(p.agent_code || '')}</span></dd><dt>Amount</dt><dd><b>${money(p.amount, cc)}</b></dd><dt>Players</dt><dd class="small">${(p.players || []).map(x => `${esc(x.name || 'Player')} (ID ${x.uid}) · ${money(x.deposit, cc)}`).join('<br>') || '–'}</dd></dl>
+      ${ok ? '' : '<label class="field"><span>Reason the agent sees</span><input id="agReason" maxlength="200"></label>'}
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${ok ? 'primary' : 'danger solid'}" id="mGo">${ok ? 'Approve ' + money(p.amount, cc) : 'Reject'}</button></div>`);
+    $('#mGo').onclick = async () => {
+      const reason = ok ? '' : $('#agReason').value.trim(); if (!ok && !reason) return $('#agReason').focus();
+      try { $('#mGo').disabled = true; await API.admin.agentPayout(id, act, reason); closeModal(); toast(ok ? 'Paid into the agent\'s balance' : 'Payout rejected', 'ok'); render(true); }
+      catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+
+  /* ---------- Send money (from the Moolre wallet to any MoMo number) ---------- */
+  const P_SEND = { pending: ['warn', 'Sending'], success: ['ok', 'Sent'], failed: ['bad', 'Failed'] };
+  PAGES.sendmoney = async main => {
+    const w = await API.admin.wallet(), L = w.limits;
+    const bal = !w.enabled ? '<div class="banner warn">The payment API is not connected – set the Moolre keys in Railway.</div>'
+      : w.balance && !w.balance.error ? `<div class="banner ok">${esc(w.label)} wallet <b>${esc(w.balance.name || '')}</b> · balance <b>${money(w.balance.amount, 'GH')}</b></div>`
+      : `<div class="banner warn">Cannot read the ${esc(w.label)} wallet: ${esc((w.balance && w.balance.error) || 'unknown')}. Sending needs a working private key and this server's IP whitelisted in Moolre.</div>`;
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Send money</h2><p>Send money from the ${esc(w.label || 'Moolre')} wallet to any Mobile Money number – to pay someone by hand or to move takings to your own wallet. No player balance changes. To pay a player's withdrawal, use <b>Payments → Review → Approve &amp; send</b> instead: it settles the withdrawal too.</p></div></div>
+      ${bal}
+      <div class="set-grid">
+        <div class="card set-card"><div class="card-b"><h4>New transfer</h4>
+          <div class="desc">Limits: ${money(L.maxPerTransfer, 'GH')} per transfer, ${money(L.maxPerDay, 'GH')} per 24 hours · <b>${money(w.leftToday, 'GH')}</b> left now. Change them in Settings (<span class="mono">wallet_payouts</span>).</div>
+          <div class="field-row"><label class="field sm"><span>Network</span><select id="sNet">${Object.entries(NET).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+            <label class="field"><span>MoMo number</span><input id="sPhone" inputmode="numeric" maxlength="13" placeholder="024 123 4567"></label></div>
+          <div class="field-row"><label class="field"><span>Amount (GH₵)</span><input id="sAmt" type="number" step="0.01" min="1"></label>
+            <label class="field"><span>Reason (kept in the record)</span><input id="sReason" maxlength="200" placeholder="e.g. Takings to company wallet"></label></div>
+          <p class="help" id="sName">Check the name on the number before sending.</p>
+          <p class="form-err" id="sErr" hidden></p>
+          <div class="m-actions"><button class="btn" id="sCheck">Check name</button><button class="btn primary" id="sGo" ${w.enabled ? '' : 'disabled'}>Send…</button></div>
+        </div></div>
+      </div>
+      <div class="card"><div class="card-h"><h3>Transfers <span class="sub">${money(w.sentToday, 'GH')} in the last 24 hours</span></h3></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>To</th><th>Name on the wallet</th><th class="r">Amount</th><th>Reason</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>
+        ${w.payouts.map(x => `<tr><td class="muted">${when(x.at)}</td><td><span class="mono">${esc((NET[x.network] || x.network) + ' · 0' + x.phone)}</span></td><td>${esc(x.name || '–')}</td><td class="r amt out">${money(x.amount, 'GH')}</td>
+          <td class="wrap small">${esc(x.reason)}${x.error ? `<div class="muted">${esc(x.error)}</div>` : ''}<div class="muted mono small">${esc(x.reference || '')}</div></td><td class="small">${esc(x.by)}</td><td>${pill(x.status, P_SEND)}</td>
+          <td>${x.status === 'pending' ? `<button class="btn xs" data-wcheck="${x.id}">Check</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No transfers yet</b>Money you send from the wallet appears here.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    const val = () => ({ network: $('#sNet').value, phone: $('#sPhone').value.replace(/\D/g, ''), amount: +$('#sAmt').value, reason: $('#sReason').value.trim() });
+    const err = m => { $('#sErr').textContent = m; $('#sErr').hidden = !m; };
+    let checked = null;
+    const lookup = async () => {
+      const v = val(); err('');
+      if (v.phone.replace(/^233/, '').replace(/^0/, '').length !== 9) { err('Enter a 10-digit MoMo number, e.g. 024 123 4567.'); return null; }
+      $('#sName').textContent = 'Checking…';
+      try {
+        const r = await API.admin.walletLookup(v.phone, v.network);
+        checked = { ...v, name: r.name || null, status: r.status };
+        $('#sName').innerHTML = r.status === 'found' ? `Registered name: <b>${esc(r.name)}</b>` : r.status === 'not_found' ? '<span class="pill bad">No MoMo wallet on this number</span>' : `Name check failed: ${esc(r.reason || '')}`;
+        return checked;
+      } catch (e) { $('#sName').textContent = errMsg(e); return null; }
+    };
+    $('#sCheck').onclick = lookup;
+    ['#sNet', '#sPhone'].forEach(s => { $(s).oninput = () => { checked = null; $('#sName').textContent = 'Check the name on the number before sending.'; }; });
+    $('#sGo').onclick = async () => {
+      const v = val(); err('');
+      if (!(v.amount >= 1)) return err('Enter the amount (GH₵1 or more).');
+      if (v.reason.length < 3) return err('Write the reason – it is kept with the transfer.');
+      const c = checked && checked.phone === v.phone && checked.network === v.network ? checked : await lookup();
+      if (!c) return;
+      if (c.status === 'not_found') return err('There is no MoMo wallet on this number.');
+      openModal(`<h3>Send ${money(v.amount, 'GH')}?</h3><p class="sub">This money leaves the ${esc(w.label)} wallet at once and cannot be called back.</p>
+        <dl class="kv"><dt>To</dt><dd><span class="mono">${esc((NET[v.network] || v.network) + ' · ' + v.phone)}</span></dd><dt>Name on the wallet</dt><dd><b>${esc(c.name || 'not confirmed')}</b></dd><dt>Amount</dt><dd><b>${money(v.amount, 'GH')}</b></dd><dt>Reason</dt><dd>${esc(v.reason)}</dd></dl>
+        <label class="field"><span>Your admin password</span><input id="sPw" type="password" autocomplete="current-password"></label>
+        <p class="form-err" id="sPwErr" hidden></p>
+        <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="sSend">Send ${money(v.amount, 'GH')}</button></div>`);
+      $('#sSend').onclick = async () => {
+        const pw = $('#sPw').value; if (!pw) return $('#sPw').focus();
+        try {
+          $('#sSend').disabled = true; $('#sSend').textContent = 'Sending…';
+          const r = await API.admin.walletSend({ ...v, password: pw });
+          closeModal(); toast(r.status === 'success' ? `Sent ${money(v.amount, 'GH')} to ${c.name || v.phone}` : `Sending – waiting for ${w.label} to confirm`, 'ok'); render(true);
+        } catch (e) { const m = $('#sPwErr'); m.textContent = errMsg(e); m.hidden = false; $('#sSend').disabled = false; $('#sSend').textContent = `Send ${money(v.amount, 'GH')}`; if (e.message === 'payout_failed') render(true); }
+      };
+    };
+    $$('#main [data-wcheck]').forEach(b => b.onclick = async () => { try { b.disabled = true; const r = await API.admin.walletCheck(b.dataset.wcheck); toast(r.status === 'pending' ? 'Still waiting for confirmation' : r.status === 'success' ? 'Confirmed: sent' : 'Failed: ' + (r.error || ''), r.status === 'failed' ? 'err' : 'ok'); render(true); } catch (e) { toast(errMsg(e), 'err'); b.disabled = false; } });
+  };
+
+  /* ---------- Promo codes ---------- */
+  PAGES.promos = async main => {
+    const rows = await API.admin.promos(), now = Date.now();
+    const st = p => !p.active ? ['', 'Paused'] : p.ends_at && new Date(p.ends_at) <= now ? ['', 'Ended'] : p.max_uses && p.uses >= p.max_uses ? ['warn', 'Used up'] : ['ok', 'Live'];
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Promo codes</h2><p>Codes players type on Me → Bonuses. Each player can use a code once, only in its country. The bonus stays locked until they stake the wagering multiple on multiples (every selection 1.50 or more) within the days you set. Set wagering to 0 to pay it as cash at once. By default a player must have made a deposit before a code works, which stops throw-away accounts collecting codes.</p></div>
+        <div class="page-actions"><button class="btn primary" id="newPromo">${IC.plus} New promo code</button></div></div>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Country</th><th class="r">Bonus</th><th>Wagering</th><th class="r">Used</th><th>Ends</th><th>Status</th><th class="r">Given</th><th></th></tr></thead><tbody>
+        ${rows.map(p => { const [cls, label] = st(p); return `<tr><td><b class="mono">${esc(p.code)}</b>${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ''}</td><td>${flag(p.country)}</td><td class="r">${money(p.amount, p.country)}</td>
+          <td>${p.times > 0 ? `${p.times}× within ${p.days} days` : 'Cash at once'}<div class="small muted">${[p.requires_deposit ? 'after a deposit' : 'no deposit needed', p.new_players_only ? 'new players only' : ''].filter(Boolean).join(' · ')}</div></td>
+          <td class="r">${int(p.uses)}${p.max_uses ? ' / ' + int(p.max_uses) : ''}</td><td class="muted">${p.ends_at ? when(p.ends_at) : 'No end date'}</td><td><span class="pill ${cls}">${label}</span></td>
+          <td class="r">${money(p.given, p.country)}<div class="small muted">${money(p.released, p.country)} unlocked</div></td>
+          <td><div class="acts"><button class="btn xs" data-promo-toggle="${esc(p.code)}" data-v="${p.active ? 'false' : 'true'}">${p.active ? 'Pause' : 'Resume'}</button></div></td></tr>`; }).join('') || '<tr><td colspan="9"><div class="empty"><b>No promo codes yet</b>Create one with “New promo code”.</div></td></tr>'}
+      </tbody></table></div></div>`;
+    $('#newPromo').onclick = promoModal;
+    $$('#main [data-promo-toggle]').forEach(b => b.onclick = async () => {
+      try { b.disabled = true; await API.admin.updatePromo(b.dataset.promoToggle, { active: b.dataset.v === 'true' }); toast(b.dataset.v === 'true' ? 'Code resumed' : 'Code paused – players can no longer use it', 'ok'); render(true); }
+      catch (e) { toast(errMsg(e), 'err'); b.disabled = false; }
+    });
+  };
+  function promoModal() {
+    const cc = state.me.country || 'GH';
+    openModal(`<h3>New promo code</h3><p class="sub">Players type the code on Me → Bonuses. The amount, wagering and days cannot be changed once the code exists. You can pause it, or change the use limit and end date.</p>
+      <div class="field-row"><label class="field"><span>Code (4–20 letters / digits)</span><input id="pCode" maxlength="20" placeholder="e.g. WELCOME50" style="text-transform:uppercase"></label>
+        <label class="field sm"><span>Country</span><select id="pCc"><option value="GH" ${cc === 'GH' ? 'selected' : ''}>Ghana (GH₵)</option><option value="NG" ${cc === 'NG' ? 'selected' : ''}>Nigeria (₦)</option></select></label></div>
+      <div class="field-row"><label class="field"><span>Bonus amount</span><input id="pAmt" type="number" step="0.01" min="1"></label>
+        <label class="field"><span>Wagering (× bonus, 0 = cash)</span><input id="pTimes" type="number" step="0.5" min="0" max="50" value="5"></label>
+        <label class="field"><span>Days to unlock</span><input id="pDays" type="number" step="1" min="1" max="90" value="7"></label></div>
+      <div class="field-row"><label class="field"><span>Max players (blank = no limit)</span><input id="pMax" type="number" step="1" min="1"></label>
+        <label class="field"><span>Ends (optional, your local time)</span><input id="pEnd" type="datetime-local"></label></div>
+      <label class="chk"><input type="checkbox" id="pDep" checked> Only after the player has made a deposit (recommended)</label>
+      <label class="chk"><input type="checkbox" id="pNew"> Only players who sign up after the code is created</label>
+      <label class="field"><span>Note for admins (optional)</span><input id="pNote" maxlength="200" placeholder="e.g. Instagram campaign, November"></label>
+      <p class="form-err" id="pErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Create code</button></div>`);
+    $('#mGo').onclick = async () => {
+      const er = $('#pErr'), show = m => { er.textContent = m; er.hidden = false; }; er.hidden = true;
+      const code = $('#pCode').value.trim().toUpperCase().replace(/\s+/g, ''), amount = +$('#pAmt').value, times = $('#pTimes').value === '' ? 5 : +$('#pTimes').value, days = +$('#pDays').value || 7;
+      if (!/^[A-Z0-9]{4,20}$/.test(code)) return show('The code needs 4 to 20 letters or digits, without spaces or symbols.');
+      if (!(amount > 0)) return show('Enter the bonus amount.');
+      const body = { code, country: $('#pCc').value, amount, times, days, requiresDeposit: $('#pDep').checked, newPlayersOnly: $('#pNew').checked, note: $('#pNote').value.trim() };
+      if ($('#pMax').value) body.maxUses = Math.floor(+$('#pMax').value);
+      if ($('#pEnd').value) { const d = new Date($('#pEnd').value); if (isNaN(d) || d <= new Date()) return show('The end date must be in the future.'); body.endsAt = d.toISOString(); }
+      try { $('#mGo').disabled = true; await API.admin.createPromo(body); closeModal(); toast(`Code ${code} is live`, 'ok'); render(true); }
+      catch (e) { show(errMsg(e)); $('#mGo').disabled = false; }
     };
   }
 
@@ -554,21 +1174,27 @@
           ${lims('NG', ng)}
         </div></div>
         <div class="card set-card"><div class="card-b"><h4>${flag('GH')}Ghana – Mobile Money</h4>
-          <div class="desc">Deposits and payouts go through the payment API (Paystack) once its secret key is set on the server. Until then you can take manual MoMo deposits below.</div>
-          ${api.enabled ? `<div class="banner ok">Payment API connected${api.test ? ' – <b>test mode</b>, no real money' : ''}${Array.isArray(api.balance) ? ' · Paystack balance ' + api.balance.map(x => money(x.balance, x.currency === 'GHS' ? 'GH' : 'NG')).join(', ') : api.balance && api.balance.error ? ' · ' + esc(api.balance.error) : ''}</div>`
-            : '<div class="banner warn">Payment API not connected – set <span class="mono">PAYSTACK_SECRET_KEY</span> in the server environment (Railway → Variables).</div>'}
-          <label class="field"><span>Webhook URL – paste it in Paystack → Settings → API Keys &amp; Webhooks</span><input readonly value="${esc(api.webhook)}" onclick="this.select()"></label>
+          <div class="desc">Deposits go through the payment API: the player approves the prompt on their phone and the deposit is credited automatically once the provider confirms the money arrived – nobody confirms these by hand. Withdrawals are sent from here with one click. Without an API you can take manual MoMo deposits below.</div>
+          ${api.enabled ? `<div class="banner ok">${esc(api.label)} connected${api.test ? ' – <b>test mode</b>, no real money' : ''}${Array.isArray(api.balance) ? ` · ${esc(api.label)} balance ` + api.balance.map(x => money(x.balance, x.currency === 'GHS' ? 'GH' : 'NG')).join(', ') : api.balance && api.balance.error ? ' · ' + esc(api.balance.error) : ''}</div>`
+            : '<div class="banner warn">Payment API not connected – set the Moolre keys (<span class="mono">MOOLRE_USER</span>, <span class="mono">MOOLRE_PUBLIC_KEY</span>, <span class="mono">MOOLRE_PRIVATE_KEY</span>, <span class="mono">MOOLRE_ACCOUNT_NUMBER</span>) in Railway → Variables.</div>'}
+          ${api.provider === 'moolre' && api.account ? `<div class="banner ${api.account.activated && api.account.callbackOk && api.signed ? 'ok' : 'warn'}">Wallet <b>${esc(api.account.name || '–')}</b> · API access ${api.account.activated ? 'on' : '<b>off – switch it on in Moolre</b>'} · webhook ${api.account.callbackOk ? 'registered' : '<b>not registered – run scripts/moolre-setup.js</b>'}${api.signed ? ' · signatures checked' : ' · <b>MOOLRE_WEBHOOK_SECRET not set</b>'}</div>` : ''}
+          ${api.webhook ? `<label class="field"><span>Webhook URL${api.provider === 'paystack' ? ' – paste it in Paystack → Settings → API Keys &amp; Webhooks' : ' (set on the Moolre wallet)'}</span><input readonly value="${esc(api.webhook)}" onclick="this.select()"></label>` : ''}
           <h5>Manual MoMo ${api.enabled ? '(not used while the API is connected)' : ''}</h5>
           <label class="field"><span>Network</span><select name="GH.momo.network">${Object.entries(NET).map(([v, l]) => `<option value="${v}" ${m.network === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           ${f('GH.momo.number', 'MoMo number', m.number ? '0' + m.number : '', 'inputmode="numeric" maxlength="10" placeholder="024 123 4567"')}
           ${f('GH.momo.name', 'Name on the wallet', m.name, 'maxlength="80"')}
           ${f('GH.momo.note', 'Note for players (optional)', m.note, 'maxlength="200"')}
+          <h5>USSD deposits (manual)</h5>
+          <p class="small muted">Players dial this code, pay, and type the transaction ID; the deposit waits in Payments for you to confirm. Leave empty to hide the option.</p>
+          ${f('GH.ussd.code', 'USSD code', (gh.ussd && gh.ussd.code) || '', 'maxlength="40" placeholder="*203*0778606#"')}
+          ${f('GH.ussd.name', 'Pays to (name players see, optional)', (gh.ussd && gh.ussd.name) || '', 'maxlength="80"')}
+          ${f('GH.ussd.note', 'Note for players (optional)', (gh.ussd && gh.ussd.note) || '', 'maxlength="200"')}
           ${lims('GH', gh)}
         </div></div>
       </form>
       <div class="set-foot sticky"><p class="form-err" id="psErr" hidden></p><span class="saved" hidden>Saved</span><button class="btn primary" id="psSave">Save payment settings</button></div>`;
     $('#psSave').onclick = async () => {
-      const v = { NG: { bank: {} }, GH: { momo: {} } };
+      const v = { NG: { bank: {} }, GH: { momo: {}, ussd: {} } };
       $$('#paySet [name]').forEach(i => { const path = i.name.split('.'); let o = v; for (let k = 0; k < path.length - 1; k++) o = o[path[k]] = o[path[k]] || {}; o[path[path.length - 1]] = i.type === 'number' ? +i.value : i.value.trim(); });
       v.NG.bank.number = v.NG.bank.number.replace(/\D/g, ''); v.GH.momo.number = v.GH.momo.number.replace(/\D/g, '');
       const er = $('#psErr'); er.hidden = true;
@@ -719,13 +1345,16 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-pay],[data-review],[data-agent-set],[data-agpay],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
       if (d.pay) return payAction(d.id, d.pay);
-      if (d.payout) return payoutAction(d.payout);
+      if (d.review) return reviewModal(d.review);
+      if (d.agentSet) { const on = d.v === 'true'; if (!on && !confirm('Stop this agent? Their players stay linked to them, but new sign-ups and new first deposits no longer earn them anything.')) return;
+        API.admin.setAgent(d.agentSet, on).then(r => { toast(on ? `Agent created · code ${r.code}` : 'Agent stopped', 'ok'); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); render(true); }).catch(err => toast(errMsg(err), 'err')); return; }
+      if (d.agpay) return agentPayoutAction(d.agpay, d.act);
       if (d.kyc) return kycAction(d.id, d.kyc);
       if (d.user) return openUser(d.user);
       if (d.userUid) { location.hash = '#/players/' + d.userUid; return; }

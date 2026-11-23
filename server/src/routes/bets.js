@@ -5,6 +5,7 @@ import { q, tx } from '../db/pool.js';
 import { requireUser } from '../lib/auth.js';
 import { move, debit } from '../lib/wallet.js';
 import { getSetting } from '../lib/settings.js';
+import { inplayRules } from '../lib/inplay.js';
 import { cashoutValue } from '../lib/settle.js';
 import { sendEmail } from '../emails/index.js';
 
@@ -19,24 +20,32 @@ async function priceSelections(client, sels, acceptChanges) {
   const legs = [];
   for (const s of sels) {
     const { rows } = await client.query(
-      `SELECT e.id, e.home, e.away, e.status, e.kickoff, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id=e.id AND m.key=$2 WHERE e.id=$1`, [s.eventId, s.market]);
+      `SELECT e.id, e.home, e.away, e.status, e.kickoff, e.stats, m.name, m.outcomes, m.suspended FROM events e JOIN markets m ON m.event_id=e.id AND m.key=$2 WHERE e.id=$1`, [s.eventId, s.market]);
     const row = rows[0];
     const o = row?.outcomes?.[s.outcome];
     // no past-posting: a pre-match price is gone once the game has kicked off (live prices need status 'live')
-    if (!row || !o || row.suspended || o.o == null || row.status === 'finished' || row.status === 'cancelled' || (row.status === 'scheduled' && new Date(row.kickoff) <= new Date())) {
+    // a hand-added match in play: only while its score is fresh and not in a goal stop (checked again here, not only by the leader)
+    const st = row && row.stats || {}, nowMs = Date.now();
+    const staleLive = row && row.status === 'live' && ((st.inplay && st.openUntil && Date.parse(st.openUntil) < nowMs) || (st.betStopUntil && Date.parse(st.betStopUntil) > nowMs) || st.awaiting);
+    if (!row || !o || row.suspended || staleLive || o.o == null || row.status === 'finished' || row.status === 'cancelled' || (row.status === 'scheduled' && new Date(row.kickoff) <= new Date())) {
       throw Object.assign(new Error('selection_unavailable'), { status: 409, detail: { eventId: s.eventId, market: s.market } });
     }
     if (Math.abs(o.o - s.odd) > 0.004 && !acceptChanges) {
       throw Object.assign(new Error('odds_changed'), { status: 409, detail: { eventId: s.eventId, market: s.market, odd: o.o } });
     }
-    legs.push({ eventId: row.id, market: s.market, outcome: s.outcome, label: o.l, marketName: row.name, match: `${row.home} vs ${row.away}`, odd: o.o });
+    legs.push({ eventId: row.id, market: s.market, outcome: s.outcome, label: o.l, marketName: row.name, match: `${row.home} vs ${row.away}`, odd: o.o, live: row.status === 'live' });
   }
   return legs;
 }
 
 const boostFor = (steps, n) => steps.reduce((b, [k, v]) => (n >= k ? v : b), 0);
+/** The most boost n selections can carry while the multiple still returns at most 97% of the stake on average –
+ *  whatever the tiers in Settings say. With a payout ratio m per selection a boosted multiple returns up to
+ *  m^n x (1 + boost) (most with long odds), so boost <= 0.97 / m^n - 1. */
+export const safeBoost = (n, margin) => Math.max(0, Math.floor((0.97 / Math.pow(Math.min(0.99, Math.max(0.5, Number(margin) || 0.94)), n) - 1) * 100));
 
-/** Refer & Earn: once the referred player has staked at least the reward amount on sports bets, pay the referrer (once). */
+/** Refer & Earn: pay the referrer (once) when the friend has deposited and has LOST at least the reward on settled
+ *  sports bets (stakes minus what came back) – staking alone, or betting both sides, earns nothing (no reward farming). */
 async function payReferral(user) {
   const reward = (await getSetting('referral'))?.[user.country];
   if (!reward) return;
@@ -44,11 +53,19 @@ async function payReferral(user) {
     const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
     const me = rows[0];
     if (!me || !me.referred_by || me.ref_paid || me.rc !== user.country) return;
-    const { rows: st } = await c.query(`SELECT coalesce(sum(stake),0)::float AS staked FROM bets WHERE user_id=$1`, [user.id]);
-    if (st[0].staked < reward) return;
+    const { rows: st } = await c.query(`SELECT coalesce(sum(stake - coalesce(paid,0)) FILTER (WHERE status IN ('won','lost','cashout','void')),0)::float AS lost,
+        (SELECT count(*)::int FROM payments WHERE user_id=$1 AND kind='deposit' AND status='success') AS deps FROM bets WHERE user_id=$1`, [user.id]);
+    if (!st[0].deps || st[0].lost < reward) return;
     await c.query('UPDATE users SET ref_paid=true WHERE id=$1', [user.id]);
     await move(c, me.referred_by, 'referral', reward, 'RF' + String(user.uid || '').slice(-8), { friend: user.id });
   });
+}
+
+/** Leader, every minute: friends whose bets have settled since (the reward is checked at bet time too). */
+export async function referralSweep() {
+  const { rows } = await q(`SELECT DISTINCT u.id, u.country, u.uid FROM users u JOIN bets b ON b.user_id=u.id
+    WHERE u.referred_by IS NOT NULL AND NOT coalesce(u.ref_paid,false) AND b.settled_at > now() - interval '1 day' LIMIT 200`);
+  for (const u of rows) await payReferral(u).catch(() => {});
 }
 
 r.post('/place', requireUser, async (req, res, next) => {
@@ -66,9 +83,24 @@ r.post('/place', requireUser, async (req, res, next) => {
   if (type === 'multiple' && ids.size !== selections.length) return res.status(400).json({ error: 'one_pick_per_match' });
   try {
     const cc = req.user.country;
+    // in play (real or your own football matches): confirmed after a short wait – a goal in the meantime refuses the bet;
+    // "blind" matches (no live score feed) have a per-player stake cap per match
+    const { rows: liveEv } = await q(`SELECT id, stats, kickoff FROM events WHERE id = ANY($1) AND status='live' AND sport='football'`, [[...ids]]);
+    if (liveEv.length) {
+      const R = await inplayRules();
+      const blindEv = liveEv.filter(e => e.stats && e.stats.blind);
+      for (const e of blindEv) {
+        const i = selections.findIndex(s => s.eventId === Number(e.id)), stake = type === 'multiple' ? p.data.stake : (p.data.stakes || [])[i];
+        const { rows: had } = await q(`SELECT coalesce(sum(b.stake),0)::float AS s FROM bets b JOIN bet_legs l ON l.bet_id=b.id WHERE b.user_id=$1 AND l.event_id=$2 AND b.placed_at >= $3`, [req.user.id, e.id, e.kickoff]);
+        const max = Number(R.blindMaxStake[cc]) || 0;
+        if ((Number(stake) || 0) + had[0].s > max) return res.status(400).json({ error: 'inplay_max_stake', detail: { max, left: Math.max(0, +(max - had[0].s).toFixed(2)) } });
+      }
+      const wait = (blindEv.length ? R.blindDelaySec : R.delaySec) * 1000;
+      if (wait) await new Promise(r => setTimeout(r, wait));
+    }
     const minStake = (await getSetting('min_stake'))[cc];
     const maxPayout = (await getSetting('max_payout'))[cc];
-    const boostSteps = await getSetting('boost');
+    const boostSteps = await getSetting('boost'), margin = await getSetting('margin');
     const out = await tx(async c => {
       const legs = await priceSelections(c, selections, acceptChanges);
       const placed = [];
@@ -76,8 +108,8 @@ r.post('/place', requireUser, async (req, res, next) => {
         const stake = p.data.stake;
         if (!stake || stake < minStake) throw Object.assign(new Error('min_stake'), { status: 400, detail: { min: minStake } });
         const odds = legs.reduce((a, l) => a * l.odd, 1);
-        const qualifying = legs.filter(l => l.odd >= 1.2).length;              // Acca Win Boost: selections at odds 1.20+
-        const boost = qualifying >= 3 ? boostFor(boostSteps, qualifying) : 0;
+        const qualifying = legs.filter(l => l.odd >= 1.2 && !l.live).length;   // Acca Win Boost: pre-match selections at odds 1.20+ (live prices are the least sure)
+        const boost = qualifying >= 3 ? Math.min(boostFor(boostSteps, qualifying), safeBoost(qualifying, margin)) : 0;
         const base = stake * odds;
         const potential = Math.min(maxPayout, base + (base - stake) * boost / 100);
         const id = ticket();
@@ -112,9 +144,9 @@ r.get('/', requireUser, async (req, res, next) => {
   try {
     const { rows } = await q(`SELECT * FROM bets WHERE user_id=$1 AND ${status} ORDER BY placed_at DESC LIMIT 100`, [req.user.id]);
     const ids = rows.map(b => b.id);
-    const legs = ids.length ? (await q(`SELECT l.*, e.status AS ev_status, e.score_home, e.score_away FROM bet_legs l JOIN events e ON e.id=l.event_id WHERE l.bet_id = ANY($1)`, [ids])).rows : [];
+    const legs = ids.length ? (await q(`SELECT l.*, e.status AS ev_status, e.score_home, e.score_away, e.sport AS ev_sport FROM bet_legs l JOIN events e ON e.id=l.event_id WHERE l.bet_id = ANY($1)`, [ids])).rows : [];
     const byBet = {};
-    legs.forEach(l => (byBet[l.bet_id] ||= []).push({ eventId: l.event_id, market: l.market_key, outcome: l.outcome_key, label: l.label, marketName: l.market_name, match: l.match_name, odd: l.odd, result: l.result, final: l.ev_status === 'finished' ? [l.score_home, l.score_away] : null }));
+    legs.forEach(l => (byBet[l.bet_id] ||= []).push({ eventId: l.event_id, market: l.market_key, outcome: l.outcome_key, label: l.label, marketName: l.market_name, match: l.match_name, odd: l.odd, result: l.result, sport: l.ev_sport, final: l.ev_status === 'finished' ? [l.score_home, l.score_away] : null }));
     const bets = [];
     for (const b of rows) {
       const legsOf = byBet[b.id] || [];

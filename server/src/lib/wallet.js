@@ -1,10 +1,15 @@
 // All balance changes go through here, inside the caller's transaction client,
 // so a bet or payout can never leave the ledger and the cached balance out of step.
+// Play-through (withdrawals): a deposit must be staked once before it can be withdrawn. users.playthrough_left goes
+// up with each deposit, down with each stake (sports, virtuals, games, jackpot), and is never above the balance –
+// so winnings are never locked, only the part of the deposits not yet played.
+const STAKES = new Set(['bet', 'game_bet', 'virtual_bet', 'jackpot']);
 export async function move(client, userId, type, amount, ref = null, meta = {}) {
   const amt = Math.round(Number(amount) * 100) / 100;
+  const play = type === 'deposit' ? amt : STAKES.has(type) ? amt : 0;   // stakes come in negative
   const { rows } = await client.query(
-    'UPDATE users SET balance = balance + $2 WHERE id = $1 RETURNING balance',
-    [userId, amt],
+    'UPDATE users SET balance = balance + $2, playthrough_left = least(balance + $2, greatest(0, playthrough_left + $3)) WHERE id = $1 RETURNING balance',
+    [userId, amt, play],
   );
   if (!rows[0]) throw Object.assign(new Error('no_user'), { status: 404 });
   await client.query(

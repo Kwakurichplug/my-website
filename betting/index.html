@@ -109,7 +109,7 @@
       </div>
 
       <div class="live-block">
-        <div class="sec-head dark"><h2>Live</h2><div class="txt-tabs" id="homeLiveTabs"></div></div>
+        <div class="sec-head dark"><h2 id="homeLiveTitle">Live</h2><div class="txt-tabs" id="homeLiveTabs"></div></div>
         <div class="mkt-tabs dark" id="homeLiveMkt"></div>
         <div id="liveStrip"></div>
         <a class="more-link dark" href="#/live">View all live events <span id="liveCountHome"></span> ›</a>
@@ -142,6 +142,7 @@
         <a class="icon-btn" href="#/home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg></a>
       </div>
       <div class="md-hero" id="mdHero"></div>
+      <div class="md-tracker" id="mdTracker" hidden></div>
       <div class="md-tabs" id="mdTabs">
         <button class="active" data-mdtab="markets">Markets</button>
         <button data-mdtab="stats">Statistics</button>
@@ -189,9 +190,11 @@
         </div>
       </div>
       <ul class="me-list">
+        <li><a href="#/support"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><span>Live Support</span><i class="nav-badge sp-badge" id="meSupportBadge" hidden></i><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li id="meAgentItem" hidden><a href="#/acct/agent"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"/><path d="M5 20c.9-3.6 3.6-5.5 7-5.5s6.1 1.9 7 5.5"/><path d="M17 4.5l1.5 1.5 3-3"/></svg><span>Agent Dashboard</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
         <li><a href="#/acct/refer"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 3-5 6-5s5.2 1.5 6 5M17 8v6M14 11h6"/></svg><span>Refer &amp; Earn</span><em class="new">NEW</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
         <li><a href="#/acct/messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Messages</span><em class="dot" id="meMsgDot"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
-        <li><a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span><em class="muted" id="meVer"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <li id="meVerifyItem"><a href="#/acct/verify"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.6-2 3-2s2.5.5 3 2M14 10h4M14 13h3"/></svg><span>Verify ID</span><em class="muted" id="meVer"></em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
         <li><a href="#/acct/security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Change Password</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
         <li><a href="#/acct/limits"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg><span>Responsible Gambling</span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
         <li><a href="#/acct/help"><svg viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 16 0"/><rect x="2.5" y="13" width="4" height="6" rx="1.5"/><rect x="17.5" y="13" width="4" height="6" rx="1.5"/><path d="M19.5 19c0 1.5-2 2.5-5 2.5"/></svg><span>Customer Service</span><em class="muted">Online 24/7</em><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></a></li>
@@ -205,10 +208,11 @@
     <section class="page" id="page-virtuals">
       <nav class="v-switch"><a class="on" href="#/virtuals">Virtual League</a><a href="#/instant">Instant Football <em>NEW</em></a></nav>
       <div class="v-head">
-        <div><small>LETBET VIRTUAL LEAGUE</small><h1>Round <span id="vRound"></span></h1><p>New round every 2 minutes · results in seconds</p></div>
+        <div><small>LETBET VIRTUAL LEAGUE</small><h1>Round <span id="vRound"></span></h1><p>New round every 2 minutes · every match plays live</p></div>
         <div class="v-clock"><small>Kick-off in</small><b id="vClock">--:--</b></div>
       </div>
       <div class="v-bar"><i id="vBar"></i></div>
+      <div id="vLive"></div>
       <div class="market-tabs" id="vMarketTabs"></div>
       <div id="vList" class="match-list"></div>
       <div class="section-head"><h2>Last round · <span id="vLastRound"></span></h2><a href="#/results" class="see-all">All results ›</a></div>
@@ -280,6 +284,8 @@
     <section class="page pg-page pg-dark" id="page-game"><div class="pg-root"></div></section>
 
     <!-- ============ LEGAL ============ -->
+    <section class="page acc-page" id="page-support"><div class="sp-root"></div></section>
+
     <section class="page" id="page-legal">
       <div class="sub-head"><button class="icon-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="sh-mid"><h1 id="legalTitle"></h1></div></div>
       <article class="legal" id="legalBody"></article>
@@ -314,7 +320,7 @@
       <i class="bs-grab" aria-hidden="true"></i>
       <span class="bs-cnt" id="bsCount">0</span>
       <span class="bs-title">Betslip</span>
-      <button class="bs-x" id="bsClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="bs-x" id="bsClose" aria-label="Minimize the betslip"><span>Minimize</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
     <div class="bs-tools"><button class="bs-tool" data-open="codeModal"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/><path d="M11 8.2L7.2 16M13 8.2l3.8 7.8M8.5 18h7"/></svg>Load Code</button><button class="bs-tool" id="bsClear"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 7l1 13h6l1-13M10 11l4 5M14 11l-4 5"/></svg></button></div>
     <div class="bs-tabs">
@@ -350,7 +356,7 @@
   <a href="#/sports" data-route="sports"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>AZ Menu</a>
   <a href="#/games" data-route="games" class="nav-games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
   <a href="#/acct/bets" data-route="bets"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/><path d="M12 8v8M10 10.5c0-1 .9-1.5 2-1.5s2 .5 2 1.5-1 1.3-2 1.5-2 .5-2 1.5.9 1.5 2 1.5 2-.5 2-1.5"/></svg>Open Bets<i class="nav-badge" id="navOpen"></i></a>
-  <a href="#/me" data-route="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me</a>
+  <a href="#/me" data-route="me"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Me<i class="nav-badge" id="navSupportDot" hidden></i></a>
 </nav>
 
 <!-- Side drawer -->
@@ -365,6 +371,7 @@
   <a href="#/games"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4M15.5 11h.01M17.5 13h.01"/></svg>Games</a>
   <a href="#/results"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Results</a>
   <a href="#/promos"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1s6 1 6 1c2-4 6-4 6-1s-6 1-6 1"/></svg>Promotions</a>
+  <a href="#/support"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Live Support</a>
   <a href="#/me"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>My Bets</a>
   <a href="#" data-open="depositModal"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Deposit</a>
   <a href="#/codes"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>Code Hub</a>
@@ -445,6 +452,8 @@
 <script src="games.js"></script>
 <script src="scenes.js"></script>
 <script src="arcade.js"></script>
+<script src="support.js"></script>
+<script src="tracker.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

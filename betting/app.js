@@ -96,7 +96,7 @@
   SPORTS.forEach(sp => { sp.em = LBA.sport(sp.id); });
   const VISIBLE = () => SPORTS.filter(s => !s.hidden);
   const VS = new Set(['vbasketball', 'vtennis', 'vicehockey', 'vvolleyball', 'vtabletennis', 'vhandball', 'vdarts']);
-  const realLive = m => m.live && !m.vs;   // virtual games in play stay out of "All live" and the live counters
+  const realLive = m => m.live && !m.vs && !m.virtual;   // virtual games in play (sports and the Virtual League) stay out of "All live" and the live counters
   // sports and leagues are only listed while they have a match to bet on (no empty "(0)" spots)
   const openIn = (f) => MATCHES.filter(m => !m.finished && f(m));
   const SPORTS_ON = () => VISIBLE().filter(s => MATCHES.some(m => m.sport === s.id && !m.finished));
@@ -290,9 +290,10 @@
   const LOCK = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const isSel = (id, mk, ok) => state.slip.some(s => s.mid === id && s.mk === mk && s.ok === ok);
   const liveLabel = m => {
+    const cp = clockParts(m); if (cp) return cp.main;
     if (m.vs && m.period) return m.period;
     if (m.noScore) return 'LIVE';
-    if (!m.two) return m.minute >= 90 ? "90+'" : m.minute === 45 ? 'HT' : m.minute + "'";
+    if (!m.two || m.sport === 'vfootball') return m.period === 'HT' || (!m.period && m.minute === 45 && !m.plus) ? 'HT' : `${m.minute}${m.plus ? '+' + m.plus : ''}'`;
     if (m.sport === 'basketball') return 'Q' + Math.min(4, 1 + Math.floor(m.prog * 4));
     if (m.sport === 'tennis') return 'Set ' + (m.score[0] + m.score[1] + 1);
     return 'LIVE';
@@ -329,8 +330,12 @@
 
   const isHot = m => LEAGUES[m.lg].top && m.id % 3 === 0;
   function matchRow(m, cfg, withLeague) {
+    const cp = m.live ? clockParts(m) : null;
     const meta = m.live
-      ? `<span class="lv-clock"${m.two ? '' : ` data-clk="${m.id}"`}>${m.two ? liveLabel(m) : String(m.minute).padStart(2, '0') + ':' + String((m.id * 7) % 60).padStart(2, '0')}</span><span class="lv-half">${m.two ? '' : m.minute <= 45 ? 'H1' : 'H2'}</span>`
+      ? `<i class="lv-dot" aria-hidden="true"></i>${cp ? `<span class="lv-clock${cp.cls === 'lv-add' ? ' is-add' : ''}" data-clk="${m.id}">${cp.main}</span><span class="lv-half${cp.cls ? ' ' + cp.cls : ''}" data-clks>${cp.sub}</span>`
+        : !m.two && m.period === 'HT' ? '<span class="lv-clock">HT</span><span class="lv-half">Half-time</span>'
+        : `<span class="lv-clock">${liveLabel(m)}</span><span class="lv-half">${m.two ? '' : m.minute <= 45 ? 'H1' : 'H2'}</span>`}`
+      : justFT(m) ? '<span class="ft-badge">FT</span><span class="lv-half">Full time</span>'
       : `${isHot(m) ? '<span class="hot">HOT</span>' : ''}<span>${new Date(m.kick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span><span>ID ${m.id}</span>`;
     const lg = LEAGUES[m.lg];
     const n = m.mk.reduce((acc, x) => acc + x.outs.filter(o => o.k).length, 0);
@@ -338,15 +343,16 @@
     const oddsHTML = cfg.lines
       ? (pr ? `<button class="odd lsel" data-lcycle="${m.id}|${cfg.mk}" aria-label="Change line"><b>${lineTxt(cfg, line)}</b><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>${oddBtn(m, cfg.mk, pr[0])}${oddBtn(m, cfg.mk, pr[1])}` : '<span class="odd void"></span>'.repeat(3))
       : cfg.outs.map(ok => oddBtn(m, cfg.mk, ok)).join('');
-    return `<div class="ev${m.live ? ' is-live' : ''}${m.live && recentGoal(m) ? ' goal' : ''}" style="--n:${cfg.n || cfg.outs.length}">
+    const ft = justFT(m);
+    return `<div class="ev${m.live ? ' is-live' : ''}${m.live && recentGoal(m) ? ' goal' : ''}${ft ? ' ft-out' : ''}" style="--n:${cfg.n || cfg.outs.length}${ft ? `;animation-delay:-${((Date.now() - m.ftAt) / 1000).toFixed(2)}s` : ''}">
       <div class="ev-meta">${meta}${withLeague ? `<span class="ev-lg">${esc(lg.country)} - ${esc(lg.name)}</span>` : ''}${state.favs.includes(m.id) ? '<span class="star">★</span>' : ''}</div>
       <div class="ev-body">
         <a class="ev-teams" href="#/match/${m.id}">
-          <span><i>${esc(m.home)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 0 ? 'pop' : ''}">${m.noScore ? '–' : m.score[0]}</b>` : ''}</span>
-          <span><i>${esc(m.away)}</i>${m.live ? `<b class="${recentGoal(m) && m.goalSide === 1 ? 'pop' : ''}">${m.noScore ? '–' : m.score[1]}</b>` : ''}</span>
+          <span><em class="tm">${crest(m.home, 0, m.sport)}<i>${esc(m.home)}</i></em>${m.live || ft ? `<b class="${recentGoal(m) && m.goalSide === 0 ? 'pop' : ''}${ft && m.score[0] > m.score[1] ? ' win' : ''}"${m.live ? ` data-sc="${m.id}:0"` : ''}>${m.noScore ? '–' : m.score[0]}</b>` : ''}</span>
+          <span><em class="tm">${crest(m.away, 0, m.sport)}<i>${esc(m.away)}</i></em>${m.live || ft ? `<b class="${recentGoal(m) && m.goalSide === 1 ? 'pop' : ''}${ft && m.score[1] > m.score[0] ? ' win' : ''}"${m.live ? ` data-sc="${m.id}:1"` : ''}>${m.noScore ? '–' : m.score[1]}</b>` : ''}</span>
           <small>+${n} ›</small>
         </a>
-        <div class="ev-odds">${oddsHTML}</div>
+        <div class="ev-odds">${m.live && !m.two && cfg.outs && cfg.outs.every(ok => !(m.map[cfg.mk] || {})[ok] || !(m.map[cfg.mk] || {})[ok].o) ? `<span class="ev-paused">${m.awaiting ? 'Betting closed · waiting for the result' : m.minute >= 80 && m.period === 'H2' ? 'Betting closed (80′)' : 'Betting paused · back in a moment'}</span>` : oddsHTML}</div>
         ${exCols(m, cfg)}
       </div>
     </div>`;
@@ -473,21 +479,33 @@
   }
 
   function renderLiveStrip() {
-    const sports = [...new Set(MATCHES.filter(realLive).map(m => m.sport))];
+    // real matches in play first; when none are, the virtual games running now – always labelled as virtual
+    const real = MATCHES.filter(m => realLive(m) || (justFT(m) && !m.vs && !m.virtual)), virt = !real.length;
+    const pool = virt ? MATCHES.filter(m => onLive(m) && (m.vs || m.virtual)) : real;
+    const sports = [...new Set(pool.map(m => m.sport))];
     if (!state.hls || !sports.includes(state.hls)) state.hls = sports[0] || 'football';
     const el = $('#homeLiveTabs'), x = el.scrollLeft;
     el.innerHTML = sports.map(id => `<button data-hls="${id}" class="${id === state.hls ? 'active' : ''}">${sportOf(id).name}</button>`).join('');
     el.scrollLeft = x;
+    $('#homeLiveTitle').textContent = virt && pool.length ? 'Live Virtuals' : 'Live';
     renderMarketTabs($('#homeLiveMkt'), state.hls);
     const cfg = mktFor(state.hls);
-    const live = MATCHES.filter(m => realLive(m) && m.sport === state.hls).slice(0, 6);
-    $('#liveStrip').innerHTML = `<div class="day-sep dark" style="--n:${cfg.n || cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}</div>` + live.map(m => matchRow(m, cfg, true)).join('');
+    const live = pool.filter(m => m.sport === state.hls).slice(0, 6);
+    const next = virt ? MATCHES.filter(m => !m.live && !m.finished && !m.vs && !m.virtual && m.kick > Date.now()).sort((a, b) => a.kick - b.kick)[0] : null;
+    const nextAt = next ? new Date(next.kick) : null;
+    const nextWhen = nextAt ? `${nextAt.toDateString() === new Date().toDateString() ? '' : nextAt.toLocaleDateString([], { weekday: 'short' }) + ' '}${nextAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}` : '';
+    const note = !virt ? '' : `<div class="live-note">
+      <div class="ln-top"><span class="ln-tag">${pool.length ? 'Virtuals' : 'Live'}</span><span>${pool.length ? 'Simulated games, live all day' : 'No matches in play right now'}</span></div>
+      ${next ? `<a class="ln-next" href="#/match/${next.id}"><span class="ln-lbl">Next real match</span><b class="ln-time">${esc(nextWhen)}</b><span class="ln-m">${crest(next.home, 0, next.sport)}<i>${esc(next.home)}</i><em>v</em>${crest(next.away, 0, next.sport)}<i>${esc(next.away)}</i></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>` : ''}</div>`;
+    $('#liveStrip').innerHTML = note + (live.length ? `<div class="day-sep dark" style="--n:${cfg.n || cfg.outs.length}"><span></span><div class="cols">${cfg.lab.map(l => `<span>${l}</span>`).join('')}</div>${exHead(cfg)}</div>` + live.map(m => matchRow(m, cfg, true)).join('') : '');
   }
 
   function renderLive() {
     renderSportTabs($('#liveSportTabs'), state.liveSport, true);
-    const list = MATCHES.filter(m => state.liveSport === 'all' ? realLive(m) : m.live && m.sport === state.liveSport);
-    $('#liveCount').textContent = list.length + ' events';
+    const bettable = m => m.live && Object.values(m.map['1x2'] || m.map.win || {}).some(o => o && o.o);
+    const list = MATCHES.filter(m => state.liveSport === 'all' ? realLive(m) || (justFT(m) && !m.vs && !m.virtual) : onLive(m) && m.sport === state.liveSport)
+      .sort((a, b) => (bettable(b) ? 1 : 0) - (bettable(a) ? 1 : 0));   // matches you can bet on now come first
+    $('#liveCount').textContent = list.filter(m => m.live).length + ' events';
     $('#liveList').innerHTML = groupRender(list, s => listMarkets(s)[0]);
   }
 
@@ -532,15 +550,14 @@
     // Hero
     let bar = '';
     if (m.live && !m.two) {
-      const pct = Math.min(100, m.minute / 90 * 100);
-      bar = `<div class="mh-bar"><div class="mh-track"><i style="width:${pct}%"></i><b class="ht"></b>${m.ev.filter(e => e.type === 'goal').map(e => `<em class="g ${e.side ? 'a' : 'h'}" style="left:${Math.min(100, e.min / 90 * 100)}%" title="${e.min}'">⚽</em>`).join('')}</div>
+      bar = `<div class="mh-bar"><div class="mh-track"><i data-bar="${m.id}" style="width:${clockPct(m)}%"></i><b class="ht"></b>${m.ev.filter(e => e.type === 'goal').map(e => `<em class="g ${e.side ? 'a' : 'h'}" style="left:${Math.min(100, e.min / 90 * 100)}%" title="${goalMin(e)} ${esc(e.side ? m.away : m.home)}">⚽</em>`).join('')}</div>
         <div class="mh-ticks"><span>0'</span><span>HT</span><span>90'</span></div></div>
-        <div class="mh-mini">
+        ${m.hasStats === false ? '' : `<div class="mh-mini">
           <div><b>${m.st.poss[0]}%</b><span>Possession</span><b>${m.st.poss[1]}%</b></div>
           <div class="pbar"><i style="width:${m.st.poss[0]}%"></i></div>
           <div class="mini-row"><span>${m.st.sot[0]}</span><span>Shots on target</span><span>${m.st.sot[1]}</span></div>
           <div class="mini-row"><span>${m.st.corners[0]}</span><span>Corners</span><span>${m.st.corners[1]}</span></div>
-        </div>`;
+        </div>`}`;
     } else if (m.live) {
       bar = `<div class="mh-bar"><div class="mh-track"><i style="width:${m.prog * 100}%"></i></div></div>`;
     }
@@ -557,9 +574,9 @@
         <div class="mh-meta">Game ID ${m.id}${m.vs ? ' · Virtual game' : m.two ? '' : '<span class="dot"></span>Live In-Play Available'}</div>`;
     } else {
       const clock = m.live
-        ? `<span class="mh-clock">${m.two ? liveLabel(m) : `<b data-clk="${m.id}">${String(m.minute).padStart(2, '0')}:00</b> ${m.minute <= 45 ? 'H1' : 'H2'}`}</span>`
+        ? (cpm => `<span class="mh-clock"><span class="mh-live"><i></i>LIVE</span>${cpm ? `<b data-clk="${m.id}">${cpm.main}</b> <span class="mh-sub${cpm.cls ? ' ' + cpm.cls : ''}" data-clks>${cpm.sub}</span>` : m.two ? liveLabel(m) : m.period === 'HT' ? '<b>Half-time</b>' : `<b>${minLabel(m)}</b>`}</span>`)(clockParts(m))
         : `<span class="mh-clock pre">${kd} ${kt}</span>`;
-      const bar2 = (name, sc, side) => `<div class="mh-row"><span class="mh-name">${crest(name, 0, m.sport)}<i>${esc(name)}</i></span>${m.live || m.finished ? `<b class="mh-sc${recentGoal(m) && m.goalSide === side ? ' pop' : ''}">${sc}</b>` : ''}</div>`;
+      const bar2 = (name, sc, side) => `<div class="mh-row"><span class="mh-name">${crest(name, 0, m.sport)}<i>${esc(name)}</i></span>${m.live || m.finished ? `<b class="mh-sc${recentGoal(m) && m.goalSide === side ? ' pop' : ''}"${m.live ? ` data-sc="${m.id}:${side}"` : ''}>${sc}</b>` : ''}</div>`;
       $('#mdHero').innerHTML = `<a class="mh-lg" href="#/league/${lg.idx}">${esc(sp.name)} - ${esc(lg.country)} - ${esc(lg.name)}</a>
         <div class="mh-clockrow">${m.finished ? '<span class="mh-clock">Ended</span>' : clock}<span class="mh-id">ID ${m.id}</span></div>
         ${bar2(m.home, m.noScore ? '–' : m.score[0], 0)}${bar2(m.away, m.noScore ? '–' : m.score[1], 1)}
@@ -665,7 +682,7 @@
     // only statistics the data feed actually provides (the demo simulation provides all of them)
     if (!LIVE && !m.two) rows.push(statRow('Possession', s.poss[0], s.poss[1], true), statRow('Dangerous attacks', s.att[0], s.att[1]), statRow('Shots', s.shots[0], s.shots[1]), statRow('Shots on target', s.sot[0], s.sot[1]), statRow('Yellow cards', s.yc[0], s.yc[1]));
     if (!m.two && (s.corners[0] + s.corners[1] > 0)) rows.push(statRow('Corners', s.corners[0], s.corners[1]));
-    const tl = [...m.ev].reverse().map(e => `<li class="${e.side ? 'a' : 'h'}"><span class="tmin">${e.min}'</span><span class="tic">${e.type === 'goal' ? '⚽' : '🟨'}</span><span>${e.type === 'goal' ? 'Goal' : 'Yellow card'} – ${esc(e.side ? m.away : m.home)}</span></li>`).join('');
+    const tl = [...m.ev].reverse().map(e => `<li class="${e.side ? 'a' : 'h'}"><span class="tmin">${e.min}${e.plus ? '+' + e.plus : ''}'</span><span class="tic">${e.type === 'goal' ? '⚽' : '🟨'}</span><span>${e.type === 'goal' ? 'Goal' : 'Yellow card'} – ${esc(e.side ? m.away : m.home)}</span></li>`).join('');
     return `<div class="card-pad">${legend}${rows.join('')}
       ${m.two ? '' : `<h4 class="sh">Timeline</h4><ul class="timeline">${tl || '<li class="muted">No goals yet</li>'}<li class="ko"><span class="tmin">0'</span><span class="tic">🏁</span><span>Kick-off</span></li></ul>`}
       ${mv}</div>`;
@@ -684,7 +701,7 @@
 
 
   /* ---------------- Betslip ---------------- */
-  const BOOST = n => n >= 20 ? 1000 : n >= 15 ? 500 : n >= 10 ? 200 : n >= 5 ? 50 : n >= 3 ? 5 : 0;
+  const BOOST = n => n >= 20 ? 200 : n >= 15 ? 120 : n >= 10 ? 60 : n >= 8 ? 40 : n >= 5 ? 15 : n >= 3 ? 5 : 0;   // = settings 'boost' (server caps it too)
   const BOOST_STEPS = [3, 5, 10, 15, 20];
 
   function toggleSel(mid, mk, ok) {
@@ -728,19 +745,41 @@
     return changed;
   }
 
+  /** After staking the slip shows a receipt (tickets, stakes, potential wins) that can be minimized into the slip
+   *  button (✓) and opened again, until the player taps Done, keeps the selections or adds a new one. */
+  function showReceipt(bets, legs, single) {
+    state.receipt = { at: Date.now(), keep: legs.map(s => ({ ...s, chg: '' })),
+      bets: bets.map((b, i) => ({ id: b.id, stake: +b.stake, odds: +b.odds, boost: +(b.boost || 0), win: +(b.potential ?? b.win), legs: single ? [legs[i]].filter(Boolean) : legs })) };
+  }
+  function receiptHTML(rc) {
+    const tot = rc.bets.reduce((a, b) => a + b.stake, 0), win = rc.bets.reduce((a, b) => a + b.win, 0);
+    return `<div class="bs-receipt">
+      <div class="rc-head"><span class="rc-ic"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div><b>Bet placed</b><small>${rc.bets.length > 1 ? `${rc.bets.length} tickets` : 'Ticket ' + esc(rc.bets[0].id)} · Stake ${money(tot)} · Potential win <em>${money(win)}</em></small></div></div>
+      <div class="rc-list">${rc.bets.map(b => `<div class="rc-bet"><div class="rc-l1"><b>${b.legs.length > 1 ? `Multiple · ${b.legs.length} legs` : 'Single'}</b><span>Ticket ${esc(b.id)}</span></div>
+        ${b.legs.map(l => `<div class="rc-leg"><span>${esc(l.label)} <i>@ ${(+l.odd).toFixed(2)}</i></span><small>${esc(l.match)} · ${esc(l.mname)}</small></div>`).join('')}
+        <div class="rc-nums"><span>Stake <b>${money(b.stake)}</b></span><span>Odds <b>${b.odds.toFixed(2)}</b>${b.boost ? ` <em class="gold">+${b.boost}%</em>` : ''}</span><span>To win <b class="win">${money(b.win)}</b></span></div></div>`).join('')}</div>
+      <div class="rc-acts"><button class="rc-btn" data-rc="keep">Keep selections</button><button class="rc-btn" data-rc="bets">View my bets</button></div>
+      <div class="rc-acts"><button class="rc-btn ghost" data-rc="min">Minimize</button><button class="rc-btn primary" data-rc="done">Done</button></div>
+    </div>`;
+  }
   function renderSlip() {
     if ($('#betslip').classList.contains('dragging')) return;   // the sheet is under the finger – it re-renders on release
     const n = state.slip.length;
-    $('#bsCount').textContent = n;
-    $('#pillCount').textContent = n;
+    if (n && state.receipt) state.receipt = null;   // new selections replace the receipt
+    const rc = !n && state.receipt;
+    $('#bsCount').textContent = rc ? '✓' : n;
+    $('#pillCount').textContent = rc ? '✓' : n;
     const valid = state.slip.filter(s => !s.susp);
     const total = valid.reduce((a, s) => a * s.odd, 1);
-    const pill = n > 0 && !$('#betslip').classList.contains('open');
-    $('#slipPill').classList.toggle('show', pill); $('#slipPill').classList.toggle('empty', n === 0); document.body.classList.toggle('has-pill', n > 0);
+    const pill = (n > 0 || !!rc) && !$('#betslip').classList.contains('open');
+    $('#slipPill').classList.toggle('show', pill); $('#slipPill').classList.toggle('empty', n === 0 && !rc); $('#slipPill').classList.toggle('done', !!rc);
+    document.body.classList.toggle('has-pill', n > 0 || !!rc);
+    $('#betslip').classList.toggle('receipt', !!rc);
     if (state.slipType === 'multi' && n < 2) state.slipType = 'single';
     $$('.bs-tabs button').forEach(b => { b.classList.toggle('active', b.dataset.bstype === state.slipType); if (b.dataset.bstype === 'multi') b.disabled = n < 2; });
     const single = state.slipType === 'single';
 
+    if (rc) { $('#bsBody').innerHTML = receiptHTML(rc); $('#bsFoot').hidden = true; $('#bsBar').hidden = true; return; }
     if (!n) {
       $('#bsBody').innerHTML = `<div class="bs-empty"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><b>Your betslip is empty</b><span>Tap any odds to add a selection</span></div>`;
       $('#bsFoot').hidden = true; $('#bsBar').hidden = true; return;
@@ -769,7 +808,7 @@
       $('#bsWin').textContent = valid.length > 1 ? `${fmtN(lo)} ~ ${fmtN(wins.reduce((a, w) => a + w, 0))}` : fmtN(hi);
       $('#bsPay').textContent = `About to pay ${fmtN(totStake)}`;
     } else {
-      const c = valid.filter(x => x.odd >= 1.2).length, boost = BOOST(c), base = stake * total;   // Acca Win Boost counts selections at odds 1.20+
+      const c = valid.filter(x => x.odd >= 1.2 && !(byId(x.mid) || {}).live).length, boost = BOOST(c), base = stake * total;   // Acca Win Boost counts pre-match selections at odds 1.20+
       const next = BOOST_STEPS.find(x => x > c);
       $('#bsStakeLbl').textContent = 'Stake';
       $('#bsOdds').parentElement.hidden = false;
@@ -804,9 +843,10 @@
       const total = legs.reduce((a, l) => a * l.odd, 1), boost = BOOST(legs.filter(l => l.odd >= 1.2).length), base = stake * total;
       state.bets.unshift({ id: 'T' + Date.now().toString(36).toUpperCase(), at: Date.now(), type: `Multiple · ${legs.length} legs`, legs, stake, odds: total, boost, win: base + (base - stake) * boost / 100, status: 'open' });
     }
+    const made = state.bets.slice(0, single ? legs.length : 1).reverse();
+    showReceipt(made.map(x => ({ id: x.id, stake: x.stake, odds: x.odds, boost: x.boost, win: x.win })), state.slip.slice(), single);
     state.slip = []; state.slipType = 'multi'; saveSlip(); saveUser(); saveBets();
-    toast('Bet placed successfully');
-    closeSlip(); renderAfterSlipChange(); renderAuth();
+    renderAfterSlipChange(); renderAuth();
   }
 
   function bookCode() {
@@ -867,6 +907,8 @@
   }
   function renderMe() {
     const u = state.user;
+    const ag = $('#meAgentItem'); if (ag) ag.hidden = !(u && u.isAgent);
+    const vi = $('#meVerifyItem'); if (vi) vi.hidden = !!(u && u.isAgent);   // agents need no ID check
     $('#meName').textContent = u ? (u.phone ? C.dial + ' ' + u.phone : u.email || 'ID ' + u.uid) : 'Login to View';
     $('#meUserLink').dataset.open = u ? '' : 'loginModal';
     $('#meSub').textContent = u ? `ID ${u.uid || '—'}` : '';
@@ -925,9 +967,128 @@
 
   function notifyGoal(m) {
     const mine = state.slip.some(x => x.mid === m.id) || state.bets.some(b => b.status === 'open' && b.legs.some(l => l.mid === m.id)) || (state.route === 'match' && +state.arg === m.id);
-    if (mine && window.Motion) Motion.goal(`<b>GOAL!</b> ${esc(m.home)} <span class="gt-sc">${m.score[0]} - ${m.score[1]}</span> ${esc(m.away)} <i>${m.minute}'</i>`);
+    if (mine && window.Motion) Motion.goal(`<b>GOAL!</b> ${esc(m.home)} <span class="gt-sc">${m.score[0]} - ${m.score[1]}</span> ${esc(m.away)} <i>${m.minute}${m.plus ? '+' + m.plus : ''}'</i>`);
   }
   const recentGoal = m => m.goalAt && Date.now() - m.goalAt < 4500;
+  // minutes as players read them: 37', 45+2', HT, 90+4'
+  const minLabel = m => (m.period === 'HT' ? 'HT' : `${m.minute}${m.plus ? '+' + m.plus : ''}'`);
+  const goalMin = g => `${g.min}${g.plus ? '+' + g.plus : ''}'`;
+  /* ---------------- match clock ----------------
+     One clock for every football match, worked out from the same rules as the server, on the server's time, so every
+     screen ticks to the second and agrees:
+       • real fixtures (feeds/oddsapi.js liveClock): 00:00–44:59, 45+1'…45+3', HT 15 min, 46:00–89:59, 90+1'…90+8',
+         then "awaiting result" until the feed reports full time
+       • hand-added matches (lib/manual.js clockOf): first half from kick-off, HT and the second half when the admin calls them
+       • Virtual League (games/virtual.js): the ~60 s play-out with each half's added time. It runs VLAG behind the
+         server, so a goal (sent when it happens) is shown exactly at its minute and full time when the clock gets there. */
+  const VLAG = 5000, V_H1 = 0.47, V_H2 = 0.53;   // VLAG: a sync every ~2 s + the server's 2 s list cache, with room to spare
+  function srvNow() { return window.API && API.now ? API.now() : Date.now(); }
+  function clockKind(m) {
+    if (!m || !m.live) return null;
+    if (m.sport === 'vfootball') return m.playMs ? 'v' : null;
+    if (m.sport !== 'football') return null;
+    return m.manual ? 'man' : m.est ? 'est' : null;
+  }
+  // { period H1|HT|H2, minute, plus, sec (mm:ss when the clock runs to the second), t / half (virtual), end, awaiting }
+  function clockOf(m, now = srvNow()) {
+    const k = clockKind(m); if (!k) return null;
+    if (k === 'v') {
+      const add = m.added || [0, 0], a0 = add[0] || 0, a1 = add[1] || 0, f = Math.max(0, (now - VLAG - m.kick) / m.playMs);
+      // every match runs at the same speed (halves timed for 45+3' / 90+5'); less added time = earlier HT / full time
+      const ht = { period: 'HT', half: 1, t: 45 + a0, minute: 45, plus: 0, f };
+      if (f < V_H1) { const t = 1 + Math.floor(f / V_H1 * 48); return t > 45 + a0 ? ht : { period: 'H1', half: 1, t, minute: Math.min(45, t), plus: Math.max(0, t - 45), f }; }
+      if (f < V_H2) return ht;
+      const t = 46 + Math.floor((f - V_H2) / (1 - V_H2) * 50);
+      if (t > 90 + a1 || f >= 1) return { period: 'H2', half: 2, t: 90 + a1, minute: 90, plus: a1, f: 1, end: true };
+      return { period: 'H2', half: 2, t, minute: Math.min(90, t), plus: Math.max(0, t - 90), f };
+    }
+    const run = (c, h) => ({ period: h === 1 ? 'H1' : 'H2', sec: c * 60, minute: Math.floor(c) + 1, plus: 0 });
+    const over = (h, c, cap) => ({ period: h === 1 ? 'H1' : 'H2', minute: h === 1 ? 45 : 90, plus: Math.max(1, Math.min(cap, Math.floor(c) - (h === 1 ? 44 : 89))) });
+    const el = Math.max(0, (now - m.kick) / 60000);
+    if (k === 'est') {
+      if (el < 45) return run(el, 1);
+      if (el < 48) return over(1, el, 3);
+      if (el < 63) return { period: 'HT', minute: 45, plus: 0 };
+      const c = el - 17;
+      if (c < 90) return run(c, 2);
+      return Math.floor(c) - 89 > 8 ? { period: 'H2', minute: 90, plus: 8, awaiting: true } : over(2, c, 8);
+    }
+    const p = m.srvPeriod || 'H1';
+    if (p === 'HT') return { period: 'HT', minute: 45, plus: 0 };
+    if (p === 'H2') { const c = 45 + Math.max(0, (now - (m.h2At || now)) / 60000); return c < 90 ? run(c, 2) : over(2, c, 15); }
+    return el < 45 ? run(el, 1) : over(1, el, 15);
+  }
+  const mmss = s => { s = Math.floor(s); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+  // what the clock shows: main "37:12" / "45+2'" / "HT" / "90'+", sub "H1" / "H2 · added time" / "Half-time" / "Awaiting result"
+  function clockParts(m, c = clockOf(m)) {
+    if (!c) return null;
+    if (c.awaiting) return { main: "90'+", sub: 'Awaiting result', cls: 'lv-wait' };
+    if (c.period === 'HT') return { main: 'HT', sub: 'Half-time', cls: '' };
+    const h = c.period === 'H2' ? 'H2' : 'H1';
+    if (c.plus) return { main: `${c.minute}+${c.plus}'`, sub: `${h} · added time`, cls: 'lv-add' };
+    return { main: c.sec != null ? mmss(c.sec) : `${c.minute}'`, sub: h, cls: '' };
+  }
+  const clockPct = m => { const c = clockOf(m); if (c && c.f != null) return Math.min(100, c.f * 100); return m.period === 'HT' ? 50 : Math.min(100, (m.minute || 0) / 90 * 100); };
+  // Virtual League: a goal counts once the clock has reached it (goals carry min 1–45 / 46–90 and an added minute)
+  const goalSeen = (g, c) => { const half = g.min > 45 ? 2 : 1, t = g.min + (g.plus || 0); return c.end || half < c.half || (half === c.half && t <= c.t) || (c.period === 'HT' && half === 1); };
+  function applyClock(m, now) {
+    const c = clockOf(m, now); if (!c) return null;
+    m.minute = c.minute; m.plus = c.plus || 0; m.period = c.period; m.awaiting = !!c.awaiting;
+    if (m.sport === 'vfootball' && m.srvGoals) {
+      const seen = m.srvGoals.filter(g => goalSeen(g, c));
+      m.score = [seen.filter(g => g.side === 0).length, seen.filter(g => g.side === 1).length];
+      m.ev = seen.map(g => ({ min: g.min, plus: g.plus || 0, side: g.side, type: 'goal' }));
+    }
+    return c;
+  }
+  function refreshView() {
+    const y = window.scrollY;
+    if (state.route === 'home') renderLiveStrip();
+    else if (state.route === 'virtuals') renderVirtuals();
+    else if (['live', 'match', 'league', 'list'].includes(state.route)) renderCurrent(false);
+    window.scrollTo(0, y);
+  }
+  // 4× a second: clocks, scores and progress bars in place (rows are not re-rendered, so taps are never lost)
+  function clockTick() {
+    if (!LIVE) return;
+    const now = srvNow(); let ended = false, oddsMoved = false;
+    for (const m of MATCHES) {
+      if (!m.live) continue;
+      if (m.pendingFT) { const c = clockOf(m, now); if (!c || c.end) { const e = m.pendingFT; m.pendingFT = null; mapEvent({ ...e, __ft: true }); ended = true; continue; } }
+      if (m.mkQ && m.mkQ.length) { let due = null; while (m.mkQ.length && m.mkQ[0].at + VLAG <= Date.now()) due = m.mkQ.shift(); if (due) { mapMarkets(m, due.markets); oddsMoved = true; } }
+      if (!clockKind(m)) continue;
+      const before = [...m.score]; applyClock(m, now);
+      if (m.score[0] > before[0] || m.score[1] > before[1]) { m.goalAt = Date.now(); m.goalSide = m.score[0] > before[0] ? 0 : 1; notifyGoal(m); }
+    }
+    document.querySelectorAll('[data-clk]').forEach(el => {
+      const m = byId(+el.dataset.clk); if (!m || !m.live) return;
+      const pt = clockParts(m); if (!pt) return;
+      if (el.textContent !== pt.main) el.textContent = pt.main;
+      el.classList.toggle('is-add', pt.cls === 'lv-add');
+      const sub = el.nextElementSibling;
+      if (sub && sub.hasAttribute('data-clks')) { if (sub.textContent !== pt.sub) sub.textContent = pt.sub; sub.classList.toggle('lv-add', pt.cls === 'lv-add'); sub.classList.toggle('lv-wait', pt.cls === 'lv-wait'); }
+    });
+    document.querySelectorAll('[data-sc]').forEach(el => {
+      const [id, side] = el.dataset.sc.split(':'), m = byId(+id); if (!m || !m.live) return;
+      const v = m.noScore ? '–' : side === 'b' ? `${m.score[0]} - ${m.score[1]}` : String(m.score[+side]);
+      if (el.textContent === v) return;
+      el.textContent = v; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+      const row = el.closest('.ev, .vl-row'); if (row) { row.classList.add('goal'); setTimeout(() => row.classList.remove('goal'), 4500); }
+    });
+    document.querySelectorAll('[data-bar]').forEach(el => { const m = byId(+el.dataset.bar); if (m && m.live) el.style.width = clockPct(m) + '%'; });
+    if (oddsMoved && !ended && Date.now() - lastOddsPaint > 900) { lastOddsPaint = Date.now(); refreshView(); syncSlipOdds(); renderSlip(); }
+    if (ended) {
+      refreshView();
+      if (state.user && state.bets.some(b => b.status === 'open' && b.legs.some(l => { const x = byId(l.mid); return x && x.finished; })))
+        liveUser().then(liveBets).then(renderAuth).catch(() => {});   // the trophy pops at the final whistle
+    }
+  }
+  let lastOddsPaint = 0;
+  setInterval(clockTick, 250);
+  // a match that has just ended stays on the live screens for a few seconds with FT and the final score, then leaves
+  const FT_SHOW_MS = 9000;
+  const justFT = m => !!(m && m.finished && m.ftAt && Date.now() - m.ftAt < FT_SHOW_MS);
+  const onLive = m => m.live || justFT(m);
 
   /* ---------------- Match lifecycle & settlement ---------------- */
   const RESULTS = [];
@@ -1028,9 +1189,13 @@
       const [up, res] = await Promise.all([API.events.list({ sport: 'vfootball', limit: 50, markets: '1x2,dc,ou,gg' }), API.events.results('vfootball')]);
       up.forEach(mapEvent); res.forEach(mapEvent);
       const cur = up.filter(e => e.status === 'scheduled' && new Date(e.kickoff).getTime() > Date.now()).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+      const nowLive = up.filter(e => e.status === 'live').map(e => e.id);
+      VR.live = [...new Set([...nowLive, ...(VR.live || []).filter(id => { const x = byId(id); return x && (x.live || justFT(x)); })])];   // still playing here, or full time for a few seconds
+      VR.liveRound = (up.find(e => e.status === 'live') || {}).stats?.round ?? VR.liveRound ?? null;
       if (cur.length) { const k = cur[0].kickoff, rnd = cur.filter(e => e.kickoff === k); VR.ids = rnd.map(e => e.id); VR.endsAt = new Date(k).getTime(); VR.round = rnd[0].stats?.round ?? VR.round; }
-      if (res.length) { const r0 = res[0].stats?.round; VR.last = res.filter(e => e.stats?.round === r0).map(e => byId(e.id)).filter(Boolean); VR.lastRound = r0; }
-      const keep = new Set([...VR.ids, ...VR.last.map(m => m.id)]);
+      // Last round: only once its matches have reached full time on this screen (no spoilers while they finish playing)
+      if (res.length) { const done = res.map(e => byId(e.id)).filter(x => x && !x.live); if (done.length) { const r0 = done[0].round; VR.last = done.filter(x => x.round === r0); VR.lastRound = r0; } }
+      const keep = new Set([...VR.ids, ...(VR.live || []), ...VR.last.map(m => m.id)]);
       for (let i = MATCHES.length - 1; i >= 0; i--) if (MATCHES[i].virtual && !keep.has(MATCHES[i].id) && !state.slip.some(x => x.mid === MATCHES[i].id)) MATCHES.splice(i, 1);
       for (let i = RESULTS.length - 1; i >= 0; i--) if (RESULTS[i].virtual && !keep.has(RESULTS[i].id)) RESULTS.splice(i, 1);
       if (state.user) { await liveUser(); await liveBets(); renderAuth(); }
@@ -1039,7 +1204,7 @@
     } catch { /* next tick tries again */ }
   }
   function vTick() {
-    if (LIVE) { if (!VR.endsAt || Date.now() >= VR.endsAt + 1200) vSync(); }
+    if (LIVE) { if (!VR.endsAt || Date.now() >= VR.endsAt + 1200 || (VR.live && VR.live.length)) vSync(); }   // every 2 s while a round is playing
     else if (Date.now() >= VR.endsAt) return vEndRound();
     if (state.route !== 'virtuals') return;
     const left = Math.max(0, VR.endsAt - Date.now()), sec = Math.ceil(left / 1000);
@@ -1050,12 +1215,23 @@
   function resRow(m) {
     return `<div class="res-row"><span class="rh"><span>${esc(m.home)}</span>${crest(m.home, 0, m.sport)}</span><b class="rs">${m.ft[0]} - ${m.ft[1]}</b><span class="ra">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span></span>${m.ht ? `<small class="rht">HT ${m.ht[0]}-${m.ht[1]}</small>` : ''}</div>`;
   }
+  // the round being played: minute, score, goals as they happen (betting on it closed at kick-off)
+  function vLiveHTML() {
+    const ms = (VR.live || []).map(byId).filter(onLive).sort((a, b) => a.id - b.id);   // fixed order: rows never swap places
+    if (!ms.length) return '';
+    const per = m => (justFT(m) ? 'FT' : (clockParts(m) || {}).main || minLabel(m)), pct = m => (justFT(m) ? 100 : clockPct(m));
+    return `<div class="vl-now"><div class="vl-h"><span class="vl-tag"><i></i>Now playing</span><b>Round #${esc(String(VR.liveRound ?? ''))}</b><small>Live betting open · odds move with every minute · a goal pauses betting for a moment</small></div>
+      ${ms.map(m => `<div class="vl-item${justFT(m) ? ' ft-out' : ''}" ${justFT(m) ? `style="animation-delay:-${((Date.now() - m.ftAt) / 1000).toFixed(2)}s"` : ''}><a class="vl-row${recentGoal(m) ? ' goal' : ''}${justFT(m) ? ' ft-out' : ''}${m.plus ? ' added' : ''}" href="#/match/${m.id}"><span class="vl-min${m.plus ? ' is-add' : ''}"${m.live ? ` data-clk="${m.id}"` : ''}>${per(m)}</span>
+        <span class="rh"><span>${esc(m.home)}</span>${crest(m.home, 0, m.sport)}</span><b class="rs"${m.live ? ` data-sc="${m.id}:b"` : ''}>${m.score[0]} - ${m.score[1]}</b><span class="ra">${crest(m.away, 0, m.sport)}<span>${esc(m.away)}</span></span>
+        <i class="vl-bar"><em${m.live ? ` data-bar="${m.id}"` : ''} style="width:${pct(m)}%"></em></i></a>${m.live && m.map['1x2'] ? `<div class="vl-odds"><span class="vl-lo">Live odds</span>${oddBtn(m, '1x2', '1', '1', 'ob')}${oddBtn(m, '1x2', 'X', 'X', 'ob')}${oddBtn(m, '1x2', '2', '2', 'ob')}</div>` : ''}</div>`).join('')}</div>`;
+  }
   function renderVirtuals() {
     $('#vRound').textContent = '#' + VR.round;
+    const lv = $('#vLive'); if (lv) lv.innerHTML = vLiveHTML();
     renderMarketTabs($('#vMarketTabs'), 'vfootball');
     $("#vList").innerHTML = groupRender(VR.ids.map(byId).filter(Boolean), mktFor, true);
     $('#vLastRound').textContent = VR.lastRound ? 'Round #' + VR.lastRound : 'waiting for first result';
-    $('#vResults').innerHTML = VR.last.length ? `<div class="res-block">${VR.last.map(resRow).join('')}</div>` : '<div class="empty">Results appear here when the countdown ends.</div>';
+    $('#vResults').innerHTML = VR.last.length ? `<div class="res-block">${VR.last.map(resRow).join('')}</div>` : '<div class="empty">Results appear here at full time.</div>';
     vTick();
   }
 
@@ -1089,18 +1265,18 @@
   function renderGames() { window.Games && Games.renderLobby(C.name); }
 
   /* ---------------- Account sub-pages ---------------- */
-  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', messages: 'Messages', verify: 'Verify ID', security: 'Email & Password', limits: 'Responsible Gambling', help: 'Help & Support' };
+  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', agent: 'Agent Dashboard', messages: 'Messages', verify: 'Verify ID', security: 'Email & Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
     // live: bonus progress and referral stats come from the server
-    if (LIVE && state.user && (sec === 'bonus' || sec === 'refer') && Date.now() - (renderAcct['_' + sec] || 0) > 4000) {
+    if (LIVE && state.user && (sec === 'bonus' || sec === 'refer' || sec === 'agent') && Date.now() - (renderAcct['_' + sec] || 0) > 4000) {
       renderAcct['_' + sec] = Date.now();
-      (sec === 'bonus' ? API.wallet.bonuses().then(r => { state.bonuses = r; }) : API.auth.referrals().then(r => { state.referrals = r; }))
+      (sec === 'bonus' ? API.wallet.bonuses().then(r => { state.bonuses = r; }) : sec === 'agent' ? API.agent.dashboard().then(r => { state.agent = r; }) : API.auth.referrals().then(r => { state.referrals = r; }))
         .then(() => { if (state.route === 'acct' && state.arg === sec) renderAcct(sec); }).catch(() => {});
     }
     if (LIVE && sec === 'tx' && state.user && Date.now() - (renderAcct._txAt || 0) > 4000) {
       renderAcct._txAt = Date.now();
-      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', referral: 'Referral reward', jackpot_win: 'Jackpot win', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
+      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', referral: 'Referral reward', jackpot_win: 'Jackpot win', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket', agent_commission: 'Agent earnings' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
     }
     if (LIVE && sec === 'bets' && state.user) liveBets().then(() => { if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML(); });
     $('#acTitle').textContent = ACCT[sec];
@@ -1135,8 +1311,18 @@
             <span class="status ${wb.status === 'active' ? 'open' : wb.status === 'released' ? 'won' : 'lost'}">${wb.status === 'active' ? 'LOCKED' : wb.status.toUpperCase()}</span></div>`;
         } else if (!LIVE || B.eligible) welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>Make your first deposit and get 200% of it as a bonus, up to ${whole(C.bonusMax)}. Unlock it by staking ${rules.times}× the bonus on multiples (every selection ${(+rules.min_odds).toFixed(2)}+) within ${rules.days} days.</small></div><span class="status won">AVAILABLE</span></div>`;
         else welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>For a player's first deposit only.</small></div><span class="status lost">NOT ELIGIBLE</span></div>`;
-        return `<div class="card-list">${welcome}
-          <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 1000% extra winnings on multiples with 3 or more selections at odds 1.20+</small></div><span class="status open">ACTIVE</span></div>
+        // promo-code bonuses (Me → Bonuses → Promo code)
+        const promos = (B ? B.bonuses : []).filter(x => String(x.kind).startsWith('promo:')).map(pb => {
+          const code = esc(pb.kind.slice(6)), pct = pb.required ? Math.min(100, pb.wagered / pb.required * 100) : 100, left = Math.max(0, pb.required - pb.wagered);
+          return `<div class="bonus wb"><div><b>Promo ${code} · ${money(pb.amount)}</b>
+            <small>${pb.status === 'active' ? `Stake ${money(left)} more on multiples (every selection ${(+rules.min_odds).toFixed(2)} or more) by ${new Date(pb.expiresAt).toLocaleDateString()} to unlock it.` : pb.status === 'released' ? `Unlocked and added to your balance on ${new Date(pb.releasedAt).toLocaleDateString()}.` : 'Expired before the stake target was reached.'}</small>
+            ${pb.status === 'active' ? `<div class="wb-bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><small>${money(pb.wagered)} of ${money(pb.required)} staked</small>` : ''}</div>
+            <span class="status ${pb.status === 'active' ? 'open' : pb.status === 'released' ? 'won' : 'lost'}">${pb.status === 'active' ? 'LOCKED' : pb.status.toUpperCase()}</span></div>`;
+        }).join('');
+        const promoBox = LIVE ? `<form class="bonus promo-form" id="promoForm" novalidate><div><b>Promo code</b><small>Have a code from us? Enter it to get your bonus.</small>
+            <div class="promo-row"><input name="code" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code" aria-label="Promo code"><button class="btn btn-accent sm" type="submit">Apply</button></div></div></form>` : '';
+        return `<div class="card-list">${promoBox}${promos}${welcome}
+          <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 200% extra winnings on multiples with 3 or more pre-match selections at odds 1.20+</small></div><span class="status open">ACTIVE</span></div>
           <div class="bonus"><div><b>Free Bets</b><small>You have no free bets right now</small></div><span class="status lost">NONE</span></div>
         </div>`;
       },
@@ -1148,18 +1334,46 @@
           <a class="btn btn-ghost block mt" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a>
           <div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div></div>`;
       },
+      agent: () => {
+        if (!u.isAgent) return '<div class="empty">This page is for LetBetAfrika agents.</div>';
+        const A = LIVE ? state.agent : null;
+        if (!A) return '<div class="card-pad"><p class="muted">Loading your agent dashboard…</p></div>';
+        const T = A.totals, ST = { no_deposit: ['Signed up', 'lost'], pending: ['Waiting for play', 'open'], available: ['Ready', 'won'], requested: ['Requested', 'open'], paid: ['Paid', 'won'] };
+        const msg = encodeURIComponent(`Join LetBetAfrika with my link and get a 200% welcome bonus on your first deposit: ${A.link}`);
+        return `<div class="agent-dash">
+          <div class="ag-hero"><small>Your earnings</small><b>${money(T.earned)}</b><span>Commission on every new player's first deposit</span></div>
+          <div class="ag-tiles">
+            <div><small>Ready to request</small><b class="ok">${money(T.available)}</b></div>
+            <div><small>Waiting for players to play</small><b>${money(T.pending)}</b></div>
+            <div><small>Requested</small><b>${money(T.requested)}</b></div>
+            <div><small>Paid to you</small><b>${money(T.paid)}</b></div>
+          </div>
+          <button class="btn btn-accent block" data-agent-payout ${T.available > 0 ? '' : 'disabled'}>${T.available > 0 ? `Request payout · ${money(T.available)}` : 'Nothing to request yet'}</button>
+          <p class="ag-note">${A.minPayout ? `Minimum request ${money(A.minPayout)}. ` : ''}An admin approves each request and the money lands in your balance – withdraw it like any winnings.</p>
+          <div class="ag-link"><span>Your agent link</span><input readonly value="${esc(A.link)}" onclick="this.select()" aria-label="Your agent link">
+            <div class="ag-btns"><button class="btn btn-ghost sm" data-copy="${esc(A.link)}">Copy link</button><a class="btn btn-ghost sm" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a></div>
+            <small>Code <b>${esc(A.code)}</b> – players can also type it as the referral code when they sign up.</small></div>
+          ${A.turnover > 0 ? `<p class="ag-note">An earning is ready once that player has played their deposit (staked ${A.turnover}× it on bets that have settled).</p>` : ''}
+          <h4 class="ag-h">Your players (${T.players}) · ${T.deposited} deposited</h4>
+          <div class="card-list">${A.players.length ? A.players.map(p => { const s = ST[p.status] || [p.status, 'open']; return `<div class="bonus"><div><b>${esc(p.name)} <small class="muted">ID ${p.uid}</small></b><small>Joined ${new Date(p.joined).toLocaleDateString()}${p.deposit != null ? ` · first deposit ${money(p.deposit)} → you earn ${money(p.earning)}` : ' · no deposit yet'}</small></div><span class="status ${s[1]}">${s[0].toUpperCase()}</span></div>`; }).join('') : '<div class="empty">No players yet – share your link.</div>'}</div>
+          ${A.payouts.length ? `<h4 class="ag-h">Payout requests</h4><div class="card-list">${A.payouts.map(p => `<div class="bonus"><div><b>${money(p.amount)}</b><small>${new Date(p.at).toLocaleString()}${p.reason ? ' · ' + esc(p.reason) : ''}</small></div><span class="status ${p.status === 'paid' ? 'won' : p.status === 'rejected' ? 'lost' : 'open'}">${p.status === 'pending' ? 'WAITING' : p.status.toUpperCase()}</span></div>`).join('')}</div>` : ''}
+        </div>`;
+      },
       messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
           ['Welcome to LetBetAfrika', `Your account is ready. Make your first deposit to get a 200% welcome bonus, up to ${whole(C.bonusMax)}.`],
-          ['Acca Win Boost is on', 'Add 3 or more selections at odds 1.20+ to a multiple and get up to 1000% extra winnings.'],
+          ['Acca Win Boost is on', 'Add 3 or more pre-match selections at odds 1.20+ to a multiple and get up to 200% extra winnings.'],
           ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
-      verify: () => u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
+      verify: () => u.isAgent ? '<div class="empty"><b>No ID check needed</b><br>Agent accounts withdraw without ID verification.</div>' : u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
           ${u.limits?.kyc?.status === 'pending' ? `<div class="kyc-st pend"><b>We are checking your ID</b><span>Usually within 24 hours – we will let you know. You can send corrected details below.</span></div>`
+            : u.limits?.kyc?.status === 'resubmit' ? `<div class="kyc-st bad"><b>Please send your ID again</b><span>${esc(u.limits.kyc.reason || 'We need a clear photo of your own ID')}. Fill in your details and upload new photos below.</span></div>`
             : u.limits?.kyc?.status === 'rejected' ? `<div class="kyc-st bad"><b>Your ID check was not approved</b><span>${esc(u.limits.kyc.reason || 'Please check your details')}. Correct them and submit again.</span></div>` : ''}
           <p class="muted">Verify your identity to withdraw winnings.</p>
           <label>Full name<input name="name" required placeholder="As shown on your ID"></label>
           <label>Date of birth<input name="dob" type="date" required></label>
           <label>ID type<select name="idt">${(CC === 'GH' ? ['Ghana Card', 'Passport', "Driver's Licence", "Voter's ID"] : ['NIN', 'BVN', 'International Passport', "Driver's Licence", "Voter's Card"]).map(x => `<option>${x}</option>`).join('')}</select></label>
           <label>ID number<input name="idn" required></label>
+          <div class="kyc-ph"><p class="kyc-tip">Take clear photos of your ID: all four corners in the picture, no glare, text readable.</p>
+            ${['front', 'back'].map(s => `<label class="kyc-shot" data-kycside="${s}"><input type="file" accept="image/*" name="ph_${s}" hidden><span class="kyc-prev"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg></span><b>${s === 'front' ? 'Front of ID' : 'Back of ID'}</b><small>${s === 'back' ? 'Not needed for a passport' : 'Tap to take a photo'}</small></label>`).join('')}</div>
           <p class="muted">${u.email ? `We'll email the result to <b>${esc(u.email)}</b>.` : `Add your email under <a href="#/acct/security">Email &amp; Password</a> to get the result by email.`}</p>
           <button class="btn btn-accent block">Submit for verification</button></form>`,
       // email: a code goes to the new address first (state.emailStep holds the address waiting for its code)
@@ -1202,6 +1416,39 @@
     $('#acBody').innerHTML = H[sec]();
   }
   document.addEventListener('click', e => { if (e.target.closest('[data-email-cancel]')) { state.emailStep = null; renderAcct('security'); } });
+  // Me → Bonuses → Promo code
+  const PROMO_ERR = { invalid_code: 'That code is not valid', expired: 'This code has expired', not_started: 'This code is not active yet', used_up: 'This code has been fully used',
+    already_used: 'You have already used this code', deposit_first: 'Make your first deposit, then enter the code', new_players_only: 'This code is for new players only', too_many_tries: 'Too many tries – wait a few minutes' };
+  document.addEventListener('submit', async e => {
+    const f = e.target.closest('#promoForm'); if (!f) return;
+    e.preventDefault();
+    const code = f.code.value.trim(), btn = f.querySelector('button'); if (code.length < 4 || btn.disabled) return;
+    btn.disabled = true;
+    try {
+      const r = await API.wallet.promo(code);
+      if (r.balance != null && state.user) { state.user.balance = r.balance; saveUser(); renderAuth(); renderMe(); }
+      toast(r.released ? `${money(r.amount)} added to your balance` : `${money(r.amount)} bonus added – stake ${money(r.required)} on multiples to unlock it`);
+      renderAcct._bonus = 0; renderAcct('bonus');
+    } catch (x) { toast(PROMO_ERR[x.message] || apiErr(x, 'Could not apply the code'), 'err'); btn.disabled = false; }
+  });
+  // ID photos: shrink in the phone (longest side 1600 px, JPEG ~85%) – clear to read, quick to upload
+  function shrinkPhoto(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(url); const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.85)); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad_photo')); };
+      img.src = url;
+    });
+  }
+  document.addEventListener('change', async e => {
+    const inp = e.target.closest('.kyc-shot input[type=file]'); if (!inp || !inp.files || !inp.files[0]) return;
+    const box = inp.closest('.kyc-shot'), f = inp.closest('form'), side = box.dataset.kycside;
+    try {
+      const data = await shrinkPhoto(inp.files[0]);
+      (f._photos ||= {})[side] = data;
+      box.classList.add('done'); box.querySelector('.kyc-prev').innerHTML = `<img src="${data}" alt="">`; box.querySelector('small').textContent = 'Tap to retake';
+    } catch { toast('That photo could not be read – try again'); }
+  });
   document.addEventListener('submit', async e => {
     const f = e.target.closest('[data-acform]'); if (!f) return;
     e.preventDefault();
@@ -1218,7 +1465,13 @@
           state.user = mapUser(await API.auth.emailConfirm(state.emailStep, f.code.value.trim()));
           state.emailStep = null; toast('Email verified and saved'); return renderAcct('security');
         }
-        if (k === 'verify') { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value }); toast(u && u.email ? 'Documents submitted – we will email you when verified' : 'Documents submitted – we will let you know when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
+        if (k === 'verify') {
+          const ph = f._photos || {}, passport = /passport/i.test(f.idt.value);
+          if (!ph.front) return toast('Add a photo of the front of your ID');
+          if (!ph.back && !passport) return toast('Add a photo of the back of your ID');
+          const btn = f.querySelector('button.btn'); if (btn) { btn.disabled = true; btn.textContent = 'Uploading your ID…'; }
+          try { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value, front: ph.front, ...(ph.back ? { back: ph.back } : {}) }); }
+          finally { if (btn) { btn.disabled = false; btn.textContent = 'Submit for verification'; } } toast(u && u.email ? 'Documents submitted – we will email you when verified' : 'Documents submitted – we will let you know when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
         if (k === 'security') { if (window.Account) return Account.changePassword(f); if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); await API.auth.password(f.cur.value, f.pw1.value); toast('Password updated'); f.reset(); }
         if (k === 'limits') { await API.auth.limits({ period: f.period.value, amount: +f.amt.value || 0, reminder: f.rem.value }); toast('Limits saved'); }
         await liveUser(); renderMe();
@@ -1247,8 +1500,8 @@
   let LIVE = false;
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
-  const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
+  const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode, isAgent: !!u.isAgent, playLeft: Number(u.playLeft || 0) });
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', txid_required: 'Enter the transaction ID from the payment SMS', play_through: e.detail ? `Stake ${money(e.detail.left)} more before withdrawing this – you can withdraw ${money(e.detail.withdrawable)} now` : 'Stake your deposit on bets before withdrawing it', inplay_max_stake: `In-play limit on this match: ${e.detail && e.detail.left != null ? whole(e.detail.left) + ' left' : 'reached'}`, phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
@@ -1281,47 +1534,106 @@
     for (const k in map) for (const o in map[k]) { const a = old[k]?.[o]?.o, b = map[k][o].o; if (a && b && a !== b) m.flash[k + '|' + o] = b > a ? 'up' : 'down'; }
     m.mk = mk; m.map = map;
   }
+  // where a football clock is: H1 45+3' < HT < 46' … 90+4'
+  const clockOrd = (p, mi, pl) => ({ H1: 1, HT: 2, H2: 3 })[p] * 10000 + (mi || 0) * 100 + (pl || 0);
+  // (called as forEach(mapEvent) too – so no positional flags: full time from the clock comes as e.__ft)
   function mapEvent(e) {
+    const ftNow = !!(e && e.__ft);
     let m = byId(e.id);
+    // two lists fetched a moment apart can disagree by a few seconds: a live clock never steps backwards
+    if (m && m.live && e.status === 'live' && (e.sport === 'football' || e.sport === 'vfootball') && ['H1', 'HT', 'H2'].includes(e.period) && m.srvOrd
+      && clockOrd(e.period, e.minute, e.stats && e.stats.plus) < m.srvOrd) return m;
+    // Virtual League: the server has blown the whistle, this screen's clock (VLAG behind) plays the last minutes first
+    if (m && m.pendingFT && e.status !== 'finished') return m;
+    if (m && m.live && !ftNow && e.sport === 'vfootball' && e.status === 'finished' && m.playMs) {
+      const c = clockOf(m);
+      if (c && !c.end) { m.pendingFT = e; if (e.stats && e.stats.goals) m.srvGoals = e.stats.goals; return m; }
+    }
+    // …and a match never goes back: live → scheduled (virtual), or finished → live once this screen has seen full time
+    if (m && ((m.live && m.virtual && e.status === 'scheduled') || (m.finished && (m.virtual || m.ftAt) && (e.status === 'live' || e.status === 'scheduled')))) return m;
     if (!m) { m = { id: e.id, ev: [], flash: {}, st: { poss: [50, 50], shots: [0, 0], sot: [0, 0], corners: [0, 0], yc: [0, 0], att: [0, 0] }, lh: 1.3, la: 1.1, lc: 10, mu: 0, tf: 1, mk: [], map: {} }; MATCHES.push(m); }
     const prevScore = m.score ? [...m.score] : null;
     m.sport = e.sport; m.lg = e.sport === 'vfootball' && VLG_LIVE != null ? VLG_LIVE : leagueIdx(e.league, e.sport); m.home = e.home; m.away = e.away;
     if (e.sport === 'vfootball') { m.virtual = true; m.round = e.stats && e.stats.round; }
+    const wasLive = !!m.live;
     m.kick = new Date(e.kickoff).getTime(); m.live = e.status === 'live'; m.finished = e.status === 'finished' || e.status === 'cancelled';
-    m.minute = e.minute || 0; m.score = e.score || [0, 0]; m.two = e.sport !== 'football'; m.hot = !!e.hot;
+    if (wasLive && m.finished && !m.ftAt && e.status === 'finished') m.ftAt = Date.now();
+    m.minute = e.minute || 0; m.score = e.score || [0, 0]; m.two = e.sport !== 'football' && e.sport !== 'vfootball'; m.hot = !!e.hot;
     m.prog = m.two && m.live ? Math.min(0.98, m.minute / 48) : 0;
     const st = e.stats || {};
     if (st.corners) m.st.corners = st.corners;
-    if (st.goals) m.ev = st.goals.map(g => ({ min: g.min, side: g.side, type: 'goal' }));
+    m.hasStats = !!(st.poss || st.sot || st.shots);   // possession / shots only when the feed really has them (corners alone: the tracker shows them)
+    if (st.goals) m.ev = st.goals.map(g => ({ min: g.min, plus: g.plus || 0, side: g.side, type: 'goal' }));
+    m.plus = m.live ? +(st.plus || 0) : 0;
     if (m.finished) { m.ft = m.score; if (e.ht) m.ht = e.ht; if (!m.endAt) { m.endAt = Date.now(); if (!RESULTS.includes(m)) RESULTS.unshift(m); } }
     const logos = {}; if (e.homeLogo) logos[e.home] = e.homeLogo; if (e.awayLogo) logos[e.away] = e.awayLogo; if (Object.keys(logos).length) LBA.setLogos(logos);
     m.noScore = m.live && !!(e.stats && e.stats.noScore);
     m.vs = VS.has(e.sport); m.period = e.period || null; m.sets = Array.isArray(st.sets) ? st.sets : null;
+    // the shared clock's inputs; the clock then sets minute / added time / period (and, for virtuals, the score shown)
+    m.srvPeriod = e.period || null; m.srvOrd = ['H1', 'HT', 'H2'].includes(e.period) ? clockOrd(e.period, e.minute, st.plus) : 0;
+    m.awaiting = !!st.awaiting && m.live;
+    m.est = !!st.minuteEstimated; m.manual = !!st.manual; m.h2At = st.h2At ? Date.parse(st.h2At) : null; m.scoreAt = st.scoreAt ? Date.parse(st.scoreAt) : null;
+    if (e.sport === 'vfootball') {
+      m.playMs = +st.playMs || 60000; if (st.added) m.added = st.added;
+      if (st.goals && !(m.live && m.srvGoals && st.goals.length < m.srvGoals.length)) m.srvGoals = st.goals;   // goals only ever add up
+      if (m.live && prevScore) m.score = prevScore;   // shown score: what the clock has reached (applyClock)
+    }
+    if (m.live) applyClock(m);
+    // Virtual League live odds are shown in step with the match on screen (VLAG behind): they lock the moment a goal
+    // appears and reopen at the new prices. Everything else shows its prices at once.
+    if (e.sport === 'vfootball' && m.live && e.markets && m.playMs) { (m.mkQ ||= []).push({ at: Date.now(), markets: e.markets }); if (m.mkQ.length > 20) m.mkQ.splice(0, m.mkQ.length - 20); e = { ...e, markets: null }; }
+    else m.mkQ = null;
     if (prevScore && m.live && !m.two && (m.score[0] > prevScore[0] || m.score[1] > prevScore[1])) { m.goalAt = Date.now(); m.goalSide = m.score[0] > prevScore[0] ? 0 : 1; notifyGoal(m); }
     mapMarkets(m, e.markets);
     return m;
   }
   const mapBet = b => ({ id: b.id, at: new Date(b.placedAt).getTime(), type: b.type === 'multiple' ? `Multiple · ${b.legs.length} legs` : 'Single',
-    legs: b.legs.map(l => ({ mid: l.eventId, mk: l.market, ok: l.outcome, odd: +l.odd, label: l.label, mname: l.marketName, match: l.match, result: l.result })),
-    stake: +b.stake, odds: +b.odds, boost: b.boost, win: +b.potential, status: b.status, paid: b.paid == null ? null : +b.paid, cashout: b.cashout });
+    legs: b.legs.map(l => ({ mid: l.eventId, mk: l.market, ok: l.outcome, odd: +l.odd, label: l.label, mname: l.marketName, match: l.match, result: l.result, sport: l.sport })),
+    stake: +b.stake, odds: +b.odds, boost: b.boost, win: +b.potential, status: b.status, paid: b.paid == null ? null : +b.paid, cashout: b.cashout,
+    settledAt: b.settledAt ? Date.parse(b.settledAt) : null });
   async function liveBets() {
     if (!LIVE || !state.user) return;
     try {
       const was = new Map(state.bets.map(b => [String(b.id), b.status]));
       const [open, settled] = await Promise.all([API.bets.list('open'), API.bets.list('settled')]); state.bets = [...open, ...settled].map(mapBet);
-      // a bet we saw open has just been settled as won → trophy (once per bet, also across reloads)
-      let seen = []; try { seen = JSON.parse(localStorage.getItem('lba_trophies') || '[]'); } catch {}
-      const fresh = state.bets.filter(b => b.status === 'won' && was.get(String(b.id)) === 'open' && !seen.includes(String(b.id)));
-      if (fresh.length && window.Pages) {
-        fresh.forEach(b => seen.push(String(b.id))); try { localStorage.setItem('lba_trophies', JSON.stringify(seen.slice(-200))); } catch {}
-        const top = fresh.sort((a, b) => b.paid - a.paid)[0], total = fresh.reduce((t, b) => t + (+b.paid || 0), 0);
-        Pages.trophy({ amount: total, source: 'Sport', ref: fresh.length > 1 ? `${fresh.length} tickets` : top.id, href: '#/bet/' + encodeURIComponent(top.id) });
-      }
+      // a ticket on a virtual match still playing its last minutes here stays "open" until full time shows (then the trophy)
+      state.bets = state.bets.map(b => b.status !== 'open' && b.legs.some(l => { const x = byId(l.mid); return x && x.pendingFT; }) ? { ...b, status: 'open', paid: null } : b);
+      celebrate(was);
     } catch { /* keep what we have */ }
+  }
+  /* Winning tickets → the YOU WON trophy, once per ticket (per player, also across reloads):
+       • a ticket this screen saw open that has just been settled as won, or
+       • any win settled in the last 24 h this device has not celebrated yet ("while you were away": another phone,
+         the app was closed, just logged in). Several at once → one trophy with the total. */
+  const TROPHY_AWAY_MS = 24 * 3600e3;
+  function celebrate(was = new Map()) {
+    if (!state.user || !window.Pages) return;
+    const key = 'lba_trophies_' + (state.user.uid || state.user.phone || state.user.email || '');
+    let seen = [];
+    try { seen = JSON.parse(localStorage.getItem(key) || 'null') || JSON.parse(localStorage.getItem('lba_trophies') || '[]'); } catch {}
+    const now = Date.now();
+    const fresh = state.bets.filter(b => b.status === 'won' && b.paid > 0 && !seen.includes(String(b.id))
+      && (was.get(String(b.id)) === 'open' || (b.settledAt && now - b.settledAt < TROPHY_AWAY_MS)));
+    if (!fresh.length) return;
+    fresh.forEach(b => seen.push(String(b.id))); try { localStorage.setItem(key, JSON.stringify(seen.slice(-300))); } catch {}
+    fresh.sort((a, b) => b.paid - a.paid);
+    const top = fresh[0], total = fresh.reduce((t, b) => t + (+b.paid || 0), 0), stake = fresh.reduce((t, b) => t + (+b.stake || 0), 0);
+    const sportOfLeg = l => l.sport || (byId(l.mid) || {}).sport || '';
+    const allLegs = fresh.flatMap(b => b.legs), src = allLegs.every(l => sportOfLeg(l) === 'vfootball') ? 'Virtual League'
+      : allLegs.every(l => /^v/.test(sportOfLeg(l))) ? 'Virtual Sports' : 'Sport';
+    // "Tema Mariners vs Ibadan Lions · Ibadan Lions to win @ 3.40"
+    const leg = top.legs[0] || {}, [hm, aw] = String(leg.match || '').split(/\s+vs?\.?\s+/);
+    const pick = leg.label === 'Home' && hm ? `${hm} to win` : leg.label === 'Away' && aw ? `${aw} to win` : leg.label === 'Draw' ? 'Draw' : leg.label;
+    const detail = fresh.length > 1 ? `${fresh.length} winning tickets`
+      : top.legs.length > 1 ? `${top.legs.length}-fold multiple @ ${(+top.odds).toFixed(2)}`
+      : `${leg.match || ''}${pick ? ' · ' + pick : ''}${leg.odd ? ' @ ' + (+leg.odd).toFixed(2) : ''}`;
+    const away = fresh.every(b => !was.has(String(b.id)) || was.get(String(b.id)) !== 'open') && top.settledAt && now - top.settledAt > 120e3;
+    Pages.trophy({ amount: total, stake, detail, away, source: src,
+      ref: fresh.length > 1 ? '' : top.id, href: fresh.length > 1 ? '#/acct/bets' : '#/bet/' + encodeURIComponent(top.id) });
   }
   async function liveUser() {
     if (!API.token) { state.user = null; return; }
-    try { state.user = mapUser(await API.auth.me()); if (state.user.country && state.user.country !== CC) { try { localStorage.setItem('lba_country', state.user.country); } catch {} location.reload(); } }
+    try { state.user = mapUser(await API.auth.me()); if (state.user.country && state.user.country !== CC) { try { localStorage.setItem('lba_country', state.user.country); } catch {} location.reload(); } window.Account?.playCheck?.(); }
     catch (e) { if (e.status === 401) state.user = null; }
   }
   let refreshing = false, lastBetsSync = Date.now();
@@ -1331,10 +1643,13 @@
       const evs = await API.events.list({ limit: 400 });
       const seen = new Set(evs.map(e => e.id));
       evs.forEach(mapEvent);
+      const ended = MATCHES.filter(m => m.live && !m.virtual && !seen.has(m.id)).slice(0, 12);
+      if (ended.length) await Promise.all(ended.map(m => API.events.one(m.id).then(mapEvent).catch(() => null)));
       await refreshSlipEvents();
       MATCHES.forEach(m => { if (!m.virtual && !seen.has(m.id) && !state.slip.some(x => x.mid === m.id) && !m.finished && m.kick < Date.now() + 36e5) { m.live = false; m.finished = true; m.ft = m.score; } });
-      if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) mapEvent(e); }
-      if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > 30000)) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
+      if (state.route === 'match' && state.arg) { const e = await API.events.one(+state.arg).catch(() => null); if (e) { mapEvent(e); if (window.Tracker) Tracker.show(e.id); } }
+      const inPlay = state.user && state.bets.some(b => b.status === 'open' && b.legs.some(l => { const x = byId(l.mid); return !x || x.live || justFT(x) || x.kick <= Date.now(); }));
+      if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > (inPlay ? 5000 : 30000))) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
       syncSlipOdds(); updateLiveBadges();
       const y = window.scrollY;
       if (state.route === 'home') renderHome();
@@ -1363,18 +1678,22 @@
     const body = { type: single ? 'single' : 'multiple', selections, acceptChanges: $('#bsAccept')?.checked !== false };
     if (single) body.stakes = state.slip.map(s => +s.stake || 0); else body.stake = +$('#bsStake').value;
     $('#bsPlace').disabled = true;
+    // in play: the server confirms after a few seconds (a goal in between refuses it) – say so on the button
+    const inPlay = state.slip.some(s => { const x = byId(s.mid); return x && x.live; }), btnText = $('#bsPlace').textContent;
+    if (inPlay) $('#bsPlace').textContent = 'Confirming your live bet…';
     try {
       const r = await API.bets.place(body);
       state.user.balance = r.balance; saveUser();
+      showReceipt(r.bets, state.slip.slice(), single);
       state.slip = []; state.slipType = 'multi'; saveSlip();
-      toast(r.bets.length > 1 ? `${r.bets.length} bets placed` : `Bet placed · ticket ${r.bets[0].id}`);
-      closeSlip(); await liveBets(); renderAfterSlipChange(); renderAuth();
+      if (window.Motion && Motion.confetti) Motion.confetti();
+      await liveBets(); renderAfterSlipChange(); renderAuth();
     } catch (e) {
       if (e.message === 'login_required') openModal('loginModal');
       else if (e.message === 'insufficient_funds') go('deposit');
       else if (e.message === 'odds_changed' || e.message === 'selection_unavailable') { await liveRefresh(); }
       toast(apiErr(e, 'Bet could not be placed'), 'err');
-    } finally { $('#bsPlace').disabled = false; }
+    } finally { $('#bsPlace').disabled = false; if (inPlay && $('#bsPlace').textContent === 'Confirming your live bet…') { $('#bsPlace').textContent = btnText; renderSlip(); } }
   }
 
 
@@ -1414,13 +1733,15 @@
   }
 
   /* ---------------- Router ---------------- */
-  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet', 'instant', 'game'];
+  const PAGES = ['home', 'live', 'sports', 'jackpot', 'promos', 'me', 'match', 'league', 'virtuals', 'games', 'results', 'acct', 'play', 'deposit', 'withdraw', 'legal', 'register', 'login', 'forgot', 'list', 'codes', 'promo', 'bet', 'instant', 'game', 'support'];
   function go(r) { location.hash = '#/' + r; }
   const navStack = [];
   let firstRoute = true;
   function route() {
     const [r, arg] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
     // shared booking code links: #/code/LB7K2Q or ?code=LB7K2Q – the page opens with the code in the betslip
+    const qAgent = firstRoute && new URLSearchParams(location.search).get('agent');
+    if (qAgent && /^AG[A-Z0-9]{6}$/i.test(qAgent)) { try { localStorage.setItem('lba_agent', qAgent.toUpperCase()); } catch {} history.replaceState(null, '', location.pathname + location.hash); if (!state.user) setTimeout(() => go('register'), 60); }
     const qCode = firstRoute && new URLSearchParams(location.search).get('code');
     if (qCode) { history.replaceState(null, '', location.pathname + location.hash); setTimeout(() => loadCode(qCode), 80); }
     if (r === 'code') { if (arg) setTimeout(() => loadCode(decodeURIComponent(arg)), 80); return location.replace('#/home'); }
@@ -1445,13 +1766,15 @@
     if (page === 'games') renderGames();
     if (page === 'acct') renderAcct(arg);
     if (window.Account && Account.handles(page)) Account.render(page, arg, prevRoute);
+    if (window.Support && Support.handles(page)) Support.render(page, arg);
     if (window.Pages && Pages.handles(page)) Pages.render(page, arg, false, prevRoute);
     if (window.Arcade && Arcade.handles(page)) Arcade.render(page, arg);
     if (page === 'legal') renderLegal(arg);
     if (page === 'match') {
       renderMatch(+arg);
-      if (LIVE) API.events.one(+arg).then(e => { if (e && state.route === 'match' && +state.arg === e.id) { mapEvent(e); renderMatch(e.id, true); } }).catch(() => {});
-    } else window.scrollTo(0, 0);
+      if (window.Tracker) Tracker.show(+arg);
+      if (LIVE) API.events.one(+arg).then(e => { if (e && state.route === 'match' && +state.arg === e.id) { mapEvent(e); renderMatch(e.id, true); if (window.Tracker) Tracker.show(e.id); } }).catch(() => {});
+    } else { window.scrollTo(0, 0); if (window.Tracker) Tracker.hide(); }
     const sec = $('#page-' + page);
     if (sec && !firstRoute) {
       sec.classList.remove('enter-fwd', 'enter-back', 'enter-fade'); void sec.offsetWidth;
@@ -1562,6 +1885,24 @@
     if (t.tagName === 'A' && href === '#') e.preventDefault();
     const d = t.dataset;
 
+    // agent: ask for everything that is ready
+    if ('agentPayout' in d) {
+      t.disabled = true;
+      API.agent.payout().then(r => { toast(`Requested ${money(r.amount)} – an admin will approve it`); renderAcct._agent = 0; renderAcct('agent'); })
+        .catch(x => { toast(x.message === 'nothing_available' ? 'Nothing is ready to request yet' : apiErr(x, 'Could not request the payout'), 'err'); t.disabled = false; });
+      return;
+    }
+    // the receipt after staking: keep the picks, see the bets, minimize into the slip button, or finish
+    if (d.rc) {
+      const rc = state.receipt;
+      if (d.rc === 'min') return closeSlip();
+      state.receipt = null;
+      if (d.rc === 'keep' && rc) { state.slip = rc.keep.map(s => ({ ...s })); saveSlip(); renderAfterSlipChange(); return toast('Selections kept – set a stake to bet again'); }
+      closeSlip();
+      if (d.rc === 'bets') return go('acct/bets');
+      return;
+    }
+
     if (d.mid) {
       const rect = t.getBoundingClientRect(), was = isSel(+d.mid, d.mk, d.ok);
       toggleSel(+d.mid, d.mk, d.ok);
@@ -1637,7 +1978,7 @@
       case 'searchClose': closeSearch(); break;
       case 'navSlip': e.preventDefault(); openSlip(); break;
       case 'slipPill': openSlip(); break;
-      case 'bsClose': closeSlip(); break;
+      case 'bsClose': closeSlip(); break;   // minimize: selections (or the receipt) stay in the slip button
       case 'bsClear': state.slip = []; saveSlip(); renderAfterSlipChange(); break;
       case 'bsPlace': placeBet(); break;
       case 'bsBook': bookCode(); break;
@@ -1787,12 +2128,10 @@
   // internal API used by account.js (sign-up, login, reset, deposit, withdraw pages)
   window.LBA_APP = { state, C, CC, store, money, whole, esc, toast, saveUser, addTx, renderAuth, renderMe, go, openModal, r2,
     get live() { return LIVE; }, exHead, apiErr, mapUser, liveBets, liveUser,
-    MATCHES, LEAGUES, SPORTS, RESULTS, VISIBLE, sportOf, byId, listMarkets, mktFor, matchRow, oddBtn, crest, fmtKick, fmtDay, liveLabel, isHot,
+    MATCHES, LEAGUES, SPORTS, RESULTS, VISIBLE, sportOf, byId, listMarkets, mktFor, matchRow, oddBtn, crest, fmtKick, fmtDay, liveLabel, isHot, justFT, minLabel, clockOf, clockParts,
     saveSlip, saveBets, renderSlip, openSlip, renderCurrent, renderAfterSlipChange, openSearch, loadCode, shareCode, legResult, cashoutValue, naira, closeModals, betsHTML };
   setInterval(() => {
     tickCountdown(); vTick();
-    const sec = Math.floor(Date.now() / 1000);
-    document.querySelectorAll('[data-clk]').forEach(el => { const m = byId(el.dataset.clk); if (m && m.live) el.textContent = String(m.minute).padStart(2, '0') + ':' + String((sec + m.id * 7) % 60).padStart(2, '0'); });
   }, 1000);
   if (window.Motion) {
     Motion.pullToRefresh($('#page-home'), () => { renderHome(); const h = $('#page-home'); h.classList.add('stagger'); setTimeout(() => h.classList.remove('stagger'), 900); toast('Odds updated'); });

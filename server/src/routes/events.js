@@ -5,6 +5,22 @@ const M = createRequire(import.meta.url)('../../../betting/markets.js');
 
 const r = Router();
 
+// Every open screen polls the match list every few seconds, and the answers are the same for everyone (nothing here
+// depends on who asks). Identical requests within EVENTS_CACHE_MS (default 2 s) share one database answer, so load
+// stays flat however many players are watching. Bets are always re-priced from the database when placed.
+const CACHE = new Map(), TTL = () => Math.max(0, Number(process.env.EVENTS_CACHE_MS ?? 2000));
+r.use((req, res, next) => {
+  if (req.method !== 'GET' || !TTL()) return next();
+  const key = req.originalUrl, hit = CACHE.get(key);
+  if (hit && Date.now() - hit.at < TTL()) return res.set('x-cache', 'hit').type('application/json').send(hit.body);
+  const json = res.json.bind(res);
+  res.json = body => {
+    if (res.statusCode === 200) { if (CACHE.size > 500) CACHE.clear(); CACHE.set(key, { at: Date.now(), body: JSON.stringify(body) }); }
+    return json(body);
+  };
+  next();
+});
+
 const shape = (e, markets) => ({
   id: e.id, sport: e.sport, league: { id: e.league_id, name: e.lname, country: e.lcountry, flag: e.lflag, top: e.ltop },
   home: e.home, away: e.away, homeLogo: e.home_logo, awayLogo: e.away_logo,

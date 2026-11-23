@@ -152,7 +152,7 @@ INSERT INTO settings (key, value) VALUES
   ('margin', '0.94'),
   ('min_stake', '{"NG":100,"GH":1}'),
   ('max_payout', '{"NG":50000000,"GH":500000}'),
-  ('boost', '[[3,5],[5,50],[10,200],[15,500],[20,1000]]')
+  ('boost', '[[3,5],[5,15],[8,40],[10,60],[15,120],[20,200]]')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS email_log (
@@ -345,3 +345,154 @@ CREATE TABLE IF NOT EXISTS admin_log (
 );
 ALTER TABLE admin_log ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS admin_log_at ON admin_log (at DESC);
+
+-- Promo codes: an admin creates a code for one country; each player can redeem it once. The reward is a locked bonus
+-- (bonuses.kind = 'promo:<CODE>') released into the balance like the welcome bonus (stake `times` × the bonus on
+-- multiples within `days` days), or cash at once when `times` is 0. lib/promos.js.
+CREATE TABLE IF NOT EXISTS promo_codes (
+  code             text PRIMARY KEY CHECK (code ~ '^[A-Z0-9]{4,20}$'),
+  country          text NOT NULL CHECK (country IN ('NG','GH')),
+  amount           numeric(14,2) NOT NULL CHECK (amount > 0),
+  times            numeric(6,2) NOT NULL DEFAULT 5 CHECK (times >= 0 AND times <= 50),
+  days             int NOT NULL DEFAULT 7 CHECK (days BETWEEN 1 AND 90),
+  max_uses         int CHECK (max_uses IS NULL OR max_uses > 0),
+  uses             int NOT NULL DEFAULT 0,
+  requires_deposit boolean NOT NULL DEFAULT true,
+  new_players_only boolean NOT NULL DEFAULT false,
+  starts_at        timestamptz NOT NULL DEFAULT now(),
+  ends_at          timestamptz,
+  active           boolean NOT NULL DEFAULT true,
+  note             text,
+  created_by       uuid REFERENCES users(id),
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS promo_redemptions (
+  code       text NOT NULL REFERENCES promo_codes(code),
+  user_id    uuid NOT NULL REFERENCES users(id),
+  amount     numeric(14,2) NOT NULL,
+  bonus_id   int,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (code, user_id)
+);
+
+-- Money an admin sends out of the payment API wallet to any MoMo number (admin -> Send money). Not a player withdrawal:
+-- no player balance moves. Settled by the provider's status call / webhook like payouts (lib/walletPayouts.js).
+CREATE TABLE IF NOT EXISTS wallet_payouts (
+  id           bigserial PRIMARY KEY,
+  provider     text NOT NULL,
+  provider_ref text UNIQUE,
+  amount       numeric(14,2) NOT NULL CHECK (amount > 0),
+  currency     text NOT NULL DEFAULT 'GHS',
+  phone        text NOT NULL,
+  network      text NOT NULL,
+  name         text,
+  reason       text NOT NULL,
+  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','success','failed')),
+  error        text,
+  created_by   uuid NOT NULL REFERENCES users(id),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  details      jsonb NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS wallet_payouts_at ON wallet_payouts (created_at DESC);
+INSERT INTO settings (key, value) VALUES ('wallet_payouts', '{"maxPerTransfer":20000,"maxPerDay":50000}') ON CONFLICT (key) DO NOTHING;
+
+-- Crests an admin uploads for hand-added matches (served at /api/crests/<id>; team_logos points the team at it).
+CREATE TABLE IF NOT EXISTS team_crests (
+  id         serial PRIMARY KEY,
+  name       text NOT NULL,
+  mime       text NOT NULL,
+  data       bytea NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Sub-agents (lib/agents.js): an admin makes a player an agent; the agent's link signs players up under them
+-- (users.agent_id); the agent earns agents.pct % of each of their players' FIRST deposit, which becomes requestable
+-- once that player has staked agents.turnover x the deposit on settled bets; the agent requests a payout and an
+-- admin approves it (the amount goes to the agent's balance through the ledger) or rejects it.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_agent boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_code text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_id uuid REFERENCES users(id);
+-- play-through: deposited money still to be staked before it can be withdrawn (lib/wallet.js keeps it, never above the balance)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS playthrough_left numeric(14,2) NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS users_agent_code_idx ON users (agent_code) WHERE agent_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS users_agent_id_idx ON users (agent_id) WHERE agent_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS agent_payouts (
+  id          bigserial PRIMARY KEY,
+  agent_id    uuid NOT NULL REFERENCES users(id),
+  amount      numeric(14,2) NOT NULL CHECK (amount > 0),
+  status      text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','rejected')),
+  reason      text,
+  decided_by  uuid REFERENCES users(id),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  decided_at  timestamptz
+);
+CREATE TABLE IF NOT EXISTS agent_earnings (
+  id           bigserial PRIMARY KEY,
+  agent_id     uuid NOT NULL REFERENCES users(id),
+  player_id    uuid NOT NULL UNIQUE REFERENCES users(id),
+  payment_id   uuid,
+  deposit      numeric(14,2) NOT NULL,
+  amount       numeric(14,2) NOT NULL CHECK (amount >= 0),
+  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','available','requested','paid')),
+  payout_id    bigint REFERENCES agent_payouts(id),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  available_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS agent_earnings_agent_idx ON agent_earnings (agent_id, status);
+INSERT INTO settings (key, value) VALUES ('agents', '{"pct":70,"turnover":1,"minPayout":{"NG":1000,"GH":10}}') ON CONFLICT (key) DO NOTHING;
+
+-- Live support (lib/support.js): one chat per player at a time. status: bot (the assistant answers) | waiting (asked
+-- for a person) | open (the team replied) | closed. sender: user | bot | staff | system.
+CREATE TABLE IF NOT EXISTS support_threads (
+  id            bigserial PRIMARY KEY,
+  user_id       uuid NOT NULL REFERENCES users(id),
+  status        text NOT NULL DEFAULT 'bot' CHECK (status IN ('bot','waiting','open','closed')),
+  assigned_to   uuid REFERENCES users(id),
+  user_unread   int NOT NULL DEFAULT 0,
+  staff_unread  int NOT NULL DEFAULT 0,
+  last_at       timestamptz NOT NULL DEFAULT now(),
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS support_threads_user ON support_threads (user_id, id DESC);
+CREATE INDEX IF NOT EXISTS support_threads_inbox ON support_threads (status, last_at DESC);
+CREATE TABLE IF NOT EXISTS support_messages (
+  id          bigserial PRIMARY KEY,
+  thread_id   bigint NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+  sender      text NOT NULL CHECK (sender IN ('user','bot','staff','system')),
+  staff_id    uuid REFERENCES users(id),
+  body        text NOT NULL,
+  meta        jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS support_messages_thread ON support_messages (thread_id, id);
+
+-- ID verification photos (front / back of the ID), taken by the player in the app; only admins can view them.
+-- A new submission replaces the player's previous photos.
+CREATE TABLE IF NOT EXISTS kyc_documents (
+  id          bigserial PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES users(id),
+  side        text NOT NULL CHECK (side IN ('front','back')),
+  mime        text NOT NULL,
+  data        bytea NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS kyc_documents_user ON kyc_documents (user_id, side);
+
+INSERT INTO settings (key, value) VALUES ('inplay', '{"closeMinute":80,"blind":1,"blindMaxStake":{"NG":2000,"GH":20},"delaySec":5,"blindDelaySec":8}') ON CONFLICT (key) DO NOTHING;
+
+-- Weekly Jackpot prize fund (games/jackpot.js): each round's prizes come from its ticket sales – 12 correct share
+-- t12 of sales (+ the carry-over from rounds nobody won), 11 / 10 correct share t11 / t10 of sales – each capped by
+-- the amounts in settings 'jackpot' (the jackpot / per line). A round keeps the rules it was opened with.
+ALTER TABLE jackpot_rounds ADD COLUMN IF NOT EXISTS rules jsonb;
+INSERT INTO settings (key, value) VALUES ('jackpot_fund', '{"t12":0.35,"t11":0.15,"t10":0.10}') ON CONFLICT (key) DO NOTHING;
+INSERT INTO settings (key, value) VALUES ('jackpot_pool', '{"NG":0,"GH":0}') ON CONFLICT (key) DO NOTHING;
+
+-- One-time data changes: each runs once (its name is recorded), so a later change in Settings is never undone on restart.
+CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+-- 2026-11-22: agents earn 70% (was 60%) of each new player's first deposit, from now on (earnings already recorded keep their amount)
+WITH m AS (INSERT INTO schema_migrations (name) VALUES ('agents_pct_70') ON CONFLICT (name) DO NOTHING RETURNING name)
+UPDATE settings SET value = jsonb_set(value, '{pct}', '70'::jsonb) WHERE key = 'agents' AND EXISTS (SELECT 1 FROM m);
+-- 2026-11-22: the acca boost tiers paid more than the stake on average from 5 selections up (up to 1000%): safe tiers
+WITH m AS (INSERT INTO schema_migrations (name) VALUES ('boost_safe_tiers') ON CONFLICT (name) DO NOTHING RETURNING name)
+UPDATE settings SET value = '[[3,5],[5,15],[8,40],[10,60],[15,120],[20,200]]'::jsonb WHERE key = 'boost' AND EXISTS (SELECT 1 FROM m);

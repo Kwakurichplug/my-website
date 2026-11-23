@@ -28,7 +28,8 @@ let ADMIN, events = [];
 const open1x2 = () => events.filter(e => e.status === 'scheduled' && !e.used);
 const pick = (e, min = 1.5) => { const o = e.markets.find(m => m.key === '1x2').outcomes; const k = ['1', 'X', '2'].find(x => o[x] && o[x].o >= min); return k ? { eventId: e.id, market: '1x2', outcome: k, odd: o[k].o } : null; };
 const multiple = (tok, sels, stake) => api('/bets/place', { type: 'multiple', selections: sels, stake, acceptChanges: true }, tok);
-const finish = async (e, home, away) => { e.used = true; await api(`/admin/events/${e.id}/result`, { home, away }, ADMIN); };
+// a result is only accepted after kick-off (admin.js): the match "kicks off" first, like a real one
+const finish = async (e, home, away) => { e.used = true; await db.query(`UPDATE events SET kickoff = least(kickoff, now() - interval '1 second') WHERE id=$1`, [e.id]); await api(`/admin/events/${e.id}/result`, { home, away }, ADMIN); };
 
 before(async () => {
   ADMIN = (await newUser({ admin: true })).token;
@@ -67,20 +68,22 @@ test('welcome bonus: 200% of the first deposit, locked, released after 5× turno
   assert.equal(await balance(token), r2(before + won + 2000));
 });
 
-test('Refer & Earn: the referrer is paid once, when the friend has staked the reward amount', async () => {
+test('Refer & Earn: paid once, from what the friend really lost on settled bets – staking alone earns nothing', async () => {
   const R = await newUser();
   const info = await api('/auth/referrals', null, R.token);
   assert.equal(info.code, 'LB' + R.user.uid); assert.equal(info.joined, 0); assert.equal(info.reward, 1000);
   const F = await newUser({ deposit: 5000, ref: info.code });
   assert.equal((await api('/auth/referrals', null, R.token)).joined, 1);
-  const [e1, e2] = open1x2();
-  await api('/bets/place', { type: 'single', selections: [pick(e1, 1.01)], stakes: [500], acceptChanges: true }, F.token);
+  const [e1, e2, e3] = open1x2();
+  await api('/bets/place', { type: 'single', selections: [pick(e1, 1.01)], stakes: [1500], acceptChanges: true }, F.token);
   await sleep(300);
-  assert.equal(await balance(R.token), 0, 'not yet: the friend has staked 500 of 1,000');
-  await api('/bets/place', { type: 'single', selections: [pick(e2, 1.01)], stakes: [600], acceptChanges: true }, F.token);
+  assert.equal(await balance(R.token), 0, 'not for staking: the bet is still open');
+  await finish(e1, 0, 1);                                   // the friend's bet loses: 1,500 lost
+  await api('/bets/place', { type: 'single', selections: [pick(e2, 1.01)], stakes: [100], acceptChanges: true }, F.token);   // checked again at the next bet
   await sleep(400);
-  assert.equal(await balance(R.token), 1000, 'paid once the friend has staked 1,100');
-  await api('/bets/place', { type: 'single', selections: [pick(e2, 1.01)], stakes: [700], acceptChanges: true }, F.token);
+  assert.equal(await balance(R.token), 1000, 'paid once the friend has lost the reward on settled bets');
+  await finish(e2, 0, 2);
+  await api('/bets/place', { type: 'single', selections: [pick(e3, 1.01)], stakes: [100], acceptChanges: true }, F.token);
   await sleep(400);
   assert.equal(await balance(R.token), 1000, 'paid only once');
   const after = await api('/auth/referrals', null, R.token);

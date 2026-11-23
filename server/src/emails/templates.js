@@ -7,6 +7,43 @@ const first = u => (u.fullName || '').split(' ')[0] || 'there';
 const ref = id => String(id).slice(0, 8).toUpperCase();
 
 export const templates = {
+  /* ---------------- Back office (to ADMIN_EMAILS, never to players) ---------------- */
+  // a payment to review / an agent payout / a player asking for a person in Live support
+  adminAlert: d => (d.kind === 'support' ? templates.adminSupportAlert(d) : d.kind === 'kyc' ? templates.adminKycAlert(d) : templates.adminPayAlert(d)),
+  adminKycAlert: ({ cc, player, account, link, when }) => ({
+    subject: `ID to check: ${player.name || 'a player'} · ID ${player.uid}`,
+    preheader: 'A player sent the front and back of their ID. Approve or reject it in the admin portal.',
+    html: wrap({ cc, title: 'ID check', body:
+      h1('A player sent their ID') +
+      p('The front and back photos and the details are in the admin portal under ID checks.') +
+      details([['Player', `${player.name || '–'} · ID ${player.uid}`], ['Contact', player.contact || '–'], ['Document', account || '–'], ['Sent', fmtDate(when)]]) +
+      button('Check the ID', link) +
+      small('You get this because your address is in ADMIN_EMAILS. Players never receive it.') }),
+    text: text(['A player sent their ID to check', `Player ${player.name || ''} ID ${player.uid}`, link]),
+  }),
+  adminSupportAlert: ({ cc, player, link, when }) => ({
+    subject: `Live chat: a player needs help · ID ${player.uid}`,
+    preheader: 'A player asked to talk to a person. Open Support in the admin portal to answer.',
+    html: wrap({ cc, title: 'Live support', body:
+      h1('A player is waiting in Live support') +
+      p('They asked to talk to a person. The chat and their account are in the admin portal under Support.') +
+      details([['Player', `${player.name || '–'} · ID ${player.uid}`], ['Contact', player.contact || '–'], ['Asked', fmtDate(when)]]) +
+      button('Open the chat', link) +
+      small('You get this because your address is in ADMIN_EMAILS. Players never receive it.') }),
+    text: text(['A player is waiting in Live support', `Player ${player.name || ''} ID ${player.uid}`, link]),
+  }),
+  adminPayAlert: ({ kind, amount: a, cc, player, account, method, paymentId, link, when }) => ({
+    subject: `${kind === 'withdrawal' ? 'Withdrawal to review' : kind === 'agent' ? 'Agent payout to approve' : 'Deposit to confirm'}: ${money(a, cc)} · ${kind === 'agent' ? 'agent' : 'player'} ID ${player.uid}`,
+    preheader: kind === 'withdrawal' ? 'Open Review in the admin portal to check the account and pay it.' : 'Confirm it once the money shows in the account.',
+    html: wrap({ cc, title: 'Waiting for an admin', body:
+      h1(kind === 'withdrawal' ? 'A withdrawal is waiting for review' : kind === 'agent' ? 'An agent asked for their earnings' : 'A deposit is waiting for confirmation') +
+      amount(kind === 'withdrawal' ? 'Withdrawal' : kind === 'agent' ? 'Agent earnings' : 'Deposit', money(a, cc), account || method) +
+      details([['Player', `${player.name || '–'} · ID ${player.uid}`], ['Contact', player.contact || '–'], ['Method', method], ['Requested', fmtDate(when)], ['Reference', ref(paymentId), { bold: true }]]) +
+      button(kind === 'withdrawal' ? 'Review the withdrawal' : 'Open the payments queue', link) +
+      small('You get this because your address is in ADMIN_EMAILS. Players never receive it.') }),
+    text: text([`${kind === 'withdrawal' ? 'Withdrawal waiting for review' : 'Deposit waiting for confirmation'}: ${money(a, cc)}`, `Player ${player.name || ''} ID ${player.uid}`, `Method: ${account || method}`, link]),
+  }),
+
   /* ---------------- Account ---------------- */
   welcome: ({ user }) => ({
     subject: 'Welcome to LetBetAfrika',
@@ -80,6 +117,18 @@ export const templates = {
     text: text(['Your account is verified. Withdrawals are now open.']),
   }),
 
+  kycResubmit: ({ user, reason }) => ({
+    subject: 'Please send your ID again',
+    preheader: 'We need a new photo of your ID.',
+    html: wrap({ cc: user.country, title: 'ID needed again', body:
+      h1('Please send your ID again') +
+      p(`Hi ${first(user)}, we need you to send your ID documents again before your next withdrawal.`) +
+      note(`<b>What to fix:</b> ${reason || 'Please send a clear photo of the front and the back of your own ID.'}`, 'danger') +
+      p('Take the photos in good light, with the whole document visible and in focus. The name must match your account.') +
+      button('Send my ID', `${site}/#/acct/verify`) }),
+    text: text(['Please send your ID again.', reason || '', `Send it: ${site}/#/acct/verify`]),
+  }),
+
   kycRejected: ({ user, reason }) => ({
     subject: 'We could not verify your documents',
     preheader: 'Please resubmit a clear photo of your ID.',
@@ -134,14 +183,14 @@ export const templates = {
   /* ---------------- Money out ---------------- */
   withdrawalRequested: ({ user, amount: a, method, paymentId, account, when }) => ({
     subject: `Withdrawal request received: ${money(a, user.country)}`,
-    preheader: 'We are processing it now. Most payouts land within minutes.',
+    preheader: 'Our team checks every withdrawal before paying it – usually within a few hours.',
     html: wrap({ cc: user.country, title: 'Withdrawal requested', body:
       h1('We are processing your withdrawal') +
       p(`Hi ${first(user)}, we have received your request and reserved the funds from your balance.`) +
       amount('Withdrawing', money(a, user.country), `to ${account || method}`) +
       steps(['Requested', 'Processing', 'Paid'], 1) +
-      details([['Reference', ref(paymentId), { bold: true }], ['Method', method], ['Requested', fmtDate(when)], ['Expected', 'Within minutes, up to 24 hours']]) +
-      small('If anything needs checking, we will email you. You do not need to do anything now.') }),
+      details([['Reference', ref(paymentId), { bold: true }], ['Method', method], ['Requested', fmtDate(when)], ['Expected', 'Usually within a few hours, at most 24 hours']]) +
+      small('Our team checks every withdrawal before it is paid. If anything needs checking, we will email you. You do not need to do anything now.') }),
     text: text([`Withdrawal of ${money(a, user.country)} requested.`, `Reference ${ref(paymentId)}.`, 'We will email you when it is paid.']),
   }),
 

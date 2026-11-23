@@ -5,7 +5,7 @@ import { q, tx } from '../db/pool.js';
 import { requireUser } from '../lib/auth.js';
 import { debit } from '../lib/wallet.js';
 import { getSetting } from '../lib/settings.js';
-import { currentRound } from '../games/jackpot.js';
+import { currentRound, currentPot } from '../games/jackpot.js';
 import { eventsWithMarkets } from './events.js';
 import { sendEmail } from '../emails/index.js';
 
@@ -27,9 +27,10 @@ r.get('/round', async (_req, res, next) => {
   try {
     const round = await currentRound(), cfg = await getSetting('jackpot');
     if (!round) return res.json({ round: null, prizes: cfg });
+    const pot = await currentPot(round);
     const ids = round.event_ids.map(Number), evs = await eventsWithMarkets(ids, ['1x2']);
     evs.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-    res.json({ round: { code: round.code, closesAt: round.closes_at, events: evs }, prizes: cfg });
+    res.json({ round: { code: round.code, closesAt: round.closes_at, events: evs }, prizes: cfg, pot, fund: round.rules ? round.rules.fund : null });
   } catch (e) { next(e); }
 });
 

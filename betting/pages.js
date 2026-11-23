@@ -58,7 +58,7 @@
   const LV = { sport: null, sort: 'league', shut: new Set(), all: false };
   function renderLive(arg, keep) {
     const a = A(), el = root('live');
-    const liveBy = id => a.MATCHES.filter(m => m.live && m.sport === id);
+    const liveBy = id => a.MATCHES.filter(m => (m.live || (a.justFT && a.justFT(m))) && m.sport === id);
     const sports = a.VISIBLE().filter(s => liveBy(s.id).length);
     if (arg && a.sportOf(arg)) LV.sport = arg;
     if (!LV.sport || !liveBy(LV.sport).length) LV.sport = sports[0]?.id || 'football';
@@ -234,11 +234,12 @@
   const weekCode = () => { const d = new Date(); const s = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}${String(Math.ceil(((d - s) / DAY + s.getDay() + 1) / 7)).padStart(2, '0')}`; };
   const jpRound = () => (A().live ? (JP.round ? JP.round.code : '…') : weekCode());
   const jpPrize = k => { const a = A(), p = JP.prizes && JP.prizes[a.CC]; return p ? p[k] : a.C[k === 't11' ? 'jp11' : k === 't10' ? 'jp10' : 'jackpot']; };
+  const jpPot = () => { const p = JP.pot && JP.pot[A().CC]; return p ? p.pot : 0; };   // the open round's jackpot pot (prize fund)
   const jpMatch = e => { const o = (e.markets || []).find(m => m.key === '1x2'); return { id: e.id, home: e.home, away: e.away, kick: new Date(e.kickoff).getTime(), map: { '1x2': o ? o.outcomes : {} } }; };
   async function loadRound(force) {
     if (!A().live || (JP.round !== undefined && !force) || JP.loadingRound) return;
     JP.loadingRound = true;
-    try { const r = await API.jackpot.round(); JP.round = r.round ? { code: r.round.code, closesAt: new Date(r.round.closesAt).getTime(), games: r.round.events.map(jpMatch) } : null; JP.prizes = r.prizes; }
+    try { const r = await API.jackpot.round(); JP.round = r.round ? { code: r.round.code, closesAt: new Date(r.round.closesAt).getTime(), games: r.round.events.map(jpMatch) } : null; JP.prizes = r.prizes; JP.pot = r.pot || null; JP.fund = r.fund || null; }
     catch { JP.round = JP.round || null; }
     JP.loadingRound = false;
     if (A().state.route === 'jackpot') renderJackpot(JP.tab === 'play' ? null : JP.tab);
@@ -274,7 +275,7 @@
       body = `<div class="jp-how">${[
         ['Predict 12 games', 'Pick Home (1), Draw (X) or Away (2) for every game in the round.'],
         ['Cover more outcomes', `Pick two or three outcomes for a game to cover it. Each extra combination is one more line at ${a.whole(C.ticket)}.`],
-        ['Win big', `Get all 12 right to win the ${a.whole(jpPrize('jackpot'))} jackpot – shared equally if more than one line gets 12. 11 correct pays ${a.whole(jpPrize('t11'))} and 10 correct pays ${a.whole(jpPrize('t10'))} per line.`],
+        ['Win big', JP.fund ? `Get all 12 right to win the jackpot pot (now ${a.whole(jpPot())}, up to ${a.whole(jpPrize('jackpot'))}) – it grows with every ticket, is shared equally if more than one line gets 12, and carries over when nobody does. 11 and 10 correct share their own prize funds: up to ${a.whole(jpPrize('t11'))} and ${a.whole(jpPrize('t10'))} per line.` : `Get all 12 right to win the ${a.whole(jpPrize('jackpot'))} jackpot – shared equally if more than one line gets 12. 11 correct pays ${a.whole(jpPrize('t11'))} and 10 correct pays ${a.whole(jpPrize('t10'))} per line.`],
         ['Results', 'The round closes when its first game kicks off. When the last game ends, every ticket is graded and winnings are paid straight into your balance.'],
         ['Postponed games', 'If a game is cancelled, or not finished within 48 hours of kick-off, its result is drawn at random, weighted by the 1X2 odds.'],
       ].map(([t, d], i) => `<div class="how-step"><b>${i + 1}</b><div><strong>${t}</strong><p>${d}</p></div></div>`).join('')}</div>`;
@@ -289,7 +290,7 @@
     }
     el.innerHTML = `${head('Jackpot', `<a class="icon-btn" href="#/jackpot/tickets" aria-label="My tickets">${I.slip}</a>${homeBtn}`, { dark: true })}
       <div class="jp-hero" style="background-image:linear-gradient(180deg,rgba(10,20,14,.55),rgba(27,30,37,1)),url(${C.b3})">
-        <div class="jp-prize"><p>Predict 12 GAMES to Win</p><h2>${a.C.cur === '₦' ? 'NGN' : 'GHS'} ${Number(jpPrize('jackpot')).toLocaleString('en')}</h2><small>Prizes for 11 and 10 correct predictions too!</small></div>
+        <div class="jp-prize"><p>Predict 12 GAMES to Win</p><h2>${JP.fund ? 'Up to ' : ''}${a.C.cur === '₦' ? 'NGN' : 'GHS'} ${Number(jpPrize('jackpot')).toLocaleString('en')}</h2><small>${JP.fund ? `Pot now ${a.whole(jpPot())} – grows with every ticket. Prizes for 11 and 10 correct too!` : 'Prizes for 11 and 10 correct predictions too!'}</small></div>
         <div class="jp-cd" id="jpCd"></div>
       </div>
       <div class="pg-tabs dark">${[['play', 'Jackpot 12'], ['results', 'Previous Results'], ['how', 'How to play'], ['tickets', 'My Tickets']].map(([k, l]) => `<a href="#/jackpot${k === 'play' ? '' : '/' + k}" class="${JP.tab === k ? 'on' : ''}">${l}</a>`).join('')}</div>
@@ -331,7 +332,7 @@
     { id: 'welcome', cat: 'sports', title: '200% Welcome Bonus', img: C.b1, from: `1/1/${y}`, to: `12/31/${y}`, lead: `Triple your first deposit, up to ${w(C.bonusMax)}.`, cta: ['Join Now', '#/register'],
       steps: ['Register with your mobile number.', 'Make your first deposit.', 'Your bonus is added straight away as locked bonus funds.', 'Bet the bonus 5 times on multiples with odds of 1.50 or more per selection to unlock it.'],
       terms: ['New players only, one bonus per person, household and device.', `Maximum bonus ${w(C.bonusMax)}.`, 'Bonus must be wagered within 14 days or it expires.', 'Cashed-out and void bets do not count towards wagering.'] },
-    { id: 'acca', cat: 'sports', title: 'Acca Win Boost – up to 1000%', img: 'img/banner-2.jpg', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Add 3 or more selections to a multiple and your winnings get boosted.', cta: ['Bet Now', '#/home'],
+    { id: 'acca', cat: 'sports', title: 'Acca Win Boost – up to 200%', img: 'img/banner-2.jpg', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Add 3 or more selections to a multiple and your winnings get boosted.', cta: ['Bet Now', '#/home'],
       steps: ['Add 3+ selections with odds of 1.20 or more to the betslip.', 'Choose Multiple.', 'The boost grows with the number of selections at 1.20+: 5% for 3, 50% for 5, 200% for 10, 500% for 15 and 1000% for 20 or more.'],
       terms: ['Applies to pre-match and live multiples.', 'The boost is paid as cash on winning bets.', 'Cashed-out bets do not get the boost.'] },
     { id: 'jackpot', cat: 'sports', title: `${C.jackpotShort} Weekly Jackpot`, img: C.b3, from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Predict 12 matches correctly and take the jackpot.', cta: ['Play Jackpot', '#/jackpot'],
@@ -603,16 +604,23 @@
   const TROPHY_SRCSET = 'img/trophy-lb-600.webp 600w, img/trophy-lb.webp 900w', TROPHY_SIZES = '(min-width: 500px) 380px, 84vw';
   // warm the cache once the app is idle so the celebration never waits for the image
   (window.requestIdleCallback || ((f) => setTimeout(f, 3000)))(() => { const i = new Image(); i.sizes = TROPHY_SIZES; i.srcset = TROPHY_SRCSET; i.src = 'img/trophy-lb-600.webp'; });
-  function trophy({ amount, source = 'Sport', ref = '', href = '' } = {}) {
-    const a = A(); if (!(amount > 0)) return;
+  // one at a time: a win that lands while the trophy is open waits for it to close
+  const trQueue = []; let trOpen = false;
+  function trophy(o = {}) {
+    if (!(o.amount > 0)) return;
+    if (trOpen) { trQueue.push(o); return; }
+    showTrophy(o);
+  }
+  function showTrophy({ amount, source = 'Sport', ref = '', href = '', stake = 0, detail = '', away = false } = {}) {
+    const a = A(); trOpen = true;
     let el = $('#trophyOv');
     if (!el) { el = document.createElement('div'); el.id = 'trophyOv'; el.className = 'tr-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'You won'); document.body.appendChild(el); }
     const code = a.C.cur === '₦' ? 'NGN' : 'GHS';
     el.innerHTML = `<button class="tr-x" data-tr="close" aria-label="Close">×</button>
-      <div class="tr-top"><h2>YOU WON</h2><b class="tr-amt">${code} <span id="trAmt">0.00</span></b></div>
+      <div class="tr-top">${away ? '<span class="tr-away">While you were away</span>' : ''}<h2>YOU WON</h2><b class="tr-amt">${code} <span id="trAmt">0.00</span></b>${stake > 0 ? `<span class="tr-stake">Stake ${code} ${Number(stake).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${(amount / stake).toFixed(2)}× your money</span>` : ''}</div>
       <div class="tr-stage"><div class="tr-rays"></div><div class="tr-glow"></div><img class="tr-img" src="img/trophy-lb-600.webp" srcset="${TROPHY_SRCSET}" sizes="${TROPHY_SIZES}" width="900" height="1080" alt="LetBetAfrika gold trophy" decoding="async" onerror="this.parentNode.classList.add('noimg')">${TROPHY_SVG}<i class="tr-sp s1"></i><i class="tr-sp s2"></i><i class="tr-sp s3"></i><i class="tr-sp s4"></i><i class="tr-sp s5"></i></div>
-      <p class="tr-src">From ${esc(source)}${ref ? ` / Ticket ID ${esc(ref)}` : ''}</p>
-      <div class="tr-btns">${href ? `<a class="tr-btn ghost" href="${href}" data-tr="close">Details</a>` : `<button class="tr-btn ghost" data-tr="close">Close</button>`}<button class="tr-btn" data-tr="share">Show Off</button></div>`;
+      <div class="tr-src">${detail ? `<b class="tr-det">${esc(detail)}</b>` : ''}<span>From ${esc(source)}${ref ? ` · Ticket ${esc(ref)}` : ''}</span></div>
+      <div class="tr-btns">${href ? `<a class="tr-btn ghost" href="${href}" data-tr="close">View ticket</a>` : `<button class="tr-btn ghost" data-tr="close">Close</button>`}<button class="tr-btn" data-tr="share">Show Off</button></div>`;
     el._share = `I just won ${a.money(amount)} on LetBetAfrika${source ? ' (' + source + ')' : ''}! 🏆`;
     requestAnimationFrame(() => el.classList.add('on'));
     document.body.classList.add('tr-lock');
@@ -624,7 +632,10 @@
     if (navigator.vibrate) try { navigator.vibrate([40, 60, 40]); } catch {}
     setTimeout(() => $('[data-tr=share]', el)?.focus({ preventScroll: true }), 300);
   }
-  const closeTrophy = () => { const el = $('#trophyOv'); if (el) el.classList.remove('on'); document.body.classList.remove('tr-lock'); };
+  const closeTrophy = () => {
+    const el = $('#trophyOv'); if (el) el.classList.remove('on'); document.body.classList.remove('tr-lock'); trOpen = false;
+    if (trQueue.length) setTimeout(() => { if (!trOpen && trQueue.length) showTrophy(trQueue.shift()); }, 450);
+  };
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-tr]'); if (!t) return;
     if (t.dataset.tr === 'close') return closeTrophy();
