@@ -1,12 +1,13 @@
+import { closeDepositRequests } from '../lib/notices.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { requireUser } from '../lib/auth.js';
 import { move, debit } from '../lib/wallet.js';
-import { creditDeposit, bonusesOf } from '../lib/bonus.js';
+import { creditDeposit, bonusesOf, ladderOf } from '../lib/bonus.js';
 import { getSetting } from '../lib/settings.js';
 import { sendEmail, notifyAdmins } from '../emails/index.js';
-import { options, demoMode, methodName, referenceOf, NETWORKS } from '../lib/payments.js';
+import { options, demoMode, methodName, referenceOf, NETWORKS, withdrawBlock, withdrawCheck, stillNewMember } from '../lib/payments.js';
 import * as gateway from '../payments/gateway.js';
 import { creditApi, failApi, checkApi } from '../payments/flows.js';
 import { redeem as redeemPromo } from '../lib/promos.js';
@@ -21,7 +22,13 @@ const fail = (res, status, error, extra) => res.status(status).json({ error, ...
 const phone9 = z.string().transform(s => s.replace(/\D/g, '').replace(/^233/, '').replace(/^0/, '')).refine(s => s.length === 9, 'bad_phone');
 
 // what this player can use to pay in and out right now (country, limits, bank / MoMo details, their reference)
-r.get('/options', async (req, res, next) => { try { res.json(await options(req.user)); } catch (e) { next(e); } });
+r.get('/options', async (req, res, next) => {
+  try {
+    const lad = await ladderOf(req.user);
+    const chk = await withdrawCheck(req.user, lad);
+    res.json({ ...(await options(req.user)), ladder: lad, withdrawBlock: chk.block, withdrawRuleAhead: chk.newMember });
+  } catch (e) { next(e); }
+});
 
 r.get('/', (req, res) => res.json({ balance: Number(req.user.balance), currency: req.user.country === 'GH' ? 'GHS' : 'NGN' }));
 
@@ -66,6 +73,7 @@ r.post('/deposit', async (req, res, next) => {
     if (mode === 'demo') {
       const out = await tx(async c => {
         const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',$2,$3,'demo','success',$4) RETURNING id`, [req.user.id, amount, method, details]);
+        await closeDepositRequests(c, req.user.id);
         return { paymentId: rows[0].id, balance: await creditDeposit(c, req.user, amount, rows[0].id, { method }), status: 'success' };
       });
       res.json(out);
@@ -82,6 +90,7 @@ r.post('/deposit', async (req, res, next) => {
         : momo ? { phone: ph.data, network: details.network, sender: details.sender || null } : { sender: details.sender };
       const { rows } = await q(`INSERT INTO payments (user_id, kind, amount, method, provider, provider_ref, status, details) VALUES ($1,'deposit',$2,$3,'manual',$4,'pending',$5) RETURNING id`,
         [req.user.id, amount, method, reference, keep]);
+      await closeDepositRequests({ query: (t, v) => q(t, v) }, req.user.id);
       res.json({ status: 'pending', paymentId: rows[0].id, reference, balance: Number(req.user.balance), mode: 'manual',
         next: { message: `We are checking your ${ussd ? 'USSD payment' : momo ? 'MoMo transfer' : 'transfer'}. Your balance updates as soon as it is confirmed – ${way.eta}.`, rows: [['Reference', reference], ...(ussd ? [['Transaction ID', details.txid]] : [])] } });
       notifyAdmins('deposit', { id: rows[0].id, amount, method: methodName(method) }, req.user, { account: ussd ? `USSD ${way.account.code} · transaction ${details.txid}${keep.phone ? ' · from 0' + keep.phone : ''}` : momo ? `MoMo 0${ph.data}` : `From ${details.sender} · ref ${reference}` });
@@ -161,7 +170,7 @@ r.post('/promo', async (req, res, next) => {
 r.get('/bonuses', async (req, res, next) => {
   try {
     const { rows } = await q(`SELECT count(*)::int AS n FROM transactions WHERE user_id=$1 AND type='deposit'`, [req.user.id]);
-    res.json({ bonuses: await bonusesOf(req.user.id), rules: await getSetting('welcome_bonus'), eligible: rows[0].n === 0 });
+    res.json({ bonuses: await bonusesOf(req.user.id), rules: await getSetting('welcome_bonus'), eligible: rows[0].n === 0, ladder: await ladderOf(req.user) });
   } catch (e) { next(e); }
 });
 
@@ -175,6 +184,8 @@ r.post('/withdraw', async (req, res, next) => {
   if (!req.user.verified && !req.user.is_agent && (process.env.REQUIRE_KYC || 'false') === 'true') return res.status(403).json({ error: 'kyc_required' });
   let details;
   try {
+    const chk = await withdrawCheck(req.user);
+    if (chk.block) return res.status(403).json(chk.block);
     const opt = await options(req.user);
     if (!opt.withdraw.some(x => x.method === method) && !demoMode()) return res.status(400).json({ error: 'method_closed' });
     if (amount < opt.limits.minWithdraw) return res.status(400).json({ error: 'below_minimum', min: opt.limits.minWithdraw });
@@ -191,6 +202,8 @@ r.post('/withdraw', async (req, res, next) => {
     }
     // Funds leave the balance now; admin approves or rejects (rejection refunds).
     const out = await tx(async c => {
+      // a new member's first deposit credited a moment ago starts the 1·2·3 rule – decided again under the balance lock
+      if (chk.newMember && !(await stillNewMember(c, req.user.id))) return { again: true };
       // play-through: the part of the deposits not yet staked stays in the account (agents are exempt)
       const { rows: [me] } = await c.query('SELECT balance, playthrough_left FROM users WHERE id=$1 FOR UPDATE', [req.user.id]);
       const left = req.user.is_agent ? 0 : Number(me.playthrough_left), free = Math.max(0, Math.round((Number(me.balance) - left) * 100) / 100);
@@ -199,6 +212,7 @@ r.post('/withdraw', async (req, res, next) => {
       const balance = await debit(c, req.user.id, 'withdrawal', amount, rows[0].id, { method });
       return { paymentId: rows[0].id, balance, status: 'pending' };
     });
+    if (out.again) { const b = await withdrawBlock(req.user); return res.status(b ? 403 : 409).json(b || { error: 'try_again' }); }
     // agents: no admin approval – a Mobile Money withdrawal is sent through the payment API at once
     // (if the provider refuses, it waits in the admin queue with the provider's message, as any withdrawal)
     if (req.user.is_agent && method === 'mobile_money' && gateway.active()) {
@@ -218,13 +232,15 @@ r.post('/transfer', async (req, res, next) => {
   const p = z.object({
     phone: z.string().transform(s => s.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '')).refine(s => s.length >= 9 && s.length <= 10, 'bad_phone').optional(),
     email: z.string().trim().toLowerCase().pipe(z.email().max(120)).optional(),
-    amount: z.number().positive(),
+    amount: z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100),   // whole cents: both sides move the same
     note: z.string().max(40).optional(),
   }).refine(d => !!d.phone !== !!d.email).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   const { phone, email, amount, note } = p.data;
   if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
   try {
+    const chk = await withdrawCheck(req.user);   // sending money out follows the withdrawal rules
+    if (chk.block) return res.status(403).json(chk.block);
     const { rows } = email
       ? await q('SELECT id, phone, email FROM users WHERE country=$1 AND lower(email)=$2 AND status=$3', [req.user.country, email, 'active'])
       : await q('SELECT id, phone, email FROM users WHERE country=$1 AND phone=$2 AND status=$3', [req.user.country, phone, 'active']);
@@ -233,6 +249,7 @@ r.post('/transfer', async (req, res, next) => {
     const ref = 'TF' + Date.now().toString(36).toUpperCase();
     const to = phone || email, from = req.user.phone || req.user.email;
     const balance = await tx(async c => {
+      if (chk.newMember && !(await stillNewMember(c, req.user.id))) return null;   // as for withdrawals
       // money not yet played goes first, and its play-through goes with it (sending it to a friend is no way round it)
       const { rows: [me] } = await c.query('SELECT playthrough_left FROM users WHERE id=$1 FOR UPDATE', [req.user.id]);
       const moved = Math.min(amount, Number(me.playthrough_left));
@@ -244,13 +261,33 @@ r.post('/transfer', async (req, res, next) => {
       }
       return b;
     });
+    if (balance === null) { const b = await withdrawBlock(req.user); return res.status(b ? 403 : 409).json(b || { error: 'try_again' }); }
     res.json({ ok: true, ref, balance });
+  } catch (e) { next(e); }
+});
+
+// A screenshot of the transfer for a manual deposit that is still being checked – the admin sees it before crediting.
+// A data URL (JPEG / PNG / WebP, up to 2 MB – the app shrinks photos first); the file's own bytes must match its type.
+const IMG = { 'image/jpeg': b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, 'image/png': b => b.subarray(1, 4).toString('latin1') === 'PNG',
+  'image/webp': b => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' };
+r.post('/payments/:id/proof', async (req, res, next) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return fail(res, 404, 'not_found');
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).image || ''));
+  const buf = m && Buffer.from(m[2], 'base64');
+  if (!m || buf.length < 200 || buf.length > 2_000_000 || !IMG[m[1]](buf)) return fail(res, 400, 'bad_image');
+  try {
+    const { rows } = await q(`SELECT id FROM payments WHERE id=$1 AND user_id=$2 AND kind='deposit' AND provider='manual' AND status='pending'`, [req.params.id, req.user.id]);
+    if (!rows[0]) return fail(res, 404, 'not_found');
+    await q(`INSERT INTO payment_proofs (payment_id, user_id, mime, data, size) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (payment_id) DO UPDATE SET mime=EXCLUDED.mime, data=EXCLUDED.data, size=EXCLUDED.size, created_at=now()`, [rows[0].id, req.user.id, m[1], buf, buf.length]);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
 r.get('/payments', async (req, res, next) => {
   try {
-    const { rows } = await q(`SELECT id, kind, amount, method, provider, status, created_at, details->>'reason' AS reason FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
+    const { rows } = await q(`SELECT id, kind, amount, method, provider, status, created_at, details->>'reason' AS reason,
+      EXISTS (SELECT 1 FROM payment_proofs x WHERE x.payment_id = payments.id) AS proof FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
     res.json({ payments: rows });
   } catch (e) { next(e); }
 });

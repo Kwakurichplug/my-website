@@ -309,8 +309,36 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   reference `LB` + account ID in the narration note); a manual transfer asks for the sender's name and the button reads
   "I have sent ₦5,000.00" → "Deposit being checked" sheet; Ghana's API MoMo shows "Approve on your phone" (polls
   `GET /api/wallet/payments/:id` every 3 s) or the OTP sheet; a country with nothing open shows `.wx-closed` (no fake
-  method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
+  method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason).
+  **When withdrawals are closed** (`withdrawBlock` from `GET /api/wallet/options`, `withdrawBlockHTML()`), the withdraw
+  page shows a card instead of the form: `.wx-unlock` "Complete your 3 deposits to unlock withdrawals" (`.wx-steps`
+  1 · 2 · 3 with ✓ Done / Being checked / % and cap, then *Make deposit N now* or *Verify my ID*), or `.wx-paused`
+  "Withdrawals are paused for now" with the admin's message; on *To a Friend* it reads "sending money". Before a new
+  member's first deposit the deposit page shows `.wl-note.wx-rule` – "Good to know before you deposit" – when the
+  server says `withdrawRuleAhead`. Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
   (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
+- **Deposit bonuses 1 · 2 · 3** (`account.js` `ladderHTML()`, `.wx-ladder` / `.wx-steps`): the deposit page lists the three
+  steps from `opt.data.ladder` (done / bonus active with % played through / next / later / locked behind *Verify your ID*);
+  the amount hint shows the bonus this deposit earns. Me → Bonuses shows one row per step with its progress bar.
+- **Sticky next-deposit bar** (`#ladBar` in index.html, `account.js` `ladderBar()` / `renderLadderBar()`, `.lad-bar` / `.lb-*`):
+  fixed above the bottom menu (a floating card on desktop) on browsing pages (`LB_ROUTES`) for players whose ID is
+  approved while a step is left – dots ✓ ✓ 3, "Deposit 3 of 3 · 50% bonus", **Deposit**; "being checked" while one waits.
+  `body.has-ladbar` lifts the betslip button and pads the page. Loaded with the app, after a deposit and with the "ID
+  approved" pop-up; refreshed at most once a minute.
+- **Transfer screenshot** (`proofHTML()` / `bindProof()` / `shrinkImage()`, `.wx-proof*`): required on real manual
+  deposits (`way.mode === 'manual'`) – the button says "Add the screenshot of your transfer" until one is picked; sent after
+  "I have sent it"; *Add screenshot* on a pending deposit in Recent deposits (`addProofLater`).
+- **Payment pop-ups** (`account.js` `checkNotices()` / `Account.notices()`, styles `.nt-*` at the end of `app.css`): the
+  wallet bottom sheet (`#wlSheet`) shows the oldest open notice from `GET /api/auth/notices` – a support deposit request
+  first (`.nt`: icon, amount, support's message `.nt-msg`, numbered `.nt-steps`, the `.wx-payto` account block for manual
+  ways, **Deposit ₦X now** → `wl.amt.dep` + `#/deposit/transfer|momo`, **Later** = `sessionStorage lba_nt_later`), then
+  one-time outcome sheets (`resultSheet`). app.js calls it 1.5 s after the app opens and on every live refresh (throttled
+  to a minute); never on register/login/deposit/withdraw/game routes.
+- **Refer & Earn and agents** (`app.js` `refer`, styles `.ag-*` at the end of `app.css`): every player gets their code and
+  a sign-up link `/?ref=LB<ID>#/register` (`account.js` `refFromLink()` fills the code in, kept in `sessionStorage`
+  `lba_ref`), Copy buttons and WhatsApp share. An agent (`GET /api/auth/referrals` → `agent`) sees `.ag-card`: the
+  rate and basis, this period's commission, players / active / base tiles, what was paid and the last payouts;
+  the flat-reward stats are hidden for agents. Transaction records label `commission` as *Agent commission*.
 - **Mobile number or email** (`v23`, `account.js`): register, login and forgot password have a *Mobile Number | Email*
   switch (`.au-via`, `data-via`); the email field (`.au-mail`) has a mail icon where the dial code sits. Only channels
   that can deliver a code are offered (`Account.prefetch()` asks `/api/auth/methods` when the app goes live). The code

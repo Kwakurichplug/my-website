@@ -33,6 +33,7 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true }));
 // ID verification carries two photos (resized in the app to ~1600 px): a bigger body for that one route only
 app.use('/api/auth/verify', express.json({ limit: '4mb' }));
+app.use(/^\/api\/wallet\/payments\/[^/]+\/proof$/, express.json({ limit: '2800kb' }));   // a payment screenshot (data URL)
 // keep the raw body of provider callbacks: their signatures are computed over the exact bytes
 app.use(express.json({ limit: '64kb', verify: (req, _res, buf) => { if (req.url.startsWith('/api/payments/')) req.rawBody = buf; } }));
 app.use(pinoHttp({ logger: log, autoLogging: { ignore: r => r.url.startsWith('/img') || r.url === '/health' } }));

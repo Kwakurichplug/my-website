@@ -47,15 +47,15 @@ export const templates = {
   /* ---------------- Account ---------------- */
   welcome: ({ user }) => ({
     subject: 'Welcome to LetBetAfrika',
-    preheader: 'Your account is ready. Make your first deposit to unlock your 200% welcome bonus.',
+    preheader: 'Your account is ready. Verify your ID and get a bonus on each of your first 3 deposits.',
     html: wrap({ cc: user.country, title: 'Welcome', body:
       h1(`Welcome, ${first(user)}`) +
       p('Your LetBetAfrika account is ready. You can bet on live and upcoming matches, play virtuals and enter the weekly jackpot.') +
       details([['Account ID', String(user.uid), { bold: true }], user.phone ? ['Phone', `+${user.country === 'GH' ? '233' : '234'} ${user.phone}`] : ['Email', user.email], ['Currency', user.country === 'GH' ? 'Ghana cedi (GH₵)' : 'Nigerian naira (₦)']]) +
-      note(`<b>200% welcome bonus.</b> Deposit now and we triple it, up to ${money(user.country === 'GH' ? 1000 : 100000, user.country)}.`, 'success') +
+      note(`<b>Deposit bonuses 1 · 2 · 3.</b> Verify your ID – it takes 2 minutes – and each of your first 3 deposits earns a bonus.`, 'success') +
       button('Make your first deposit', `${site}/#/me`) +
       small('Please keep your password private. We will never ask for it by phone, SMS or email.') }),
-    text: text([`Welcome, ${first(user)}.`, `Your account ID is ${user.uid}.`, `Deposit now to unlock your 200% welcome bonus: ${site}`]),
+    text: text([`Welcome, ${first(user)}.`, `Your account ID is ${user.uid}.`, `Verify your ID and get a bonus on each of your first 3 deposits: ${site}`]),
   }),
 
   otp: ({ user, code: c, purpose }) => ({
@@ -165,6 +165,29 @@ export const templates = {
       p('Please make sure the transfer narration shows your reference, so we can match it quickly.', { muted: true }) }),
     text: text([`We are checking your ${method} deposit of ${money(a, user.country)}.`, `Your reference: ${reference}.`, 'Your balance updates as soon as it is confirmed.']),
   }),
+
+  // support set up a deposit for the player (admin portal → Request deposit); `way` = the deposit way open for them
+  depositRequest: ({ user, amount: a, note: msg, way, reference }) => {
+    const cc = user.country, acct = way && way.account, momo = way && way.method === 'mobile_money', amt = a ? money(a, cc) : 'the amount you want';
+    const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const how = !way ? [] : way.mode === 'api'
+      ? ['Open LetBetAfrika and tap Deposit now.', 'Enter your MoMo number and choose your network.', 'Approve the prompt on your phone – your balance updates at once.']
+      : momo ? [`Send ${amt} by MoMo to ${acct.networkName || 'MoMo'} 0${acct.number} (${acct.name}).`, `Use ${reference} as the reference.`, 'Tap Deposit now on LetBetAfrika, then “I have sent it”.']
+      : [`Transfer ${amt} from your bank app to the account below.`, `Put ${reference} in the narration (description).`, 'Tap Deposit now on LetBetAfrika, then “I have sent it”.'];
+    return {
+      subject: a ? `Complete your deposit of ${money(a, cc)}` : 'Complete your deposit at LetBetAfrika',
+      preheader: 'Our support team set it up for you – it takes 2 minutes.',
+      html: wrap({ cc, title: 'Complete your deposit', body:
+        h1('Complete your deposit') +
+        p(`Hi ${e(first(user))}, our support team set up your deposit${a ? ` of <b>${money(a, cc)}</b>` : ''}. Here is how to finish it.`) +
+        (msg ? note(`<b>Message from support:</b> ${e(msg)}`, 'info') : '') +
+        (how.length ? details(how.map((s, i) => [`Step ${i + 1}`, s]), 'How to pay') : p('Deposits for your country are being set up – reply to this email and we will help you.')) +
+        (acct && !momo && way.mode !== 'api' ? details([['Bank', acct.bank], ['Account number', acct.number, { bold: true }], ['Account name', acct.name], ['Your reference', reference, { bold: true }]], 'Pay to') : '') +
+        button(a ? `Deposit ${money(a, cc)} now` : 'Deposit now', `${site}/#/deposit`) }),
+      text: text([`Complete your deposit${a ? ' of ' + money(a, cc) : ''}.`, msg ? 'Message from support: ' + msg : '', ...how.map((s, i) => `${i + 1}. ${s}`),
+        acct && !momo && way.mode !== 'api' ? `Pay to: ${acct.bank} · ${acct.number} · ${acct.name} · reference ${reference}` : '', `Deposit now: ${site}/#/deposit`]),
+    };
+  },
 
   depositFailed: ({ user, amount: a, method, paymentId, reason, manual }) => ({
     subject: manual ? 'We could not confirm your deposit' : 'Your deposit did not go through',

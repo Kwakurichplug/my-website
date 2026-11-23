@@ -14,6 +14,8 @@
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
     trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
     ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3.5-5-1s3.5 1 5 1c1.5 0 5 1.5 5-1s-3.5-2-5 1"/></svg>',
+    agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.6"/><circle cx="5" cy="18.5" r="2.6"/><circle cx="19" cy="18.5" r="2.6"/><path d="M12 7.6V12M12 12l-5.4 4.3M12 12l5.4 4.3"/></svg>',
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 0 1 6-4.6"/></svg>',
     card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
     ledger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
@@ -57,7 +59,7 @@
   const P_EV = { live: ['live', 'Live'], scheduled: ['info', 'Upcoming'], finished: ['', 'Finished'], cancelled: ['bad', 'Cancelled'] };
   const P_USER = { active: ['ok', 'Active'], suspended: ['bad', 'Suspended'], self_excluded: ['warn', 'Self-excluded'] };
   const P_GAME = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], cashed: ['ok', 'Cashed'], void: ['warn', 'Void'] };
-  const ERR = { admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
+  const ERR = { reference_required: 'Enter the transfer reference from your bank or MoMo app – each transfer can be credited only once.', bad_image: 'That file is not a picture.', duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
   Object.assign(ERR, { not_pending: 'Someone already handled this one – the list is refreshed.', reason_required: 'Write the reason the player will see.',
     api_payment: 'Paid through the payment API – it is settled automatically.', api_not_configured: 'The payment API is not connected yet.', already_sent: 'This payout was already sent.',
     payout_failed: 'The payment API refused the payout.', review_required: 'Open Review and check the account first.', checks_failed: 'Red flags on this account – tick that you checked them to approve.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
@@ -120,6 +122,9 @@
       const o = await API.admin.overview(); const n = (o.pending_withdrawals || 0) + (o.pending_deposits || 0); const b = $('#navPending'); b.hidden = !n; b.textContent = n;
       const k = $('#navKyc'); k.hidden = !o.pending_kyc; k.textContent = o.pending_kyc || ''; state.pending = o;
     } catch {}
+    try {
+      const L = await API.admin.ladder(); const nl = $('#navLadder'); if (nl) { const n = (L.counts && L.counts.left) || 0; nl.hidden = !n; nl.textContent = n; nl.title = n + ' players with deposit bonuses left'; }
+    } catch {}
     try { state.api = (await API.admin.paymentSettings()).api; } catch {}
     supportBadge();
     try { const d = await API.admin.liveDesk(); deskBadge(d.matches, d.freshSec); } catch {}
@@ -136,10 +141,12 @@
   }
 
   /* ---------- router ---------- */
-  const TITLES = { livedesk: 'Live desk', support: 'Live support', overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', promos: 'Promo codes', sendmoney: 'Send money', agents: 'Agents', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', paysettings: 'Payment settings' };
+  const TITLES = { ladder: 'Deposit 1·2·3', livedesk: 'Live desk', support: 'Live support', overview: 'Overview', players: 'Players', payments: 'Payments', bets: 'Bets', trading: 'Trading desk', games: 'Games', jackpot: 'Jackpot', promos: 'Promo codes', sendmoney: 'Send money', agents: 'Agents', finance: 'Ledger', settings: 'Settings', email: 'Email', audit: 'Audit log', kyc: 'ID checks', paysettings: 'Payment settings' };
   function route() {
     const [page = 'overview', arg = null] = location.hash.replace(/^#\/?/, '').split('/');
+    const before = state.page;
     state.page = TITLES[page] ? page : 'overview'; state.arg = arg ? decodeURIComponent(arg) : null;
+    if (before && before !== state.page && $('#drawer').classList.contains('open')) closeDrawer();   // another page: the side panel closes
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.nav === state.page));
     $('#pageTitle').textContent = TITLES[state.page];
     document.body.classList.remove('nav-open');
@@ -169,6 +176,7 @@
       const b = ps.settings.NG.bank, m = ps.settings.GH.momo; state.api = ps.api;
       if (!(b.bank && b.number && b.name)) setup.push(['Nigerian players cannot deposit yet', 'Add the bank account players pay into.', '#/paysettings']);
       if (!ps.api.enabled && !(m.number && m.name)) setup.push(['Ghana deposits are closed', 'Connect the payment API (Moolre keys in Railway) or add a MoMo number.', '#/paysettings']);
+      if (ps.withdrawals && ps.withdrawals.suspended) setup.unshift(['Withdrawals are suspended', 'Players cannot request withdrawals or send money to a friend. You can still pay or reject the ones waiting.', '#/paysettings']);
     }
     const today = days[days.length - 1] || {};
     const ggr = (o.staked_today || 0) - (o.paid_today || 0) + (o.game_staked_today || 0) - (o.game_paid_today || 0);
@@ -223,7 +231,7 @@
         <div class="page-actions"><form class="search" id="pq"><i>${IC.search}</i><input placeholder="Search players" value="${esc(q)}"></form></div></div>
       <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Player</th><th>Contact</th><th>Status</th><th>KYC</th><th>Role</th><th class="r">Balance</th><th>Joined</th><th></th></tr></thead><tbody>
         ${users.map(u => `<tr class="click" data-user="${u.id}"><td><div class="who"><b>${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid}</small></div></td><td><div class="who">${flag(u.country)}${esc(phoneFmt(u.country, u.phone))}<small>${esc(u.email || '')}</small></div></td>
-          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : '<span class="muted">Player</span>'}</td>
+          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : u.agent ? pill('g', { g: ['info', 'Agent'] }) : '<span class="muted">Player</span>'}</td>
           <td class="r amt">${money(u.balance, u.country)}</td><td class="muted">${when(u.created_at)}</td><td><div class="acts"><button class="btn xs" data-user="${u.id}">Open</button></div></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No players found</b>Try another phone number or ID.</div></td></tr>'}
       </tbody></table></div></div>`;
     $('#pq').onsubmit = e => { e.preventDefault(); location.hash = '#/players/' + encodeURIComponent($('#pq input').value.trim()); };
@@ -251,6 +259,8 @@
       <div class="d-actions">${pill(u.status, P_USER)} ${u.verified ? pill('ok', { ok: ['ok', 'KYC verified'] }) : pill('no', { no: ['warn', 'KYC pending'] })} ${u.role === 'admin' ? pill('a', { a: ['gold', 'Administrator'] }) : ''} ${u.status === 'self_excluded' && lim.selfExclude ? pill('x', { x: ['warn', 'Self-excluded until ' + when(lim.selfExclude)] }) : ''}</div>
       <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
       <div class="d-actions">
+        <button class="btn sm primary" data-add-dep="${u.id}">Add deposit</button>
+        <button class="btn sm" data-req-dep="${u.id}">Request deposit</button>
         <button class="btn sm primary" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
         ${u.is_agent ? '' : kyc.status === 'pending' && !u.verified ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : `<button class="btn sm" data-kyc="resubmit" data-id="${u.id}">${kyc.status === 'resubmit' ? 'Ask for ID again (sent)' : 'Ask for ID again'}</button>`}
         ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
@@ -258,11 +268,212 @@
         ${u.is_agent ? `<button class="btn sm" data-agent-set="${u.id}" data-v="false">Stop agent</button>` : `<button class="btn sm" data-agent-set="${u.id}" data-v="true">Make agent</button>`}
       </div>
       ${u.is_agent && u.agent_code ? `<div class="agent-box"><b>Agent</b> · code <span class="mono">${esc(u.agent_code)}</span><div class="agent-link"><input readonly value="${esc(location.origin + '/?agent=' + u.agent_code)}" onclick="this.select()"><a class="btn xs" href="#/agents">Agents page</a></div></div>` : ''}
-      <dl class="kv"><dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
+      <dl class="kv">${d.ladder ? `<dt>Deposit bonuses</dt><dd class="lad">${d.ladder.steps.map(x => `<span class="pill ${x.done ? 'ok' : x.status === 'checking' ? 'gold' : x.status === 'next' ? 'info' : ''}">${x.done ? '✓ ' : ''}Deposit ${x.n} · ${x.done ? (x.deposit != null ? money(x.deposit, cc) + ' · ' : '') + 'bonus ' + money(x.bonus, cc) + (x.status === 'active' ? ` ${x.required ? Math.floor(100 * x.wagered / x.required) : 0}% played` : ' ' + x.status) : x.status === 'checking' ? 'being checked' : x.status === 'next' ? 'next' : x.status === 'locked' ? 'after the ID check' : 'left'}</span>`).join(' ')}</dd>` : ''}${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
     $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
-    state.drawer = { type: 'user', id };
+    state.drawer = { type: 'user', id }; state.drawerUser = u; state.drawerPays = d.payments;
+  }
+
+  /* ---------- Agents: players who bring in players and earn the commission you set ---------- */
+  const basisShort = a => `${Number(a.rate)}% of ${a.basis === 'revenue' ? 'net revenue' : a.basis === 'deposits' ? 'deposits' : 'stakes'}`;
+  const BASIS_OPTS = { revenue: 'Net revenue – what their players lose (recommended)', deposits: 'Deposits – what their players pay in', stakes: 'Stakes – everything their players bet' };
+  const refreshDrawer = () => { if (!state.drawer || !$('#drawer').classList.contains('open')) return; if (state.drawer.type === 'user') openUser(state.drawer.id); else if (state.drawer.type === 'agent') openAgent(state.drawer.id); };
+  PAGES.agents = async main => {
+    const { agents } = await API.admin.agents();
+    state.agents = new Map(agents.map(a => [a.user_id, a]));
+    const due = cc => agents.filter(a => a.active && a.country === cc).reduce((s, a) => s + a.commission, 0);
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Agents</h2><p>Players you made agents. Their players are the people who signed up with their code or link. They earn the commission you set on what those players do, counted from the start of the unpaid period. You pay it into the agent’s balance when you decide; each payment starts a new period. Agents get this instead of the Refer &amp; Earn reward.</p></div>
+        <div class="page-actions">${['NG', 'GH'].map(cc => `<span class="chip">${flag(cc)}Due ${money(due(cc), cc)}</span>`).join('')}<button class="btn primary" data-agent-new="1">Add agent</button></div></div>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Agent</th><th>Commission</th><th class="r">Players</th><th>Unpaid since</th><th class="r">This period</th><th class="r">Due</th><th class="r">Paid so far</th><th>Status</th><th></th></tr></thead><tbody>
+        ${agents.map(a => { const cc = a.country; return `<tr class="click" data-agent="${a.user_id}"><td><div class="who"><b>${esc(a.full_name || 'No name yet')}</b><small>ID ${a.uid} · ${flag(cc)}${esc(a.phone ? phoneFmt(cc, a.phone) : a.email || '')}</small></div></td>
+          <td>${esc(basisShort(a))}</td><td class="r">${int(a.players)}<div class="small muted">${int(a.totals.active)} active</div></td><td class="muted">${when(a.period_start)}<div class="small">${ago(a.period_start)}</div></td>
+          <td class="r">${money(a.base, cc)}<div class="small muted">${esc(a.basisName)}</div></td><td class="r amt ${a.commission > 0 ? 'in' : ''}"><b>${money(a.commission, cc)}</b></td><td class="r">${money(a.paid_total, cc)}</td>
+          <td>${a.active ? pill('a', { a: ['ok', 'Active'] }) : pill('r', { r: ['', 'Removed'] })}</td>
+          <td><div class="acts">${a.active ? `<button class="btn xs primary" data-agent-pay="${a.user_id}">Pay</button>` : ''}<button class="btn xs" data-agent-edit="${a.user_id}">${a.active ? 'Edit' : 'Restore'}</button></div></td></tr>`; }).join('')
+          || '<tr><td colspan="9"><div class="empty"><b>No agents yet</b>Press “Add agent”, or open a player and press “Make agent”.</div></td></tr>'}
+      </tbody></table></div></div>`;
+  };
+  // make a player an agent, change their commission, restore or remove them; id = null picks the player first
+  async function agentModal(id) {
+    let a = null, u = null;
+    if (id) {
+      try { a = (await API.admin.agent(id)).agent; } catch { a = null; }
+      u = a ? { id: a.user_id, uid: a.uid, full_name: a.full_name, country: a.country, phone: a.phone, email: a.email } : state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
+      if (!u) { try { u = (await API.admin.user(id)).user; } catch (e) { return toast(errMsg(e), 'err'); } }
+    }
+    const due = a && a.active ? (state.agents && state.agents.get(a.user_id) || {}).commission || 0 : 0;
+    const form = () => `
+      <h3>${a && a.active ? 'Agent commission' : a ? 'Restore this agent' : 'Make an agent'}</h3>
+      <p class="sub">${u ? `${esc(u.full_name || 'No name yet')} · ID ${u.uid} · ${flag(u.country)}${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')} · referral code LB${u.uid}` : 'Find the player who will bring in other players.'}</p>
+      ${u ? '' : `<form class="search ag-find" id="agFind"><i>${IC.search}</i><input placeholder="Phone, ID, name or email – then press Enter"></form><div id="agHits" class="ag-hits"></div>`}
+      <label class="field"><span>Commission is paid on</span><select id="agBasis">${Object.entries(BASIS_OPTS).map(([k, l]) => `<option value="${k}" ${(a ? a.basis : 'revenue') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field"><span>Rate (%)</span><input id="agRate" type="number" min="0.1" max="100" step="0.1" value="${a ? a.rate : 20}"></label>
+      <p class="sub small" id="agEx"></p>
+      <label class="field"><span>Note (optional – only admins see it)</span><input id="agNote" maxlength="200" value="${esc((a && a.note) || '')}"></label>
+      ${a && a.active && due > 0 ? `<p class="form-err">${money(due, a.country)} commission is unpaid. Pay it before removing the agent, or it is dropped.</p>` : ''}
+      <div class="m-actions">${a && a.active ? '<button class="btn danger" id="agRemove" type="button">Remove agent</button><span class="spacer"></span>' : ''}<button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo" ${u ? '' : 'disabled'}>${a && a.active ? 'Save' : 'Make agent'}</button></div>`;
+    const ex = () => {
+      const r = +$('#agRate').value || 0, b = $('#agBasis').value, cc = (u && u.country) || 'NG', x = cc === 'GH' ? 1000 : 100000;
+      $('#agEx').textContent = `Example: if their players ${b === 'revenue' ? 'lose' : b === 'deposits' ? 'deposit' : 'stake'} ${money(x, cc)} in a period, the agent earns ${money(x * r / 100, cc)}.`;
+    };
+    const bind = () => {
+      $('#agRate').oninput = ex; $('#agBasis').onchange = ex; ex();
+      if ($('#agFind')) {
+        $('#agFind input').focus();
+        $('#agFind').onsubmit = async e => {
+          e.preventDefault(); const s = $('#agFind input').value.trim(); if (!s) return;
+          const list = await API.admin.users(s).catch(() => []);
+          $('#agHits').innerHTML = list.slice(0, 6).map(x => `<button type="button" class="ag-hit" data-pick="${x.id}"><b>${esc(x.full_name || 'No name yet')}</b><small>ID ${x.uid} · ${flag(x.country)}${esc(x.phone ? phoneFmt(x.country, x.phone) : x.email || '')}${x.agent ? ' · already an agent' : ''}</small></button>`).join('') || '<p class="muted small">No player found.</p>';
+          $$('#agHits [data-pick]').forEach(b => b.onclick = () => { closeModal(); agentModal(b.dataset.pick); });
+        };
+      }
+      if ($('#agRemove')) $('#agRemove').onclick = async () => {
+        try { await API.admin.saveAgent(a.user_id, { rate: a.rate, basis: a.basis, active: false, ...(a.note ? { note: a.note } : {}) }); closeModal(); toast('Agent removed', 'ok'); render(true); refreshDrawer(); }
+        catch (e) { toast(errMsg(e), 'err'); }
+      };
+      $('#mGo').onclick = async () => {
+        const rate = +$('#agRate').value; if (!(rate > 0 && rate <= 100)) return $('#agRate').focus();
+        const note = $('#agNote').value.trim();
+        try { $('#mGo').disabled = true; await API.admin.saveAgent(u.id, { rate, basis: $('#agBasis').value, active: true, ...(note ? { note } : {}) }); closeModal(); toast(a && a.active ? 'Commission saved' : 'Agent added', 'ok'); if (state.page === 'agents') render(true); refreshDrawer(); }
+        catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+      };
+    };
+    openModal(form()); bind();
+  }
+  async function agentPayModal(id) {
+    const d = await API.admin.agent(id), a = d.agent, p = d.period, cc = a.country;
+    openModal(`<h3>Pay commission</h3>
+      <p class="sub">${esc(a.full_name || 'No name yet')} · ID ${a.uid} · ${esc(basisShort(a))}. The money goes into the agent’s balance (they can bet or withdraw it) and a new period starts.</p>
+      <dl class="kv"><dt>Period</dt><dd>${when(p.from)} – now</dd><dt>Players</dt><dd>${int(p.players.length)} (${int(p.totals.active)} active)</dd>
+        <dt>Deposits</dt><dd>${money(p.totals.deposits, cc)}</dd><dt>Stakes</dt><dd>${money(p.totals.staked, cc)}</dd><dt>Winnings paid</dt><dd>${money(p.totals.returned, cc)}</dd>${p.totals.bonus ? `<dt>Bonuses released</dt><dd>${money(p.totals.bonus, cc)}</dd>` : ''}<dt>Net revenue</dt><dd>${money(p.totals.revenue, cc)}</dd>
+        <dt>Commission</dt><dd><b>${money(p.commission, cc)}</b> · ${a.rate}% of ${money(p.base, cc)}</dd></dl>
+      <label class="field"><span>Amount to pay (${SYM[cc]}) – you decide</span><input id="mAmt" type="number" min="0" step="0.01" value="${p.commission.toFixed(2)}"></label>
+      <label class="field"><span>Note (optional)</span><input id="mNote" maxlength="200"></label>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo"></button></div>`);
+    const upd = () => { const v = +$('#mAmt').value; $('#mGo').textContent = v > 0 ? 'Pay ' + money(v, cc) : 'Close the period without paying'; };
+    $('#mAmt').oninput = upd; upd();
+    $('#mGo').onclick = async () => {
+      const v = +$('#mAmt').value; if (!(v >= 0)) return $('#mAmt').focus();
+      const n = $('#mNote').value.trim();
+      try { $('#mGo').disabled = true; await API.admin.payAgent(id, { amount: Math.round(v * 100) / 100, ...(n ? { note: n } : {}) }); closeModal(); toast(v > 0 ? 'Commission paid into the agent’s balance' : 'Period closed', 'ok'); if (state.page === 'agents') render(true); refreshDrawer(); }
+      catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
+    };
+  }
+  async function openAgent(id) {
+    openDrawer('<div class="loading">Loading agent…</div>');
+    const d = await API.admin.agent(id), a = d.agent, p = d.period, cc = a.country;
+    $('#drawerBody').innerHTML = `
+      <div class="d-head"><span class="avatar">${initials(a)}</span><div><h3>${esc(a.full_name || 'No name yet')}</h3><p>Agent · ID ${a.uid} · ${flag(cc)}${esc(a.phone ? phoneFmt(cc, a.phone) : '')}${a.email ? ' · ' + esc(a.email) : ''}</p></div></div>
+      <div class="d-actions">${a.active ? pill('a', { a: ['ok', 'Active agent'] }) : pill('r', { r: ['', 'Removed'] })} <span class="pill gold plain">${esc(basisShort(a))}</span> <span class="muted small">Referral code LB${a.uid}</span></div>
+      <div class="stat-row"><div class="stat"><small>Due now</small><b>${money(p.commission, cc)}</b></div><div class="stat"><small>${esc(a.basisName)} this period</small><b>${money(p.base, cc)}</b></div><div class="stat"><small>Players</small><b>${int(p.players.length)}</b></div><div class="stat"><small>Paid so far</small><b>${money(a.paid_total, cc)}</b></div></div>
+      <div class="d-actions">${a.active ? `<button class="btn sm primary" data-agent-pay="${a.user_id}">Pay commission</button>` : ''}<button class="btn sm" data-agent-edit="${a.user_id}">${a.active ? 'Change commission' : 'Restore agent'}</button><button class="btn sm" data-user="${a.user_id}">Open player</button></div>
+      ${a.note ? `<dl class="kv"><dt>Note</dt><dd>${esc(a.note)}</dd></dl>` : ''}
+      <h4 class="d-sub">Players this period <span class="muted small">since ${when(p.from)}</span></h4>
+      <table class="mini"><thead><tr><th>Player</th><th>Joined</th><th class="r">Deposits</th><th class="r">Stakes</th><th class="r">Won</th><th class="r">Net revenue</th></tr></thead><tbody>
+        ${p.players.map(x => `<tr><td><span class="lnk" data-user="${x.id}">${esc(x.full_name || 'ID ' + x.uid)}</span><div class="muted small">ID ${x.uid}</div></td><td class="muted">${when(x.created_at)}</td><td class="r">${money(x.deposits, cc)}</td><td class="r">${money(x.staked, cc)}</td><td class="r">${money(x.returned, cc)}</td><td class="r amt ${x.revenue >= 0 ? 'in' : 'out'}">${money(x.revenue, cc)}</td></tr>`).join('') || `<tr><td colspan="6" class="muted">No players yet – they sign up with code LB${a.uid}.</td></tr>`}
+      </tbody></table>
+      <h4 class="d-sub">Commission paid</h4>
+      <table class="mini"><thead><tr><th>Paid</th><th>Period</th><th class="r">Base</th><th class="r">Commission</th><th class="r">Paid</th></tr></thead><tbody>
+        ${d.payouts.map(x => `<tr><td class="muted">${when(x.created_at)}</td><td class="small">${when(x.period_start)} – ${when(x.period_end)}</td><td class="r">${money(x.base, cc)}</td><td class="r">${money(x.commission, cc)}</td><td class="r amt in">${money(x.amount, cc)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing paid yet.</td></tr>'}
+      </tbody></table>`;
+    state.drawer = { type: 'agent', id };
+  }
+
+  /* ---------- Deposit 1·2·3 tracker: players with an approved ID, each step marked; those with deposits left first ---------- */
+  const LAD_SEG = [['left', 'Deposits left'], ['s0', 'Not started'], ['s1', '1 of 3 done'], ['s2', '2 of 3 done'], ['checking', 'Being checked'], ['s3', 'All 3 done'], ['all', 'All']];
+  PAGES.ladder = async main => {
+    const f = state.ladF || (state.ladF = { seg: 'left', cc: '', q: '', sort: 'progress' });
+    const d = await API.admin.ladder(f.cc, f.q);
+    if (!d.enabled) { main.innerHTML = `<div class="page-head"><div><h2>Deposit 1·2·3</h2><p>Deposit bonuses 1 · 2 · 3 is switched off.</p></div></div><div class="card"><div class="empty"><b>Switched off</b>Turn it on in <a href="#/settings">Settings → Deposit bonuses 1 · 2 · 3</a>.</div></div>`; return; }
+    state.ladRows = new Map(d.players.map(p => [p.id, p]));
+    const c = d.counts, cnt = { left: c.left, s0: c.s0, s1: c.s1, s2: c.s2, checking: c.checking, s3: c.s3, all: c.all };
+    let rows = d.players.filter(p => f.seg === 'all' ? true : f.seg === 'left' ? p.left > 0 : f.seg === 'checking' ? p.checking : p.done === +f.seg.slice(1));
+    const t = x => (x ? new Date(x).getTime() : 0);
+    rows = rows.sort(f.sort === 'recent' ? (a, b) => t(b.verified_at) - t(a.verified_at) : f.sort === 'last' ? (a, b) => t(b.last_deposit) - t(a.last_deposit)
+      : (a, b) => (b.checking - a.checking) || (a.done - b.done) || (t(b.verified_at) - t(a.verified_at)));
+    const day = x => x ? new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
+    const cell = (p, s) => s.done
+      ? `<div class="lad-c done"><b>✓ ${s.deposit != null ? money(s.deposit, p.country) : 'Done'}</b><small>${day(s.depositAt)} · bonus ${money(s.bonus, p.country)} ${s.status === 'active' ? `· ${s.required ? Math.floor(100 * s.wagered / s.required) : 0}% played` : s.status === 'released' ? '· released' : '· ' + s.status}</small></div>`
+      : s.status === 'checking' ? `<div class="lad-c chk"><b>Being checked</b><small>${money(s.deposit, p.country)} · confirm it in Payments</small></div>`
+      : s.status === 'next' ? `<div class="lad-c next"><b>Next</b><small>${s.pct}% up to ${compact(s.max, p.country)}</small></div>`
+      : `<div class="lad-c left"><b>Left</b><small>${s.pct}% up to ${compact(s.max, p.country)}</small></div>`;
+    main.innerHTML = `
+      <div class="page-head"><div><h2>Deposit 1·2·3</h2><p>Every player whose ID is approved, with each deposit step marked: ✓ done (amount, date, bonus), being checked, next or left. Players with deposits left come first – press <b>Request deposit</b> to send them a pop-up and an email that takes them straight to their next deposit.</p></div>
+        <div class="page-actions"><div class="seg">${[['', 'All'], ['NG', '₦ Nigeria'], ['GH', 'GH₵ Ghana']].map(([v, l]) => `<button class="${f.cc === v ? 'on' : ''}" data-lcc="${v}">${l}</button>`).join('')}</div></div></div>
+      <div class="card"><div class="toolbar sticky-tools"><div class="seg wrap">${LAD_SEG.map(([v, l]) => `<button class="${f.seg === v ? 'on' : ''}" data-lseg="${v}">${l} <em class="cnt">${cnt[v] || 0}</em></button>`).join('')}</div>
+        <form class="search" id="lq"><i>${IC.search}</i><input placeholder="Phone, ID, name or email" value="${esc(f.q)}"></form>
+        <select class="btn sm" id="lsort" aria-label="Sort"><option value="progress" ${f.sort === 'progress' ? 'selected' : ''}>Fewest done first</option><option value="recent" ${f.sort === 'recent' ? 'selected' : ''}>Newest ID approval</option><option value="last" ${f.sort === 'last' ? 'selected' : ''}>Latest deposit</option></select>
+        <span class="spacer"></span><span class="muted small">${rows.length} shown</span></div>
+      <div class="tbl-wrap"><table class="tbl lad-tbl"><thead><tr><th>Player</th><th>ID approved</th><th>Deposit 1</th><th>Deposit 2</th><th>Deposit 3</th><th>Progress</th><th></th></tr></thead><tbody>
+        ${rows.map(p => `<tr class="click" data-user="${p.id}"><td><div class="who"><b>${esc(p.full_name || 'No name yet')}</b><small>ID ${p.uid} · ${flag(p.country)}${esc(p.phone ? phoneFmt(p.country, p.phone) : p.email || '')}</small></div></td>
+          <td class="muted">${day(p.verified_at) || '–'}</td>${p.steps.map(s => `<td>${cell(p, s)}</td>`).join('')}
+          <td><div class="lad-prog" title="${p.done} of ${p.steps.length} done">${p.steps.map(s => `<i class="${s.done ? 'on' : s.status === 'checking' ? 'chk' : ''}"></i>`).join('')}</div><small class="muted">${p.left ? p.left + ' left' : 'All done'}</small></td>
+          <td><div class="acts">${p.next && !p.checking ? `<button class="btn xs primary" data-lad-req="${p.id}">Request deposit ${p.next}</button>` : p.checking ? '<a class="btn xs" href="#/payments/pending:deposit">Confirm in Payments</a>' : ''}</div></td></tr>`).join('')
+          || `<tr><td colspan="7"><div class="empty"><b>No players here</b>${f.seg === 'left' ? 'Every player with an approved ID has made all three deposits.' : 'Nothing matches this filter.'}</div></td></tr>`}
+      </tbody></table></div></div>`;
+    $$('#main [data-lseg]').forEach(b => b.onclick = () => { f.seg = b.dataset.lseg; render(true); });
+    $$('#main [data-lcc]').forEach(b => b.onclick = () => { f.cc = b.dataset.lcc; render(); });
+    $('#lsort').onchange = e => { f.sort = e.target.value; render(true); };
+    $('#lq').onsubmit = e => { e.preventDefault(); f.q = $('#lq input').value.trim(); render(); };
+  };
+
+  /* ---------- Support: ask a player to deposit – they get a pop-up in the app (and an email) that walks them through it ---------- */
+  function requestDepositModal(id, row) {
+    const u = row || (state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null);
+    if (!u) return toast('Open the player first', 'err');
+    const nx = row && row.next ? row.steps.find(x => x.n === row.next) : null;
+    const preset = nx ? `Your Deposit ${nx.n} bonus is waiting: ${nx.pct}% extra, up to ${money(nx.max, u.country)}. Deposit now and we add it.` : '';
+    const cc = u.country, gh = cc === 'GH';
+    openModal(`<h3>Ask the player to deposit</h3>
+      <p class="sub">The player gets a pop-up the next time they open LetBetAfrika, and an email. It shows how to pay ${gh ? 'with Mobile Money' : 'by bank transfer to your account'}, step by step, with a button that opens the deposit page with the amount filled in. It closes by itself once they deposit, or after 7 days.</p>
+      <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · ${flag(cc)}${esc(u.phone ? phoneFmt(cc, u.phone) : u.email || '')}</dd><dt>They pay by</dt><dd>${gh ? 'Mobile Money' : 'Bank transfer (the account in Payment settings)'}</dd></dl>
+      <label class="field"><span>Amount (${SYM[cc]}, optional)</span><input id="rAmt" type="number" min="1" step="0.01" inputmode="decimal" placeholder="Leave empty to let them choose"></label>
+      <label class="field"><span>Message to the player (optional)</span><textarea id="rNote" maxlength="300" data-preset="${esc(preset)}" placeholder="e.g. Hi ${esc((u.full_name || '').split(' ')[0] || 'there')}, please use the details below – we confirm it as soon as it arrives."></textarea></label>
+      <p class="form-err" id="rErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo">Send to the player</button></div>`);
+    if (preset) $('#rNote').value = preset;
+    $('#rAmt').focus();
+    $('#mGo').onclick = async () => {
+      const v = +$('#rAmt').value, note = $('#rNote').value.trim(), body = {};
+      if ($('#rAmt').value && !(v > 0)) return $('#rAmt').focus();
+      if (v > 0) body.amount = Math.round(v * 100) / 100; if (note) body.note = note;
+      try { $('#mGo').disabled = true; await API.admin.depositRequest(id, body); closeModal(); toast('Sent – the player sees it when they open the app, and by email', 'ok'); if (state.page === 'ladder' && !row) render(true); else if (row) render(true); else openUser(id); }
+      catch (e) { $('#rErr').textContent = errMsg(e); $('#rErr').hidden = false; $('#mGo').disabled = false; }
+    };
+  }
+
+  /* ---------- Support: add a deposit for a player whose deposit is not showing ---------- */
+  function addDepositModal(id) {
+    const u = state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
+    if (!u) return toast('Open the player first', 'err');
+    const cc = u.country, momo = cc === 'GH', pend = (state.drawerPays || []).filter(p => p.kind === 'deposit' && p.status === 'pending');
+    openModal(`<h3>Add a deposit for this player</h3>
+      <p class="sub">For a player who messaged support because their deposit is not showing. Find the ${momo ? 'MoMo payment' : 'transfer'} in your ${momo ? 'MoMo' : 'bank'} app first – credit it only once you can see the money.</p>
+      ${pend.length ? `<div class="banner warn dep-pend"><b>This player already sent ${pend.length === 1 ? 'a deposit request' : pend.length + ' deposit requests'} – confirm ${pend.length === 1 ? 'it' : 'the right one'} instead of adding another:</b>${pend.map(p => `<div>${money(p.amount, cc)}${p.details && p.details.sender ? ' from ' + esc(p.details.sender) : ''} · ${ago(p.created_at)}<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Confirm this one</button></div>`).join('')}</div>` : ''}
+      <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · reference <span class="mono">LB${String(u.uid).padStart(6, '0')}</span></dd><dt>Method</dt><dd>${momo ? 'Mobile money' : 'Bank transfer'}</dd></dl>
+      <label class="field"><span>Amount that arrived (${SYM[cc]})</span><input id="dAmt" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
+      <label class="field"><span>Paid by (name on the ${momo ? 'MoMo wallet' : 'sending account'})</span><input id="dSender" maxlength="80" value="${esc(u.full_name || '')}"></label>
+      <label class="field"><span>Transfer reference from your ${momo ? 'MoMo' : 'bank'} app (required to credit – each transfer can be credited only once)</span><input id="dRef" maxlength="80" placeholder="${momo ? 'e.g. MoMo transaction ID' : 'e.g. session ID or reference'}"></label>
+      <label class="field"><span>Note (optional)</span><input id="dNote" maxlength="200" placeholder="e.g. Player messaged support on WhatsApp"></label>
+      <p class="form-err" id="dErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn" id="dPend">Add to pending</button><button class="btn primary" id="mGo">Credit now</button></div>`);
+    const upd = () => { const v = +$('#dAmt').value; $('#mGo').textContent = v > 0 ? 'Credit ' + money(v, cc) + ' now' : 'Credit now'; };
+    $('#dAmt').oninput = upd; upd(); $('#dAmt').focus();
+    const send = async credit => {
+      const v = Math.round(+$('#dAmt').value * 100) / 100; if (!(v > 0)) return $('#dAmt').focus();
+      if (credit && !$('#dRef').value.trim()) { $('#dErr').textContent = 'Enter the transfer reference to credit it now (or add it to pending).'; $('#dErr').hidden = false; return $('#dRef').focus(); }
+      const body = { amount: v, credit }, sender = $('#dSender').value.trim(), ref = $('#dRef').value.trim(), note = $('#dNote').value.trim();
+      if (sender) body.sender = sender; if (ref) body.reference = ref; if (note) body.note = note;
+      $('#mGo').disabled = $('#dPend').disabled = true; $('#dErr').hidden = true;
+      try {
+        await API.admin.addDeposit(id, body); closeModal();
+        toast(credit ? `Deposit of ${money(v, cc)} credited – the player gets a receipt` : 'Added to Payments → Pending', 'ok');
+        chips(); if (['payments', 'overview', 'players'].includes(state.page)) render(true); openUser(id);
+      } catch (e) { $('#dErr').textContent = errMsg(e); $('#dErr').hidden = false; $('#mGo').disabled = $('#dPend').disabled = false; }
+    };
+    $('#mGo').onclick = () => send(true); $('#dPend').onclick = () => send(false);
   }
 
   /* ---------- Payments ---------- */
@@ -297,6 +508,8 @@
       if (d.phone) out.push(esc((NET[d.network] || d.network || 'MoMo') + ' · 0' + d.phone));
       if (p.provider_ref) out.push('Ref <span class="mono">' + esc(p.provider_ref) + '</span>');
       if (d.claimed) out.push('player said ' + money(d.claimed, p.country));
+      if (d.transferRef) out.push('Transfer <span class="mono">' + esc(d.transferRef) + '</span>');
+      if (d.source === 'support') out.push('<span class="pill info">Added by support</span>');
     } else {
       if (d.account) out.push('<span class="mono">' + esc(d.account) + '</span>');
       else { if (d.bank) out.push(esc(d.bank)); if (d.acct) out.push('<span class="mono">' + esc(d.acct) + '</span>'); if (d.name) out.push(esc(d.name)); }
@@ -308,12 +521,24 @@
     if (d.apiError && p.status === 'pending' && !isApiPay(p)) out.push('<span class="pill bad">Not sent: ' + esc(d.apiError) + '</span>');
     return out.join(' · ') || '–';
   };
+  // the transfer screenshot a player added (fetched with the session token)
+  async function proofInto(box, id) {
+    try { const b = await API.admin.proof(id), url = URL.createObjectURL(b); box.innerHTML = `<a href="${url}" target="_blank" rel="noopener" title="Open full size"><img src="${url}" alt="Transfer screenshot"></a>`; }
+    catch { box.innerHTML = '<span class="muted small">The screenshot could not be loaded.</span>'; }
+  }
+  function proofModal(id) {
+    const p = state.payRows.get(id) || {};
+    openModal(`<h3>Transfer screenshot</h3><p class="sub">${p.uid ? `${esc(p.full_name || 'Player')} · ID ${p.uid} · ${money(p.amount, p.country)}` : ''} – check the amount, the date and the reference against your ${p.method === 'mobile_money' ? 'MoMo' : 'bank'} app before you credit it.</p>
+      <div class="proof-box big" id="mProofBig"><span class="muted small">Loading…</span></div>
+      <div class="m-actions"><button class="btn" data-close-modal>Close</button>${p.status === 'pending' ? `<button class="btn primary" data-pay="approve" data-id="${id}">Confirm this deposit</button>` : ''}</div>`);
+    proofInto($('#mProofBig'), id);
+  }
   const payActs = p => {
     if (p.status !== 'pending') { const at = d => d && (d.at || d.paidAt || d.confirmedAt); return `<span class="muted small">${at(p.details) ? 'handled ' + ago(at(p.details)) : ''}</span>`; }
     if (isApiPay(p)) return `<span class="muted small">${p.kind === 'deposit' ? 'Waiting for the player to approve on their phone – credited automatically when the payment is confirmed' : 'Sent – waiting for confirmation (refunded automatically if it fails)'}</span>`;
     // a withdrawal is only paid from the Review screen, after the account checks
     if (p.kind === 'withdrawal') return `<button class="btn xs primary" data-review="${p.id}">Review</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
-    return `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Confirm</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
+    return `${p.has_proof ? `<button class="btn xs" data-proof-view="${p.id}">Screenshot</button>` : ''}<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Confirm</button><button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
   };
 
   /* Withdrawal review: the account checks (lib/withdrawals.js), then Approve & send / Mark paid / Reject. Red flags
@@ -363,18 +588,22 @@
     const p = state.payRows.get(id) || {}, approve = action === 'approve', dep = p.kind === 'deposit', cc = p.country || 'NG';
     const quick = approve ? [] : dep ? ['No transfer received', 'The amount does not match the transfer', 'The sender name does not match'] : ['The account name does not match yours', 'The account details are not valid', 'Please verify your ID first'];
     openModal(`<h3>${approve ? (dep ? 'Confirm this deposit' : 'Mark this withdrawal as paid') : (dep ? 'Reject this deposit' : 'Reject this withdrawal')}</h3>
-      <p class="sub">${approve ? (dep ? 'Only confirm once you can see the money in the account. The player is credited at once (welcome bonus included) and gets a receipt by email.' : 'Only mark it paid after the money has left your account. The player gets an email.') : (dep ? 'The player is told by email with your reason.' : 'The player is told by email and the money goes back to their balance at once.')}</p>
+      <p class="sub">${approve ? (dep ? 'Only confirm once you can see the money in the account. The player is credited at once (with their Deposit 1 · 2 · 3 bonus when it applies) and gets a receipt by email.' : 'Only mark it paid after the money has left your account. The player gets an email.') : (dep ? 'The player is told by email with your reason.' : 'The player is told by email and the money goes back to their balance at once.')}</p>
       ${p.id ? `<dl class="kv"><dt>Player</dt><dd>${esc(p.full_name || phoneFmt(cc, p.phone))} · ID ${p.uid}</dd><dt>${dep ? 'Amount sent' : 'Amount'}</dt><dd><b>${money(p.amount, cc)}</b></dd><dt>${dep ? 'Details' : 'Pay to'}</dt><dd>${payDetails(p)}</dd></dl>` : ''}
       ${approve && dep ? `<label class="field"><span>Amount that arrived (${SYM[cc] || ''})</span><input id="mAmt" type="number" step="0.01" min="0.01" value="${p.amount || ''}"></label>` : ''}
+      ${approve && dep && p.has_proof ? '<div class="proof-box" id="mProof"><span class="muted small">Loading the screenshot…</span></div>' : ''}
+      ${approve && dep ? '<label class="field"><span>Transfer reference from your bank or MoMo app (required – each transfer can be credited only once)</span><input id="mRef" placeholder="e.g. the session ID or transaction ID"></label>' : ''}
       ${approve && !dep ? '<label class="field"><span>Payout reference (optional)</span><input id="mRef" placeholder="Bank or MoMo transaction ID"></label>' : ''}
       ${approve ? '<label class="field"><span>Note (optional)</span><input id="mNote"></label>' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason"></label>`}
       <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : 'danger solid'}" id="mGo">${approve ? (dep ? 'Credit the player' : 'Mark paid') : 'Reject'}</button></div>`);
     $$('#modalBody [data-quick]').forEach(b => b.onclick = () => { $('#mReason').value = b.dataset.quick; });
+    if (approve && dep && p.has_proof) proofInto($('#mProof'), id);
     if (approve && dep) { const upd = () => { const v = +$('#mAmt').value; $('#mGo').textContent = v > 0 ? 'Credit ' + money(v, cc) : 'Credit the player'; }; $('#mAmt').oninput = upd; upd(); }
     $('#mGo').onclick = async () => {
       const body = {};
       if (approve) {
-        if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; }
+        if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; if (!$('#mRef').value.trim()) { toast('Enter the transfer reference first', 'err'); return $('#mRef').focus(); } }
+        if (dep) { const r = $('#mRef').value.trim(); if (r) body.reference = r; }
         else { const r = $('#mRef').value.trim(); if (r) body.reference = r; if (review) Object.assign(body, review); }
         const n = $('#mNote').value.trim(); if (n) body.note = n;
       } else { const r = $('#mReason').value.trim(); if (!r) return $('#mReason').focus(); body.reason = r; }
@@ -744,7 +973,7 @@
   PAGES.finance = async main => {
     const [type = '', q = ''] = (state.arg || '').split(':').map(decodeURIComponent);
     const rows = await API.admin.transactions(type || undefined, q || undefined);
-    const TYPES = ['deposit', 'withdrawal', 'bet', 'win', 'refund', 'cashout', 'bonus', 'adjustment', 'game_bet', 'game_win', 'transfer_in', 'transfer_out', 'jackpot'];
+    const TYPES = ['deposit', 'withdrawal', 'bet', 'win', 'refund', 'cashout', 'bonus', 'commission', 'adjustment', 'game_bet', 'game_win', 'transfer_in', 'transfer_out', 'jackpot'];
     main.innerHTML = `
       <div class="page-head"><div><h2>Ledger</h2><p>Every movement of player money, newest first. Balances are the running total after each entry, so the book always reconciles.</p></div></div>
       <div class="card"><div class="toolbar"><div class="seg"><button class="${!type ? 'on' : ''}" data-t="">All</button>${TYPES.map(t => `<button class="${t === type ? 'on' : ''}" data-t="${t}">${t.replace('_', ' ')}</button>`).join('')}</div>
@@ -766,6 +995,16 @@
       ${fields.map(([f, l, step]) => `<div class="set-row one"><label>${l}</label><input type="number" step="${step || 'any'}" data-f="${f}" value="${esc(f === '' ? v : v[f])}"></div>`).join('')}
       <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="${key}">Save</button></div></div></div>`; };
     const wb = s.welcome_bonus || {};
+    const L = s.deposit_bonuses || { enabled: false, requireId: true, NG: [{}, {}, {}], GH: [{}, {}, {}], times: 5, min_odds: 1.5, days: 14 };
+    const ladderCard = () => `<div class="card set-card wide" data-set="deposit_bonuses"><div class="card-b"><h4>Deposit bonuses 1 · 2 · 3</h4>
+      <div class="desc">A bonus on each of the first three deposits a player makes once their ID is approved (it replaces the welcome bonus while it is on). Bonus money stays locked until the player has staked it the number of times below on multiples, within the days below – it can never be withdrawn before that.</div>
+      <div class="lad-flags"><label class="chk"><input type="checkbox" id="ladOn" ${L.enabled ? 'checked' : ''}> On</label><label class="chk"><input type="checkbox" id="ladId" ${L.requireId !== false ? 'checked' : ''}> Only after the ID is approved</label></div>
+      <div class="lad-grid"><span></span><span>${flag('NG')}Bonus %</span><span>Max ₦</span><span>${flag('GH')}Bonus %</span><span>Max GH₵</span>
+        ${[0, 1, 2].map(i => `<label>Deposit ${i + 1}</label>${['NG', 'GH'].map(cc => `<input type="number" min="0" max="500" step="1" data-lad="${cc}.${i}.pct" value="${esc((L[cc] && L[cc][i] || {}).pct ?? '')}"><input type="number" min="0" step="any" data-lad="${cc}.${i}.max" value="${esc((L[cc] && L[cc][i] || {}).max ?? '')}">`).join('')}`).join('')}</div>
+      <div class="set-row one"><label>Stake the bonus this many times</label><input type="number" min="1" max="50" step="1" id="ladTimes" value="${esc(L.times ?? 5)}"></div>
+      <div class="set-row one"><label>Minimum odds of every selection</label><input type="number" min="1.01" max="10" step="0.01" id="ladOdds" value="${esc(L.min_odds ?? 1.5)}"></div>
+      <div class="set-row one"><label>Days to play it through</label><input type="number" min="1" max="90" step="1" id="ladDays" value="${esc(L.days ?? 14)}"></div>
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" id="ladSave">Save</button></div></div></div>`;
     const boost = Array.isArray(s.boost) ? s.boost : [];
     main.innerHTML = `
       <div class="page-head"><div><h2>Settings</h2><p>Live configuration of the book. Changes apply to new bets and new deposits immediately and are written to the audit log.</p></div></div>
@@ -775,7 +1014,8 @@
         ${cc2('max_payout', 'Maximum payout', 'The most one ticket can win. Tickets above it are refused at placement.', [])}
         ${cc2('games', 'Game stakes', 'Stake limits for instant games and Rocket Crash.', [['min', 'Minimum'], ['max', 'Maximum']])}
         ${cc2('jackpot', 'Jackpot prizes', 'Prize money and the price of one line.', [['jackpot', '12 correct (shared)'], ['t11', '11 correct (per line)'], ['t10', '10 correct (per line)'], ['line', 'Line price']])}
-        ${cc2('welcome_bonus', 'Welcome bonus', `First-deposit bonus. Released after ${wb.times || 5}× turnover on multiples with every selection at ${wb.min_odds || 1.5}+ within ${wb.days || 14} days.`, [['pct', 'Bonus %'], ['max', 'Maximum bonus']])}
+        ${ladderCard()}
+        ${cc2('welcome_bonus', 'Welcome bonus (old)', `First-deposit bonus, used only while Deposit bonuses 1 · 2 · 3 is off. Released after ${wb.times || 5}× turnover on multiples with every selection at ${wb.min_odds || 1.5}+ within ${wb.days || 14} days.`, [['pct', 'Bonus %'], ['max', 'Maximum bonus']])}
         <div class="card set-card" data-set="boost"><div class="card-b"><h4>Accumulator win boost</h4><div class="desc">Extra percentage added to winnings by number of selections (each at odds 1.20 or more).</div>
           <div class="boost-rows" id="boostRows">${boost.map(([n, p]) => `<div class="boost-row"><input type="number" min="2" value="${n}" placeholder="selections"><input type="number" min="0" value="${p}" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>`).join('')}</div>
           <div class="set-foot"><button class="btn sm" id="boostAdd">Add tier</button><span class="spacer" style="flex:1"></span><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="boost">Save</button></div></div></div>
@@ -796,6 +1036,13 @@
     simpleCC('min_stake', 'Per bet'); simpleCC('max_payout', 'Per ticket');
     const rawShow = () => { $('#rawVal').value = JSON.stringify(s[$('#rawKey').value], null, 2); }; rawShow(); $('#rawKey').onchange = rawShow;
     $('#rawSave').onclick = async () => { try { const v = JSON.parse($('#rawVal').value); await API.admin.setSetting($('#rawKey').value, v); s[$('#rawKey').value] = v; toast('Saved', 'ok'); } catch (e) { toast(e instanceof SyntaxError ? 'That is not valid JSON' : errMsg(e), 'err'); } };
+    $('#ladSave').onclick = async () => {
+      const card = $('[data-set="deposit_bonuses"]'), v = { enabled: $('#ladOn').checked, requireId: $('#ladId').checked, NG: [{}, {}, {}], GH: [{}, {}, {}], times: +$('#ladTimes').value, min_odds: +$('#ladOdds').value, days: +$('#ladDays').value };
+      $$('[data-lad]', card).forEach(i => { const [cc, k, f] = i.dataset.lad.split('.'); v[cc][+k][f] = +i.value || 0; });
+      try { $('#ladSave').disabled = true; await API.admin.setSetting('deposit_bonuses', v); s.deposit_bonuses = v; const ok = card.querySelector('.saved'); ok.hidden = false; setTimeout(() => ok.hidden = true, 2500); toast('Deposit bonuses saved', 'ok'); }
+      catch (e) { toast(e.message === 'invalid' ? 'Check the numbers: % 0–500, a maximum for every deposit, times 1–50, odds 1.01–10, days 1–90' : errMsg(e), 'err'); }
+      finally { $('#ladSave').disabled = false; }
+    };
     $('#boostAdd').onclick = () => $('#boostRows').insertAdjacentHTML('beforeend', '<div class="boost-row"><input type="number" min="2" placeholder="selections"><input type="number" min="0" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>');
     main.onclick = e => { const rm = e.target.closest('[data-rm-row]'); if (rm) rm.parentElement.remove(); };
     $$('#main [data-save]').forEach(b => b.onclick = async () => {
@@ -1153,7 +1400,7 @@
 
   /* ---------- Payment settings ---------- */
   PAGES.paysettings = async main => {
-    const { settings: st, api } = await API.admin.paymentSettings();
+    const { settings: st, api, withdrawals: wd } = await API.admin.paymentSettings();
     state.api = api;
     const ng = st.NG, gh = st.GH, b = ng.bank, m = gh.momo;
     const f = (name, label, val, attrs = '') => `<label class="field"><span>${label}</span><input name="${name}" value="${esc(val ?? '')}" ${attrs}></label>`;
@@ -1193,6 +1440,20 @@
         </div></div>
       </form>
       <div class="set-foot sticky"><p class="form-err" id="psErr" hidden></p><span class="saved" hidden>Saved</span><button class="btn primary" id="psSave">Save payment settings</button></div>`;
+    // withdrawals (and sending money to a friend): suspended for everyone, and only after Deposit 1, 2, 3 – saved on its own
+    const W = wd || { suspended: false, requireDeposits: true, newMembersOpen: true, message: '' };
+    $('#main .page-head').insertAdjacentHTML('afterend', `<div class="card set-card wd-card" data-set="withdrawals"><div class="card-b"><h4>Withdrawals</h4>
+      <div class="banner ${W.suspended ? 'warn' : 'ok'}" id="wdState">${W.suspended ? '<b>Suspended</b> – no player can request a withdrawal or send money to a friend.' : W.requireDeposits !== false ? `<b>Open</b> – for players who have made Deposit 1, 2 and 3${W.newMembersOpen !== false ? ', and for new members who have not deposited yet' : ''}.` : '<b>Open</b> – for every player.'}</div>
+      <label class="chk"><input type="checkbox" id="wdSusp" ${W.suspended ? 'checked' : ''}> Suspend all withdrawals <span class="muted">(you can still pay or reject the ones already waiting)</span></label>
+      <label class="chk"><input type="checkbox" id="wdDeps" ${W.requireDeposits !== false ? 'checked' : ''}> Only after Deposit 1, 2 and 3 are all done <span class="muted">(with Deposit bonuses 1 · 2 · 3 on)</span></label>
+      <label class="chk"><input type="checkbox" id="wdNew" ${W.newMembersOpen !== false ? 'checked' : ''}> New members can withdraw before their first deposit <span class="muted">(the rule starts with their first deposit – the deposit page tells them)</span></label>
+      <label class="field"><span>Message to players while suspended (optional)</span><input id="wdMsg" maxlength="200" value="${esc(W.message || '')}" placeholder="e.g. Withdrawals reopen on Monday"></label>
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn primary" id="wdSave">Save withdrawals</button></div></div></div>`);
+    $('#wdSave').onclick = async () => {
+      const v = { suspended: $('#wdSusp').checked, requireDeposits: $('#wdDeps').checked, newMembersOpen: $('#wdNew').checked, message: $('#wdMsg').value.trim() };
+      try { $('#wdSave').disabled = true; await API.admin.setSetting('withdrawals', v); toast(v.suspended ? 'Withdrawals suspended' : 'Withdrawals saved', 'ok'); render(true); }
+      catch (e) { toast(errMsg(e), 'err'); } finally { $('#wdSave').disabled = false; }
+    };
     $('#psSave').onclick = async () => {
       const v = { NG: { bank: {} }, GH: { momo: {}, ussd: {} } };
       $$('#paySet [name]').forEach(i => { const path = i.name.split('.'); let o = v; for (let k = 0; k < path.length - 1; k++) o = o[path[k]] = o[path[k]] || {}; o[path[path.length - 1]] = i.type === 'number' ? +i.value : i.value.trim(); });
@@ -1227,6 +1488,11 @@
   PAGES.audit = async main => {
     const log = await API.admin.log();
     const describe = l => { const a = l.action, m = l.meta || {};
+      if (/deposit-request/.test(a)) return `Asked a player to deposit${m.amount ? ' ' + esc(String(m.amount)) : ''}${m.note ? ' – “' + esc(m.note) + '”' : ''}`;
+      if (/notices\/:id\/cancel/.test(a)) return 'Cancelled a deposit request';
+      if (/users\/:id\/deposits/.test(a)) return `${m.credit ? 'Credited' : 'Added a pending'} deposit for a player – ${esc(String(m.amount))}${m.reference ? ' · ref ' + esc(m.reference) : ''}`;
+      if (/agents\/:id\/pay/.test(a)) return `Paid agent commission${m.amount != null ? ' – ' + esc(String(m.amount)) : ''}${m.note ? ' – ' + esc(m.note) : ''}`;
+      if (/agents/.test(a)) return m.active === false ? 'Removed an agent' : `Set agent commission – ${esc(String(m.rate))}% of ${esc({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' }[m.basis] || '')}`;
       if (/payment-settings/.test(a)) return `Changed payment settings${m.NG && m.NG.bank ? ` · Nigeria account ${esc(m.NG.bank.bank || '')} ${esc(m.NG.bank.number || '')}` : ''}`;
       if (/payout/.test(a)) return `Sent payout ${esc((l.target || '').split('/')[0].slice(0, 8))} through the payment API`;
       if (/kyc/.test(a)) return `${m.approve ? 'Approved' : 'Rejected'} ID check${m.reason ? ' – ' + esc(m.reason) : ''}`;
@@ -1345,11 +1611,20 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-pay],[data-review],[data-agent-set],[data-agpay],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-pay],[data-review],[data-agent-set],[data-agpay],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price],[data-lad-req],[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-payout]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
+      if (d.ladReq) return requestDepositModal(d.ladReq, state.ladRows && state.ladRows.get(d.ladReq));
+      if (d.proofView) return proofModal(d.proofView);
+      if (d.addDep) return addDepositModal(d.addDep);
+      if (d.reqDep) return requestDepositModal(d.reqDep);
+      if (d.cancelReq) { API.admin.cancelNotice(d.cancelReq).then(() => { toast('Request cancelled', 'ok'); refreshDrawer(); }).catch(err => toast(errMsg(err), 'err')); return; }
+      if (d.agentPay) return agentPayModal(d.agentPay).catch(err => toast(errMsg(err), 'err'));
+      if (d.agentEdit) return agentModal(d.agentEdit).catch(err => toast(errMsg(err), 'err'));
+      if (d.agentNew) return agentModal(null).catch(err => toast(errMsg(err), 'err'));
+      if (d.agent) return openAgent(d.agent).catch(err => toast(errMsg(err), 'err'));
       if (d.pay) return payAction(d.id, d.pay);
       if (d.review) return reviewModal(d.review);
       if (d.agentSet) { const on = d.v === 'true'; if (!on && !confirm('Stop this agent? Their players stay linked to them, but new sign-ups and new first deposits no longer earn them anything.')) return;

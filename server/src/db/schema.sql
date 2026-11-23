@@ -496,3 +496,50 @@ UPDATE settings SET value = jsonb_set(value, '{pct}', '70'::jsonb) WHERE key = '
 -- 2026-11-22: the acca boost tiers paid more than the stake on average from 5 selections up (up to 1000%): safe tiers
 WITH m AS (INSERT INTO schema_migrations (name) VALUES ('boost_safe_tiers') ON CONFLICT (name) DO NOTHING RETURNING name)
 UPDATE settings SET value = '[[3,5],[5,15],[8,40],[10,60],[15,120],[20,200]]'::jsonb WHERE key = 'boost' AND EXISTS (SELECT 1 FROM m);
+
+-- ===== Added on top of the Nov 22 version: transfer references, pop-ups, screenshots, Deposit 1·2·3, withdrawal rules =====
+-- a bank / MoMo transfer reference entered by an admin can be credited once (a rejected deposit frees it again)
+CREATE UNIQUE INDEX IF NOT EXISTS payments_transfer_ref_key ON payments (lower(details->>'transferRef'))
+  WHERE kind = 'deposit' AND status IN ('pending','success') AND details ? 'transferRef';
+-- pop-ups for the player (shown when they open the app): support's deposit requests and payment outcomes
+CREATE TABLE IF NOT EXISTS notices (
+  id         bigserial PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES users(id),
+  kind       text NOT NULL,                 -- deposit_request | deposit_credited | deposit_rejected | withdrawal_paid | withdrawal_rejected
+  data       jsonb NOT NULL DEFAULT '{}',   -- amount, method, reason, note, reference…
+  created_by uuid REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  done_at    timestamptz                    -- closed: seen (one-time notices), deposit made, or cancelled
+);
+CREATE INDEX IF NOT EXISTS notices_open ON notices (user_id, created_at) WHERE done_at IS NULL;
+-- Deposit 1, 2, 3 (admin-set): a bonus on each of the first three deposits made once the player's ID is approved, held
+-- as locked bonus funds until wagered (lib/bonus.js). While enabled it replaces the first-deposit welcome bonus.
+INSERT INTO settings (key, value) VALUES ('deposit_bonuses', '{"enabled":true,"requireId":true,"NG":[{"pct":200,"max":100000},{"pct":100,"max":50000},{"pct":50,"max":25000}],"GH":[{"pct":200,"max":1000},{"pct":100,"max":500},{"pct":50,"max":250}],"times":5,"min_odds":1.5,"days":14}')
+  ON CONFLICT (key) DO NOTHING;
+ALTER TABLE bonuses ADD COLUMN IF NOT EXISTS payment_id uuid;
+-- a screenshot of the transfer the player sent (manual deposits), for the admin who confirms it
+CREATE TABLE IF NOT EXISTS payment_proofs (
+  payment_id uuid PRIMARY KEY REFERENCES payments(id),
+  user_id    uuid NOT NULL REFERENCES users(id),
+  mime       text NOT NULL CHECK (mime IN ('image/jpeg','image/png','image/webp')),
+  data       bytea NOT NULL,
+  size       int NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- Deposit 1, 2, 3 steps the player has made (whatever the bonus – a 0% step still counts), so "all three done" never
+-- depends on a bonus being paid; filled from the ladder bonuses that existed before this table
+CREATE TABLE IF NOT EXISTS deposit_steps (
+  user_id    uuid NOT NULL REFERENCES users(id),
+  step       int NOT NULL CHECK (step BETWEEN 1 AND 3),
+  payment_id uuid,
+  amount     numeric(14,2) NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, step)
+);
+INSERT INTO deposit_steps (user_id, step, payment_id, amount, created_at)
+  SELECT b.user_id, substr(b.kind, 8)::int, b.payment_id, coalesce(p.amount, 0), b.created_at
+  FROM bonuses b LEFT JOIN payments p ON p.id = b.payment_id WHERE b.kind IN ('deposit1','deposit2','deposit3')
+  ON CONFLICT DO NOTHING;
+-- withdrawals (and sending money to a friend): suspended for everyone, and/or only after Deposit 1, 2, 3 are all done
+INSERT INTO settings (key, value) VALUES ('withdrawals', '{"suspended":false,"requireDeposits":true,"newMembersOpen":true,"message":""}') ON CONFLICT (key) DO NOTHING;

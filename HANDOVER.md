@@ -54,12 +54,13 @@ Never copy another operator's brand assets – we match their quality and layout
 | `server/src/lib/logos.js` | Real club crests via TheSportsDB, cached in `team_logos`. |
 | `server/src/lib/settle.js` | Grading + settlement + cashout. |
 | `server/src/lib/bonus.js` | **Deposits + welcome bonus**: `creditDeposit()` (the ONLY way to credit a deposit – grants the bonus on the first one), `addTurnover()` (called by settlement), `expireBonuses()`. |
-| `server/src/emails/` | Transactional emails (22 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
+| `server/src/emails/` | Transactional emails (23 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
 | `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash), **payments** (Paystack webhook). |
 | `server/src/lib/payments.js` | **Ways to pay per country** (what the deposit page offers, limits, the bank account / MoMo wallet the admin sets, the player's reference `LB` + account ID). |
 | `server/src/payments/` | `paystack.js` (Paystack API: MoMo charge, OTP, verify, transfers, balance, webhook signature), `flows.js` (credit / fail a deposit, payout result – idempotent, one row lock). |
+| `server/src/lib/agents.js` | **Sub-agents**: commission per agent (rate + basis: net revenue, deposits or stakes) on the players who signed up with their code, counted on settled play from the start of the unpaid period; `pay()` credits the agent through the ledger (`commission`) and starts a new period. |
 | `server/src/lib/admins.js`, `server/scripts/make-admin.js` | Admin accounts: `ADMIN_EMAILS` at boot / sign-up / login; promote or demote from a shell. |
-| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js` (money-flow integration). |
+| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js`, `agents-api.test.js` (money-flow integration). |
 | `docs/ADMIN.md` | **Admin portal guide** – access, the daily deposit/withdrawal routine, every page. |
 | `docs/QUALITY-BAR.md` | **Definition of Done** – professional acceptance checklist for every area. |
 | `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
@@ -185,6 +186,8 @@ Earn reward per country (₦1,000 / GH₵10).
 - **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
   pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
   and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).
+- **Bonuses**: see *Deposit bonuses 1 · 2 · 3* under Payments below (the 200% first-deposit welcome bonus is used only
+  when the ladder is switched off).
 - **Payments – real money, nothing that cannot complete** (`lib/payments.js`, `GET /api/wallet/options` tells the
   deposit page what is open for the player's country, with the limits):
   - **Nigeria – bank transfer, confirmed by an admin.** The deposit page shows the account from *Payment settings*
@@ -199,8 +202,43 @@ Earn reward per country (₦1,000 / GH₵10).
     cannot confirm API deposits by hand. Without the key: a manual MoMo wallet if the admin set one, else closed.
   - **Withdrawals**: Nigeria to a bank account, Ghana to Mobile Money; the balance is held when requested; the admin
     marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
-    transfer fails), or rejects (refunded at once). ID check: players can request while it is waiting; the admin
-    approves or rejects it with a reason the player sees.
+    transfer fails), or rejects (refunded at once). ID check: the admin approves or rejects it with a reason the
+    player sees.
+  - **When withdrawals open** (settings `withdrawals {suspended, requireDeposits, newMembersOpen, message}`, validated;
+    portal *Payment settings → Withdrawals*; `withdrawBlock()` in `lib/payments.js`, enforced by
+    `POST /api/wallet/withdraw` **and** `POST /api/wallet/transfer` – 403 `deposits_first` / `withdrawals_suspended`):
+    once a player has a credited deposit, withdrawals and sending to a friend open only when their ID is approved and
+    Deposit 1, 2, 3 are done (steps recorded in `deposit_steps`, so a 0% step still counts). New members with no
+    credited deposit can withdraw (`newMembersOpen`, default on); the deposit page tells them before they pay
+    (`withdrawRuleAhead`). *Suspend all* is an emergency switch (default off) with an optional message to players.
+    The withdraw page shows the locked card (1 · 2 · 3 ✓ and *Make deposit N now*) or the paused card instead of the form.
+  - **Money-leak fixes**: `move()` rounds halves symmetrically to whole kobo / pesewas; stakes (sports and virtuals)
+    and friend transfers are rounded once at the boundary (max 100,000,000), so a ticket keeps exactly what the balance
+    paid and both sides of a transfer match the ledger.
+  - **Transfer screenshots + references (no leaks)**: the deposit page asks for a screenshot of the transfer on manual
+    deposits (shrunk to a JPEG in the browser, `POST /api/wallet/payments/:id/proof`, table `payment_proofs`, type
+    checked by the file's bytes, only the owner, only while being checked; *Add screenshot* later from Recent deposits).
+    The admin sees it in the queue and the Confirm dialog (`GET /api/admin/payments/:id/proof`). Crediting a manual
+    deposit **requires the bank / MoMo transfer reference** (`reference_required`), and each reference is credited once.
+  - **Deposit bonuses 1 · 2 · 3** (`lib/bonus.js`, settings `deposit_bonuses`, validated on save): a bonus on each of the
+    first three deposits after the ID check (% and cap per step and country), locked until wagered; a stake counts
+    towards the oldest active bonus only; an old welcome bonus counts as Deposit 1. `GET /api/wallet/options` →
+    `ladder` (steps, next, unlocked); ID approval sends a `kyc_approved` pop-up listing them. Replaces the welcome bonus
+    while enabled (default on, after ID approval). Every step is marked (`done`, the deposit amount and date, or
+    `checking` while a deposit waits for the admin); the player gets a **sticky next-deposit bar** (`#ladBar`) until all
+    three are done; the portal's **Deposit 1·2·3** page (`GET /api/admin/ladder`, `buildLadder()`) lists every player with
+    an approved ID – deposits left first, filters with counts, Request deposit N.
+  - **Support adds a deposit** (portal: player profile → *Add deposit*, `POST /api/admin/users/:id/deposits`): for a
+    player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
+    MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited
+    once only – unique index `payments_transfer_ref_key`; a rejected deposit frees it.
+  - **Pop-ups for players** (`lib/notices.js`, table `notices`, `GET /api/auth/notices`, `account.js` `Account.notices()`):
+    shown when the app opens, after login and at most once a minute while browsing – never during a payment, sign-up or
+    game. *Request deposit* (portal, player profile → `POST /api/admin/users/:id/deposit-request`, plus the
+    `depositRequest` email) shows how to pay in the player's country – Nigeria: the bank account, their reference and 3
+    steps; Ghana: the MoMo steps – and opens the deposit page with the amount filled in; it closes when they deposit (or
+    after 7 days). One-time pop-ups follow every admin payment decision: deposit confirmed / added by support /
+    rejected, withdrawal paid / returned (also Paystack payouts).
   - **Clean start**: deposit requests left `pending` by the old demo flow are cancelled on boot (new status
     `cancelled`), so no player sees a deposit stuck "pending".
 - **Deposit & withdraw pages** to a professional standard: balance card, method tiles (NG: Bank Transfer · GH: Mobile
@@ -213,6 +251,16 @@ Earn reward per country (₦1,000 / GH₵10).
   queue (confirm / mark paid / send via Paystack / reject with quick reasons), ID checks, payment settings (the bank
   account and limits – editable), players (drawer with deposit reference, ID details, balance adjustment, suspend,
   make admin), trading desk, bets, ledger, games, jackpot, settings, email, and an audit log in plain words.
+- **Sub-agents** (`lib/agents.js`, portal *Agents*): an admin makes any player an agent and sets the commission – a
+  rate on their players' **net revenue** (stakes − winnings − bonuses released; never below 0), **deposits** or
+  **stakes**. Their players are the people who signed up with the agent's code `LB<ID>` or link
+  `https://letbetafrika.online/?ref=LB<ID>#/register` (the link fills the code in). Only settled play counts (an open
+  bet counts when it settles; void bets and cancelled games never), from the start of the unpaid period – activity
+  before someone became an agent earns nothing. The admin pays when they decide (the amount is editable; 0 closes the
+  period unpaid) into the agent's balance (ledger `commission`, ref `AG<payout id>`), which starts a new period.
+  Agents get this **instead of** the flat Refer & Earn reward. The agent sees their rate, players, this period's
+  commission and what was paid on Me → Refer & Earn (totals only – never other players' details). Every change is
+  in the audit log. Tables `agents`, `agent_payouts`. Tests: `server/test/agents-api.test.js`, `tools/qa/e2e_agents.js`.
 - **Money**: register/login, deposit, withdraw, transfer to friend, bets single/multiple with win boost, cashout,
   booking codes. Payout tests pass (exact to the cent, void legs, refunds, cashout, no double pay, ledger = balance).
 - **All 11 games are live for real money** – see §6. Nothing simulated in live mode: Rocket Crash shows only real

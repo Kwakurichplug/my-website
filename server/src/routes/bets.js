@@ -50,7 +50,9 @@ async function payReferral(user) {
   const reward = (await getSetting('referral'))?.[user.country];
   if (!reward) return;
   await tx(async c => {
-    const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
+    // an agent earns commission on their players instead (lib/agents.js), so no flat reward for an agent's referrals
+    const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc, EXISTS (SELECT 1 FROM agents a WHERE a.user_id = u.referred_by AND a.active) AS agent
+      FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
     const me = rows[0];
     if (!me || !me.referred_by || me.ref_paid || me.rc !== user.country) return;
     const { rows: st } = await c.query(`SELECT coalesce(sum(stake - coalesce(paid,0)) FILTER (WHERE status IN ('won','lost','cashout','void')),0)::float AS lost,
@@ -72,8 +74,9 @@ r.post('/place', requireUser, async (req, res, next) => {
   const p = z.object({
     type: z.enum(['single', 'multiple']),
     selections: z.array(selSchema).min(1).max(30),
-    stake: z.number().positive().optional(),           // multiple: one stake
-    stakes: z.array(z.number().positive()).optional(),  // singles: one per selection
+    // whole cents: the ticket keeps exactly what the balance paid (no half-cent rounding gap)
+    stake: z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100).optional(),            // multiple: one stake
+    stakes: z.array(z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100)).optional(),  // singles: one per selection
     acceptChanges: z.boolean().default(true),
   }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid', details: p.error.flatten().fieldErrors });

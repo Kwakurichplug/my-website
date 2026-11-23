@@ -3086,3 +3086,94 @@ html[data-theme="dark"] .pt-lock-h{color:#fff}
 html[data-theme="dark"] .pt-bar{background:#3d331c}
 html[data-theme="dark"] .pt-rule{color:#e0b45a}
 html[data-theme="dark"] .pt-hard{background:#0f1114}
+/* Refer & Earn: agent dashboard (commission set by LetBetAfrika) and the sign-up link */
+.ag-card{border:1px solid var(--line);border-radius:8px;padding:12px 12px 4px;margin-bottom:14px;background:#f4faf6}
+.ag-top{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+.ag-badge{background:var(--brand);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.3px;text-transform:uppercase}
+.ag-due{display:flex;flex-direction:column;margin:12px 0 2px}
+.ag-due small,.ag-due span{color:var(--muted);font-size:12px}
+.ag-due b{font-size:26px;line-height:1.25;color:var(--brand);font-variant-numeric:tabular-nums}
+.ag-card .ref-stats{background:#fff}
+.ag-note{font-size:12.5px;color:var(--muted);margin:10px 0;line-height:1.5}
+.ag-pay{border-top:1px solid var(--line);margin-bottom:6px}
+.ag-pay div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ag-pay div:last-child{border-bottom:0}
+.ag-pay b{color:var(--brand);font-variant-numeric:tabular-nums}
+.code-box.link b{font-size:12px;letter-spacing:0;font-weight:500;word-break:break-all;line-height:1.4}
+/* payment pop-ups (Account.notices): support's deposit request – how to pay, then straight to the deposit page */
+.nt{display:flex;flex-direction:column;align-items:center;text-align:center}
+.nt-ico{width:56px;height:56px;border-radius:50%;background:#e6f4ec;color:var(--brand);display:flex;align-items:center;justify-content:center;margin:4px 0 10px}
+.nt-ico svg{width:28px;height:28px}
+.nt h3{margin:0 0 4px}
+.nt .wl-res-amt{margin:6px 0 2px}
+.nt-msg{align-self:stretch;text-align:left;background:#fff8e1;border:1px solid #f3dc8a;border-radius:8px;padding:9px 11px;margin:10px 0 2px;font-size:13px;line-height:1.45}
+.nt-msg b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:#7a5a00;margin-bottom:2px}
+.nt-steps{align-self:stretch;text-align:left;margin:12px 0 4px;padding:0;list-style:none;counter-reset:nt}
+.nt-steps li{position:relative;padding:6px 0 6px 34px;font-size:13.5px;line-height:1.45;color:var(--ink);counter-increment:nt}
+.nt-steps li::before{content:counter(nt);position:absolute;left:0;top:5px;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.nt .wx-payto{align-self:stretch;text-align:left;margin-top:6px}
+.nt .wl-sheet-btns{align-self:stretch}
+/* Deposit 1, 2, 3 (ladder card on the deposit page) and the transfer screenshot */
+.wx-ladder-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wx-ladder-h .wx-h{display:flex;align-items:center;gap:6px}
+.wx-ladder-h .wx-h svg{width:16px;height:16px;color:#c99a00}
+.wx-steps{list-style:none;margin:8px 0 0;padding:0}
+.wx-steps li{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.wx-steps li:first-child{border-top:0}
+.wx-step-n{flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;background:#eef0f3;color:#5d636b}
+.wx-step-n svg{width:15px;height:15px}
+.wx-steps li.next .wx-step-n,.wx-steps li.active .wx-step-n{background:var(--brand);color:#fff}
+.wx-steps li.released .wx-step-n{background:#e6f4ec;color:var(--brand)}
+.wx-steps li.locked{opacity:.6}
+.wx-step-m{flex:1;min-width:0;display:flex;flex-direction:column}
+.wx-step-m b{font-size:14px;color:var(--ink)}
+.wx-step-m small{font-size:12px;color:var(--muted)}
+.wx-st.next{background:#e6f4ec;color:var(--brand)}
+.wx-ladder .wl-verify{margin:8px 0 2px}
+.wx-proof{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.wx-l-t{font-size:13px;font-weight:600;color:var(--ink)}
+.wx-proof-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:48px;border:1.5px dashed var(--brand);border-radius:8px;background:#f4faf6;color:var(--brand);font-weight:700;font-size:14px}
+.wx-proof-btn svg{width:18px;height:18px}
+.wx-proof-prev{position:relative;align-self:flex-start}
+.wx-proof-prev img{display:block;max-width:160px;max-height:200px;border-radius:8px;border:1px solid var(--line)}
+.wx-proof-x{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;background:#353a45;color:#fff;display:flex;align-items:center;justify-content:center}
+.wx-proof-x svg{width:14px;height:14px}
+.wx-proof-hint{font-size:12px;color:var(--muted);line-height:1.4}
+.wx-proof-later{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;border:1px solid var(--brand);border-radius:12px;color:var(--brand);font-size:11.5px;font-weight:700;background:#fff;align-self:flex-start}
+.wx-proof-later svg{width:12px;height:12px}
+.nt-ico.ok{background:var(--brand);color:#fff}
+.nt-ladder{align-self:stretch;list-style:none;margin:10px 0 6px;padding:0;text-align:left}
+.nt-ladder li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+.nt-ladder li span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.nt-ladder li b{flex:1;font-size:14px;color:var(--ink)}
+.nt-ladder li em{font-style:normal;font-size:12.5px;color:var(--brand);font-weight:700}
+.nt-ladder li.released,.nt-ladder li.active,.nt-ladder li.expired{opacity:.65}
+.nt .wx-note{align-self:stretch;text-align:left}
+/* Deposit 1·2·3: steps marked done; the sticky next-deposit bar (above the bottom menu; a floating card on desktop) */
+.wx-steps li.done .wx-step-n{background:var(--brand);color:#fff}
+.wx-done{font-style:normal;font-size:11px;font-weight:700;color:var(--brand);background:#e6f4ec;border-radius:9px;padding:1px 7px;margin-left:4px;vertical-align:1px}
+.wx-steps li.checking .wx-step-n{background:#fff4dc;color:#a76b00}
+.lad-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:44;padding:6px 8px;background:transparent;pointer-events:none}
+.lad-bar[hidden]{display:none}
+.lb-in{pointer-events:auto;display:flex;align-items:center;gap:10px;min-height:48px;padding:7px 8px 7px 10px;border-radius:12px;background:#0b3d22;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25);text-decoration:none}
+.lb-dots{display:flex;gap:4px;flex:none}
+.lb-dots i{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.14);color:rgba(255,255,255,.8)}
+.lb-dots i.done{background:#1aa34a;color:#fff}
+.lb-dots i.done svg{width:12px;height:12px}
+.lb-dots i.now{background:var(--gold, #ffc20e);color:#1c1600}
+.lb-txt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.lb-txt b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-txt small{font-size:11.5px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-go{flex:none;background:var(--gold, #ffc20e);color:#1c1600;font-weight:800;font-size:13px;padding:8px 14px;border-radius:8px}
+.lb-go.wait{background:rgba(255,255,255,.16);color:#fff}
+body.has-ladbar .slip-pill{margin-bottom:62px}
+body.has-ladbar .foot-dark{padding-bottom:164px}
+body.has-ladbar .page.active{padding-bottom:62px}
+@media (min-width:1024px){ .lad-bar{left:16px;right:auto;bottom:16px;width:380px;padding:0} body.has-ladbar .page.active{padding-bottom:0} body.has-ladbar .foot-dark{padding-bottom:34px} }
+/* withdrawals closed: paused, or Deposit 1·2·3 to unlock */
+.wx-paused svg{color:#c98500}
+.wx-unlock-h{display:flex;gap:10px;align-items:flex-start}
+.wx-unlock-h svg{flex:none;width:22px;height:22px;color:var(--brand);margin-top:2px}
+.wx-unlock-h b{display:block;font-size:15px;color:var(--ink)}
+.wx-unlock-h span{display:block;font-size:13px;color:var(--muted);margin-top:2px;line-height:1.45}
+.wx-unlock .wx-cta{margin-top:12px;display:flex;align-items:center;justify-content:center}

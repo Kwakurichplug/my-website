@@ -40,6 +40,13 @@
     return data;
   }
   const get = (p, o) => call('GET', p, null, o), post = (p, b, o) => call('POST', p, b, o), patch = (p, b) => call('PATCH', p, b), put = (p, b) => call('PUT', p, b);
+  // an image the API serves (a payment screenshot), with the session token
+  async function blob(path) {
+    if (!BASE) throw Object.assign(new Error('offline'), { offline: true });
+    const res = await fetch(BASE + '/api' + path, { headers: token ? { authorization: 'Bearer ' + token } : {} });
+    if (!res.ok) throw Object.assign(new Error(res.status === 404 ? 'not_found' : 'http_' + res.status), { status: res.status });
+    return res.blob();
+  }
 
   const API = {
     base: BASE, enabled: !!BASE, now: () => Date.now() + skew,
@@ -61,6 +68,8 @@
       emailConfirm: (email, code) => post('/auth/email/confirm', { email, code }).then(r => r.user),
       limits: d => post('/auth/limits', d),
       referrals: () => get('/auth/referrals'),
+      notices: () => get('/auth/notices').then(r => r.notices),               // pop-ups: deposit requests, payment outcomes
+      closeNotice: id => post(`/auth/notices/${id}/close`),
     },
     wallet: {
       balance: () => get('/wallet'),
@@ -68,6 +77,7 @@
       deposit: (amount, method, details) => post('/wallet/deposit', { amount, method, ...(details && Object.keys(details).length ? { details } : {}) }),
       withdraw: (amount, method, details) => post('/wallet/withdraw', { amount, method, details }),
       payments: () => get('/wallet/payments').then(r => r.payments),
+      proof: (id, image) => post(`/wallet/payments/${id}/proof`, { image }, { timeout: 30000 }),   // the transfer screenshot (data URL)
       // `who` is a phone number (string) or { email }
       transfer: (who, amount, note) => post('/wallet/transfer', { ...(typeof who === 'object' ? who : { phone: who }), amount, note }),
       bonuses: () => get('/wallet/bonuses'),
@@ -128,6 +138,7 @@
       users: q => get('/admin/users' + (q ? '?q=' + encodeURIComponent(q) : '')).then(r => r.users),
       updateUser: (id, d) => patch('/admin/users/' + id, d),
       adjust: (id, d) => post(`/admin/users/${id}/adjust`, d),
+      proof: id => blob(`/admin/payments/${id}/proof`),                     // the player's transfer screenshot (Blob)
       payments: status => get('/admin/payments?status=' + (status || 'pending')).then(r => r.payments),
       // approve: { amount (deposit: what arrived), reference (withdrawal: payout ref), note } · reject: { reason }
       payment: (id, action, body) => post(`/admin/payments/${id}/${action}`, typeof body === 'string' ? { reason: body } : (body || {})),
@@ -139,6 +150,14 @@
       kycPhoto: async (id, side) => { const r = await fetch(BASE + `/api/admin/users/${id}/kyc-photo/${side}`, { headers: { authorization: 'Bearer ' + token } }); if (!r.ok) return null; return URL.createObjectURL(await r.blob()); },
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
+      addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),
+      depositRequest: (id, body) => post(`/admin/users/${id}/deposit-request`, body || {}),   // { amount?, note? } → pop-up + email
+      cancelNotice: id => post(`/admin/notices/${id}/cancel`),   // support: { amount, sender?, reference?, note?, credit }
+      ladder: (cc, q) => get('/admin/ladder?' + new URLSearchParams({ ...(cc ? { cc } : {}), ...(q ? { q } : {}) })),   // Deposit 1·2·3 tracker
+      agents: () => get('/admin/agents'),                                   // { agents, bases }
+      agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
+      saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }
+      payAgent: (id, body) => post(`/admin/agents/${id}/pay`, body || {}),  // { amount?, note? }
       bets: status => get('/admin/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       voidBet: id => post(`/admin/bets/${id}/void`),
       market: (eventId, key, d) => post(`/admin/markets/${eventId}/${key}`, d),

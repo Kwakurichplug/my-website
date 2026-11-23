@@ -227,6 +227,13 @@ html[data-theme="dark"] .kyc-shot small{color:#a9aeb5}
 html[data-theme="dark"] .vl-row.goal .rs{color:#f4f5f6}
 html[data-theme="dark"] .vl-row.ft-out .rs{background:#1d2127;color:#f4f5f6}
 html[data-theme="dark"] .pt-lock{color:#b8bdc4}
+html[data-theme="dark"] .ag-top{color:#eef0f2}
+html[data-theme="dark"] .ag-card .ref-stats{background:#1d2127}
+html[data-theme="dark"] .nt-ico{background:#183323}
+html[data-theme="dark"] .nt-msg{background:#3a3120}
+html[data-theme="dark"] .nt-msg b{color:#e8c56a}
+html[data-theme="dark"] .nt-steps li{color:#eef0f2}
+html[data-theme="dark"] .nt-ladder li b{color:#eef0f2}
 @media (min-width:1024px){
 html[data-theme="dark"] .left-rail{background:#1d2127}
 html[data-theme="dark"] .icon-row{background:#1d2127}

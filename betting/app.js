@@ -423,7 +423,7 @@
     const t1 = big[0], t2 = big[3] || big[1];
     const mt = m => m ? `<a class="tile tile-match" href="#/match/${m.id}"><span class="tm">${crest(m.home, 1, m.sport)}<em>vs</em>${crest(m.away, 1, m.sport)}</span><b>${esc(LBA.code(m.home))} vs ${esc(LBA.code(m.away))}</b></a>` : '';
     $('#tiles').innerHTML = `
-      <a class="tile" href="#" data-open="registerModal" style="background-image:url(${C.b1})"><b>Welcome Bonus</b></a>
+      <a class="tile" href="#" data-open="registerModal" style="background-image:url(${C.b1})"><b>Deposit Bonuses</b></a>
       ${mt(t1)}
       <a class="tile" href="#/virtuals" style="background-image:url(img/banner-2.jpg)"><b>Virtuals</b></a>
       ${mt(t2)}
@@ -1276,7 +1276,7 @@
     }
     if (LIVE && sec === 'tx' && state.user && Date.now() - (renderAcct._txAt || 0) > 4000) {
       renderAcct._txAt = Date.now();
-      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', referral: 'Referral reward', jackpot_win: 'Jackpot win', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket', agent_commission: 'Agent earnings' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
+      API.wallet.transactions().then(l => { state.tx = l.map(t => ({ at: new Date(t.at).getTime(), type: { deposit: 'Deposit', withdrawal: 'Withdrawal', bet: 'Bet placed', win: 'Winnings', refund: 'Refund', cashout: 'Cashout', bonus: 'Bonus', referral: 'Referral reward', commission: 'Agent commission', jackpot_win: 'Jackpot win', adjustment: 'Adjustment', transfer_out: 'Transfer to friend', transfer_in: 'Received from friend', game_bet: 'Game stake', game_win: 'Game win', virtual_bet: 'Instant Football stake', virtual_win: 'Instant Football win', jackpot: 'Jackpot ticket', agent_commission: 'Agent earnings' }[t.type] || t.type, amt: t.amount, bal: t.balance, ref: t.ref ? String(t.ref).slice(0, 8).toUpperCase() : undefined })); if (state.route === 'acct' && state.arg === 'tx') renderAcct('tx'); }).catch(() => {});
     }
     if (LIVE && sec === 'bets' && state.user) liveBets().then(() => { if (state.route === 'acct' && state.arg === 'bets') $('#acBody').innerHTML = betsHTML(); });
     $('#acTitle').textContent = ACCT[sec];
@@ -1311,6 +1311,17 @@
             <span class="status ${wb.status === 'active' ? 'open' : wb.status === 'released' ? 'won' : 'lost'}">${wb.status === 'active' ? 'LOCKED' : wb.status.toUpperCase()}</span></div>`;
         } else if (!LIVE || B.eligible) welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>Make your first deposit and get 200% of it as a bonus, up to ${whole(C.bonusMax)}. Unlock it by staking ${rules.times}× the bonus on multiples (every selection ${(+rules.min_odds).toFixed(2)}+) within ${rules.days} days.</small></div><span class="status won">AVAILABLE</span></div>`;
         else welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>For a player's first deposit only.</small></div><span class="status lost">NOT ELIGIBLE</span></div>`;
+        // Deposit 1, 2, 3 (live, when the operator runs the ladder): one row per step with its bonus and progress
+        const L = B && B.ladder;
+        if (L && L.steps && L.steps.length) welcome = L.steps.map(s => {
+          const b = B.bonuses.find(x => x.kind === 'deposit' + s.n), pct = b && b.required ? Math.min(100, b.wagered / b.required * 100) : 0;
+          const tag = b ? (b.status === 'active' ? ['open', 'LOCKED'] : b.status === 'released' ? ['won', 'RELEASED'] : ['lost', b.status.toUpperCase()]) : s.status === 'next' ? ['won', 'NEXT'] : s.status === 'locked' ? ['lost', 'VERIFY ID'] : ['lost', 'LATER'];
+          const info = b ? (b.status === 'active' ? `Stake ${money(Math.max(0, b.required - b.wagered))} more on multiples (every selection ${(+L.min_odds).toFixed(2)} or more) by ${new Date(b.expiresAt).toLocaleDateString()} to unlock it.` : b.status === 'released' ? `Unlocked and added to your balance on ${new Date(b.releasedAt).toLocaleDateString()}.` : 'Ended before the stake target was reached.')
+            : s.status === 'locked' ? `Verify your ID to unlock it. Then your ${['first', 'second', 'third'][s.n - 1]} deposit earns ${s.pct}% as a bonus, up to ${whole(s.max)}.` : `Your ${['first', 'second', 'third'][s.n - 1]} deposit after your ID check earns ${s.pct}% as a bonus, up to ${whole(s.max)}. Unlock it by staking ${L.times}× the bonus on multiples (every selection ${(+L.min_odds).toFixed(2)}+) within ${L.days} days.`;
+          return `<div class="bonus wb"><div><b>Deposit ${s.n} · ${s.pct}% bonus${b ? ' · ' + money(b.amount) : ''}</b><small>${info}</small>
+            ${b && b.status === 'active' ? `<div class="wb-bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><small>${money(b.wagered)} of ${money(b.required)} staked</small>` : ''}</div>
+            <span class="status ${tag[0]}">${tag[1]}</span></div>`;
+        }).join('') + (L.unlocked ? '' : '<a class="btn btn-accent block mt" href="#/acct/verify">Verify my ID</a>');
         // promo-code bonuses (Me → Bonuses → Promo code)
         const promos = (B ? B.bonuses : []).filter(x => String(x.kind).startsWith('promo:')).map(pb => {
           const code = esc(pb.kind.slice(6)), pct = pb.required ? Math.min(100, pb.wagered / pb.required * 100) : 100, left = Math.max(0, pb.required - pb.wagered);
@@ -1328,11 +1339,25 @@
       },
       refer: () => {
         const R = LIVE ? state.referrals : null, code = LIVE ? ((R && R.code) || u.refCode || '…') : 'LB' + u.uid, reward = R ? R.reward : C.referral;
-        const msg = encodeURIComponent(`Join me on LetBetAfrika and get a 200% welcome bonus on your first deposit. Use my code ${code} when you sign up: ${location.origin}`);
-        return `<div class="card-pad refer"><p>Invite friends. When a friend who signed up with your code has staked <b>${whole(reward)}</b> or more on sports bets, you get <b>${whole(reward)}</b> in cash.</p>
+        // the sign-up link fills in the code (account.js reads ?ref=)
+        const link = (/^https?:$/.test(location.protocol) ? location.origin + '/' : 'https://letbetafrika.online/') + '?ref=' + code + '#/register';
+        const msg = encodeURIComponent(`Join me on LetBetAfrika – bonuses on your first 3 deposits. Sign up with my link: ${link} (or use my code ${code})`);
+        // agents (set by LetBetAfrika): commission on their players instead of the flat reward
+        const ag = R && R.agent, on = ag && ({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' })[ag.basis];
+        const how = ag && (ag.basis === 'revenue' ? `You earn ${ag.rate}% of what your players lose – their stakes minus their winnings and bonuses, counted when bets settle.`
+          : ag.basis === 'deposits' ? `You earn ${ag.rate}% of every deposit your players make.` : `You earn ${ag.rate}% of everything your players stake on settled bets and games.`);
+        const agentHTML = ag ? `<div class="ag-card">
+            <div class="ag-top"><span class="ag-badge">Agent</span><b>${ag.rate}% of your players' ${on}</b></div>
+            <div class="ag-due"><small>Commission this period</small><b>${money(ag.commission)}</b><span>Since ${new Date(ag.since).toLocaleDateString(C.locale, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+            <div class="ref-stats"><div><b>${ag.players}</b><small>Players</small></div><div><b>${ag.active}</b><small>Active this period</small></div><div><b>${whole(ag.base)}</b><small>${on[0].toUpperCase() + on.slice(1)}</small></div></div>
+            <p class="ag-note">${how} LetBetAfrika pays your commission into your balance. Paid so far: <b>${money(ag.paid)}</b>.</p>
+            ${ag.payouts.length ? `<div class="ag-pay">${ag.payouts.map(x => `<div><span>${new Date(x.at).toLocaleDateString(C.locale, { day: 'numeric', month: 'short' })}</span><b>+${money(x.amount)}</b></div>`).join('')}</div>` : ''}
+          </div>` : '';
+        return `<div class="card-pad refer">${agentHTML}<p>${ag ? 'Share your code or link. Everyone who signs up with it becomes your player.' : `Invite friends. When a friend who signed up with your code has staked <b>${whole(reward)}</b> or more on sports bets, you get <b>${whole(reward)}</b> in cash.`}</p>
           <div class="code-box"><span>Your code</span><b>${code}</b><button class="btn btn-accent sm" data-copy="${code}">Copy</button></div>
+          <div class="code-box link"><span>Your link</span><b>${esc(link)}</b><button class="btn btn-accent sm" data-copy="${esc(link)}">Copy</button></div>
           <a class="btn btn-ghost block mt" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a>
-          <div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div></div>`;
+          ${ag ? '' : `<div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div>`}</div>`;
       },
       agent: () => {
         if (!u.isAgent) return '<div class="empty">This page is for LetBetAfrika agents.</div>';
@@ -1360,7 +1385,7 @@
         </div>`;
       },
       messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
-          ['Welcome to LetBetAfrika', `Your account is ready. Make your first deposit to get a 200% welcome bonus, up to ${whole(C.bonusMax)}.`],
+          ['Welcome to LetBetAfrika', `Your account is ready. Verify your ID and get a bonus on each of your first 3 deposits.`],
           ['Acca Win Boost is on', 'Add 3 or more pre-match selections at odds 1.20+ to a multiple and get up to 200% extra winnings.'],
           ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
       verify: () => u.isAgent ? '<div class="empty"><b>No ID check needed</b><br>Agent accounts withdraw without ID verification.</div>' : u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
@@ -1501,7 +1526,7 @@
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
   const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode, isAgent: !!u.isAgent, playLeft: Number(u.playLeft || 0) });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ bad_login: 'Wrong number or password', txid_required: 'Enter the transaction ID from the payment SMS', play_through: e.detail ? `Stake ${money(e.detail.left)} more before withdrawing this – you can withdraw ${money(e.detail.withdrawable)} now` : 'Stake your deposit on bets before withdrawing it', inplay_max_stake: `In-play limit on this match: ${e.detail && e.detail.left != null ? whole(e.detail.left) + ' left' : 'reached'}`, phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ withdrawals_suspended: 'Withdrawals are paused for now – your balance is safe', deposits_first: 'Complete Deposit 1, 2 and 3 to unlock withdrawals', bad_login: 'Wrong number or password', txid_required: 'Enter the transaction ID from the payment SMS', play_through: e.detail ? `Stake ${money(e.detail.left)} more before withdrawing this – you can withdraw ${money(e.detail.withdrawable)} now` : 'Stake your deposit on bets before withdrawing it', inplay_max_stake: `In-play limit on this match: ${e.detail && e.detail.left != null ? whole(e.detail.left) + ' left' : 'reached'}`, phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];
@@ -1651,6 +1676,8 @@
       const inPlay = state.user && state.bets.some(b => b.status === 'open' && b.legs.some(l => { const x = byId(l.mid); return !x || x.live || justFT(x) || x.kick <= Date.now(); }));
       if (state.user && (['me', 'acct'].includes(state.route) || Date.now() - lastBetsSync > (inPlay ? 5000 : 30000))) { lastBetsSync = Date.now(); await liveUser(); await liveBets(); }
       syncSlipOdds(); updateLiveBadges();
+      if (window.Account && Account.notices) Account.notices();
+      if (window.Account && Account.ladderBar) Account.ladderBar();
       const y = window.scrollY;
       if (state.route === 'home') renderHome();
       else if (['live', 'match', 'league', 'list', 'results', 'me', 'acct', 'bet'].includes(state.route)) renderCurrent(false);
@@ -1666,6 +1693,8 @@
     // keep only the virtual league (browser-run rounds); real leagues come from the server
     { const v = LEAGUES[VLG]; MATCHES.length = 0; RESULTS.length = 0; LEAGUES.length = 0; v.idx = 0; LEAGUES.push(v); VLG_LIVE = 0; }
     await liveUser();
+    if (window.Account && Account.notices) setTimeout(() => Account.notices(true), 1500);   // payment pop-ups when the app opens
+    if (window.Account && Account.ladderBar) Account.ladderBar(true);                     // the sticky next-deposit bar (ID approved)
     try { const evs = await API.events.list({ limit: 400 }); evs.forEach(mapEvent); } catch {}
     try { (await API.events.results()).forEach(mapEvent); } catch {}
     await liveBets();
@@ -1760,6 +1789,7 @@
     $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === navKey));
     closeDrawer(); closeSlip(); closeSearch(); closeModals();
     document.body.dataset.page = page;
+    if (window.Account && Account.ladderBar) Account.ladderBar();   // the next-deposit bar shows on browsing pages only
     if (page === 'home') renderHome();
     if (page === 'me') renderMe();
     if (page === 'virtuals') renderVirtuals();
@@ -1934,7 +1964,7 @@
     if (d.cat) { state.list = d.cat; state.sport = 'football'; renderHome(); return $('.sports-block').scrollIntoView({ behavior: 'smooth' }); }
     if (d.res) { state.resSport = d.res; return renderResults(); }
     if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
-    if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
+    if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast(/^https?:/.test(d.copy) ? 'Link copied' : 'Code copied'); }
     if (d.break) { if (!state.user) return openModal('loginModal'); if (LIVE) { const days = { '24 hours': 1, '7 days': 7, '30 days': 30, '6 months': 182 }[d.break] || 1; API.auth.limits({ selfExclude: new Date(Date.now() + days * 864e5).toISOString() }).then(() => toast(`Your break has started (${d.break})`)).catch(e => toast(apiErr(e), 'err')); return; } return toast(`Self-exclusion request for ${d.break} received`); }
     if (d.soon) { e.preventDefault(); return toast(`${d.soon} is coming soon`); }
     if ('chat' in d) return toast('Live chat will connect to your support desk');

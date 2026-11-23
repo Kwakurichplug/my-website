@@ -470,3 +470,53 @@ textarea.json{width:100%;min-height:120px;border:1px solid var(--line-2);border-
 .agent-box{margin:4px 0 12px;padding:10px 12px;border:1px solid var(--line-2);border-radius:8px;background:#f7fbf8;font-size:var(--fs-s)}
 .agent-link{display:flex;gap:6px;margin-top:6px}
 .agent-link input{flex:1;min-width:160px;height:30px;border:1px solid var(--line-2);border-radius:6px;padding:0 8px;font-size:12px;background:#fff}
+/* agents: find a player, pick from the hits; drawer section headings */
+.ag-find{margin:2px 0 8px;min-width:0;height:36px}
+.ag-hits{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ag-hit{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:8px 10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);cursor:pointer;font:inherit;color:var(--ink)}
+.ag-hit:hover,.ag-hit:focus-visible{border-color:var(--g);background:var(--g-bg)}
+.ag-hit small{color:var(--mute);font-size:var(--fs-s)}
+.ag-hit .flag{margin-right:4px}
+.d-sub{margin:20px 0 8px;font-size:var(--fs);color:var(--ink);font-weight:700}
+.d-sub .small{font-weight:400;margin-left:4px}
+.m-actions .spacer{flex:1}
+/* support: add a deposit – the player's own waiting requests, confirm one of them instead */
+.dep-pend{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.dep-pend div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dep-pend .btn{margin-left:auto}
+#modalBody dl.kv{margin-bottom:12px}
+/* payment screenshots; Deposit 1·2·3 settings; the ladder on a player's profile */
+.proof-box{display:flex;align-items:center;justify-content:center;min-height:90px;background:var(--soft);border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;padding:6px}
+.proof-box img{display:block;max-width:100%;max-height:260px;border-radius:6px}
+.proof-box.big img{max-height:62vh}
+.set-card.wide{grid-column:1/-1}
+.lad-flags{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+.lad-flags .chk{display:inline-flex;margin:0}
+.lad-grid{display:grid;grid-template-columns:90px repeat(4,minmax(70px,1fr));gap:6px 8px;align-items:center;margin-bottom:10px;font-size:var(--fs-s);color:var(--mute)}
+.lad-grid label{color:var(--ink);font-weight:600;font-size:var(--fs)}
+.lad-grid input{height:34px;border:1px solid var(--line-2);border-radius:6px;padding:0 8px;width:100%;min-width:0}
+.lad-grid .flag{margin-right:4px}
+dd.lad{display:flex;flex-wrap:wrap;gap:4px}
+@media (max-width:600px){ .lad-grid{grid-template-columns:70px repeat(2,1fr)} .lad-grid span:nth-child(n+4):nth-child(-n+5){display:none} }
+/* Deposit 1·2·3 tracker */
+.seg.wrap{flex-wrap:wrap}
+.seg .cnt{font-style:normal;font-size:11px;font-weight:700;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:0 6px;margin-left:4px;color:var(--ink-2)}
+.seg button.on .cnt{background:rgba(255,255,255,.18);border-color:transparent;color:#fff}
+.sticky-tools{position:sticky;top:var(--top-h);z-index:5;background:var(--card);flex-wrap:wrap;gap:8px}
+.lad-tbl td{vertical-align:top}
+.lad-c{display:flex;flex-direction:column;gap:1px;min-width:110px}
+.lad-c b{font-size:var(--fs)}
+.lad-c small{font-size:var(--fs-s);color:var(--mute);line-height:1.35}
+.lad-c.done b{color:var(--g)}
+.lad-c.chk b{color:var(--amber)}
+.lad-c.next b{color:var(--blue)}
+.lad-c.left b{color:var(--mute-2);font-weight:600}
+.lad-prog{display:flex;gap:3px;margin-bottom:3px}
+.lad-prog i{width:18px;height:6px;border-radius:3px;background:var(--line-2)}
+.lad-prog i.on{background:var(--g)}
+.lad-prog i.chk{background:var(--amber)}
+.nav-badge.info{background:var(--blue)}
+/* withdrawals switch on Payment settings */
+.wd-card{margin-bottom:16px}
+.wd-card .chk{display:flex;margin:8px 0}
+.wd-card .banner{margin-bottom:6px}

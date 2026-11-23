@@ -59,7 +59,7 @@ r.post('/instant/play', requireUser, async (req, res, next) => {
   const p = z.object({
     roundId: z.string().max(4000),
     type: z.enum(['single', 'multiple']),
-    stake: z.number().positive(),
+    stake: z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100),   // whole cents
     picks: z.array(z.object({ i: z.number().int().min(0).max(9), o: z.enum(['1', 'X', '2']) })).min(1).max(10),
   }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });

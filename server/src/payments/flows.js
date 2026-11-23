@@ -7,6 +7,7 @@ import { sendEmail } from '../emails/index.js';
 import { methodName } from '../lib/payments.js';
 import { API_PROVIDERS, byName } from './gateway.js';
 import { setSetting } from '../lib/settings.js';
+import { notify, closeDepositRequests } from '../lib/notices.js';
 
 const userOf = async (c, id) => (await c.query('SELECT * FROM users WHERE id=$1', [id])).rows[0];
 const ageMin = at => (Date.now() - new Date(at).getTime()) / 60000;
@@ -46,6 +47,7 @@ export async function creditApi(reference, paid) {
       [p.id, amount, JSON.stringify({ confirmedAt: new Date().toISOString(), via: paid.via || 'webhook', ...(paid.id ? { providerTx: String(paid.id) } : {}) })]);
     const user = await userOf(c, p.user_id);
     out = { payment: p, user, amount, balance: await creditDeposit(c, user, amount, p.id, { method: p.method }) };
+    await closeDepositRequests(c, p.user_id);
   });
   if (out) sendEmail('depositSuccess', out.user, { amount: out.amount, method: methodName(out.payment.method), paymentId: out.payment.id, balance: out.balance, when: new Date() });
   return out;
@@ -88,6 +90,8 @@ export async function payoutResult(reference, ok, reason) {
     await c.query(`UPDATE payments SET status=$2, updated_at=now(), details = details || $3::jsonb WHERE id=$1`,
       [p.id, ok ? 'success' : 'failed', JSON.stringify(ok ? { paidAt: new Date().toISOString() } : { reason })]);
     if (!ok) await move(c, p.user_id, 'refund', Number(p.amount), p.id, { reason: 'payout_failed' });
+    await notify(c, p.user_id, ok ? 'withdrawal_paid' : 'withdrawal_rejected', { amount: Number(p.amount), method: methodName(p.method), account: p.details?.account || null,
+      reason: ok ? null : 'The transfer did not go through. The money is back in your balance.', paymentId: p.id });
     out = { payment: p, user: await userOf(c, p.user_id), ok };
   });
   if (out) {
