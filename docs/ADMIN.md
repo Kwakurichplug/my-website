@@ -162,7 +162,8 @@ money to a friend – the same rule for both, so it can't be got round by sendin
   made a deposit, they can withdraw when their ID is approved and Deposit 1, 2 and 3 are all made. A step set to a
   0% bonus still counts. Their withdraw page shows what is left – "Complete your 3 deposits to unlock withdrawals",
   1 · 2 · 3 with ✓, and a **Make deposit N now** (or **Verify my ID**) button – and the server refuses the request
-  too, so it can't be skipped. A fourth deposit is never a step.
+  too, so it can't be skipped. A fourth deposit is never a step. Agents are not held by this rule (see Agents'
+  withdrawals).
 - **New members can withdraw before their first deposit** (on by default). Until a deposit of theirs is credited, a
   new member's withdrawals are open (for money a friend sent them, or that you credited). Their first credited deposit
   starts the rule above, and the deposit page tells them before they pay: "Good to know before you deposit: you can
@@ -329,7 +330,8 @@ table view for every chart. The sidebar collapses to a drawer below 900px; every
 
 ## Agents' withdrawals
 
-- Agents withdraw **without ID verification**, and a Ghana Mobile Money withdrawal by an agent is **sent through the
+- Agents withdraw **without ID verification, without the Deposit 1, 2, 3 rule and without play-through** (Suspend
+  all withdrawals still stops them too), and a Ghana Mobile Money withdrawal by an agent is **sent through the
   payment API at once** (no review). If Moolre refuses it, it waits in Payments with Moolre's message like any other
   withdrawal. Nigerian bank withdrawals still need you to pay them. Agents no longer see the commission percentage.
 

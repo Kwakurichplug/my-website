@@ -6,7 +6,8 @@
 // A message after "closed" starts a new chat with the assistant.
 import { q } from '../db/pool.js';
 import { getSetting, setSetting } from './settings.js';
-import { bonusesOf } from './bonus.js';
+import { bonusesOf, bonusRules, ladderOf } from './bonus.js';
+import { withdrawCheck } from './payments.js';
 import { notifyAdmins } from '../emails/index.js';
 
 const CUR = { GH: 'GHS ', NG: 'NGN ' };   // plain letters: safe in any database encoding
@@ -144,18 +145,36 @@ async function answer(user, intent, t) {
     case 'withdraw': {
       const { rows } = await q(`SELECT amount, status, provider, created_at, details->>'reason' AS reason FROM payments WHERE user_id=$1 AND kind='withdrawal' ORDER BY created_at DESC LIMIT 1`, [user.id]);
       const w = rows[0];
-      const how = `Me > Withdraw: choose ${cc === 'GH' ? 'Mobile Money' : 'your bank'}, enter the amount and confirm.`;
+      // a request already waiting is answered first; otherwise say what the withdraw page will say (paused, 1·2·3, play-through)
+      if (w && w.status === 'pending') return w.provider && w.provider !== 'manual'
+        ? { text: `Your withdrawal of ${m(w.amount)} has been sent to your wallet (${ago(w.created_at)}). It normally arrives within a few minutes.` }
+        : { text: `Your withdrawal of ${m(w.amount)} (${ago(w.created_at)}) is with our team for the usual account check and is paid as soon as it is approved – normally within a few hours. If it is urgent, tap Talk to a person.` };
+      const chk = await withdrawCheck(user).catch(() => ({ block: null })), B = chk.block;
+      if (B && B.error === 'withdrawals_suspended') return { text: `Withdrawals are paused for now${B.message ? ' – ' + B.message.trim().replace(/[.!\s]+$/, '') : ''}. Your balance is safe and you can keep playing; we will let you know as soon as they open again.` };
+      if (B && B.error === 'deposits_first') return { text: B.unlocked === false
+        ? 'Withdrawals open once your ID is approved and you have made Deposit 1, 2 and 3 – each one earns a bonus. Start with Me > Verify ID.'
+        : `Withdrawals open once Deposit 1, 2 and 3 are done – ${B.done} of 3 so far. Me > Deposit shows Deposit ${B.next} and the bonus it earns.` };
+      const { rows: [pt] } = await q('SELECT balance, playthrough_left FROM users WHERE id=$1', [user.id]);
+      const left = user.is_agent ? 0 : Number(pt.playthrough_left || 0), free = Math.max(0, Number(pt.balance) - left);
+      const how = `Me > Withdraw: choose ${cc === 'GH' ? 'Mobile Money' : 'your bank'}, enter the amount and confirm.` +
+        (left > 0 ? ` You can withdraw up to ${m(free)} now – ${m(left)} of your deposits still needs to be staked once (winnings are always free).` : '');
       if (!w) return { text: `You have not made a withdrawal yet. ${how}${user.is_agent ? ' As an agent you do not need ID verification and your withdrawals are sent automatically.' : ''}` };
       if (w.status === 'success') return { text: `Your last withdrawal of ${m(w.amount)} was paid (${ago(w.created_at)}). ${how}` };
       if (w.status === 'rejected' || w.status === 'failed') return { text: `Your withdrawal of ${m(w.amount)} (${ago(w.created_at)}) was not paid${w.reason ? ': ' + w.reason : ''}. The money went back to your balance, so you can withdraw again.` };
-      if (w.provider && w.provider !== 'manual') return { text: `Your withdrawal of ${m(w.amount)} has been sent to your wallet (${ago(w.created_at)}). It normally arrives within a few minutes.` };
-      return { text: `Your withdrawal of ${m(w.amount)} (${ago(w.created_at)}) is with our team for the usual account check and is paid as soon as it is approved – normally within a few hours. If it is urgent, tap Talk to a person.` };
+      return { text: how };
     }
     case 'bonus': {
       const bs = await bonusesOf(user.id).catch(() => []);
       const act = (bs || []).filter(b => b.status === 'active');
-      if (!act.length) return { text: `You have no active bonus. New players get a 200% welcome bonus on their first deposit; promo codes go in Me > Promo code.` };
-      return { text: act.map(b => `${b.kind === 'welcome' ? 'Welcome bonus' : 'Bonus ' + String(b.kind).replace(/^promo:/, '')}: ${m(b.amount)} – staked ${m(b.wagered)} of ${m(b.required)}${b.expiresAt ? `, until ${new Date(b.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}.`).join(' ') + ' It moves to your balance once the staking is done.' };
+      if (!act.length) {
+        // nothing running: what the next deposit earns, from the same settings the deposit page shows (never a fixed figure)
+        const R = await bonusRules().catch(() => ({})), L = R.ladder ? await ladderOf(user).catch(() => null) : null;
+        const s = L && L.next ? L.steps[L.next - 1] : null, wb = !R.ladder && R.welcome && R.welcome[cc];
+        const offer = L ? (!L.unlocked ? 'Verify your ID (Me > Verify ID), then Deposit 1, 2 and 3 each earn a bonus. ' : s ? `Your Deposit ${s.n} earns a ${s.pct}% bonus, up to ${m(s.max)} – Me > Deposit. ` : '')
+          : wb && wb.pct ? `New players get a ${wb.pct}% welcome bonus on their first deposit, up to ${m(wb.max)}. ` : '';
+        return { text: `You have no active bonus. ${offer}Promo codes go in Me > Promo code.` };
+      }
+      return { text: act.map(b => `${b.kind === 'welcome' ? 'Welcome bonus' : /^deposit\d$/.test(b.kind) ? 'Deposit ' + b.kind.slice(7) + ' bonus' : 'Bonus ' + String(b.kind).replace(/^promo:/, '')}: ${m(b.amount)} – staked ${m(b.wagered)} of ${m(b.required)}${b.expiresAt ? `, until ${new Date(b.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}.`).join(' ') + ' It moves to your balance once the staking is done.' };
     }
     case 'bet': {
       const { rows: open } = await q(`SELECT count(*)::int AS n, coalesce(sum(potential),0) AS pot FROM bets WHERE user_id=$1 AND status='open'`, [user.id]);

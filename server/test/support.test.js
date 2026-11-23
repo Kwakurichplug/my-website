@@ -11,8 +11,8 @@ const skip = !BASE && 'set MOOLRE_API_URL to run';
 const API = BASE + '/api';
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5433/letbet_moolre' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function api(path, body, tok) {
-  const res = await fetch(API + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: body ? JSON.stringify(body) : undefined });
+async function api(path, body, tok, method) {
+  const res = await fetch(API + path, { method: method || (body ? 'POST' : 'GET'), headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, ...(await res.json().catch(() => ({}))) };
 }
 async function player(name) {
@@ -90,4 +90,39 @@ test('live support: assistant from the account, hand-off, admin reply with the p
   r = await api('/support/message', { text: 'asdf ghjk' }, p.token);
   assert.equal(r.thread.status, 'waiting', 'hands over after two misses');
   assert.equal((await api('/support/message', { text: '' }, p.token)).error, 'empty');
+});
+
+test('withdraw and bonus answers follow the same rules as the withdraw and deposit pages', { skip }, async () => {
+  const RULES = {};
+  for (const k of ['withdrawals', 'deposit_bonuses']) RULES[k] = (await db.query('SELECT value FROM settings WHERE key=$1', [k])).rows[0]?.value;
+  const put = (k, value) => api('/admin/settings/' + k, { value }, ADMIN, 'PUT');
+  const open = { ...(RULES.withdrawals || {}), suspended: false, requireDeposits: true, newMembersOpen: true, message: '' };
+  const said = async (p, text) => { const r = await api('/support/message', { text }, p.token); return [...r.messages].reverse().find(m => m.from === 'bot').text; };
+  try {
+    await put('withdrawals', open);
+    await put('deposit_bonuses', { ...RULES.deposit_bonuses, enabled: true, requireId: true });
+    const p = await player('Esi Rules');
+    assert.match(await said(p, 'my bonus'), /Verify your ID.*Deposit 1, 2 and 3/);
+    assert.match(await said(p, 'I want to withdraw'), /not made a withdrawal yet.*Me > Withdraw/, 'a new member can withdraw before a first deposit');
+    // after a first deposit the 3-deposit rule applies, exactly as on the withdraw page
+    const d = await api('/wallet/deposit', { amount: 25, method: 'mobile_money', details: { phone: p.phone, network: 'mtn' } }, p.token);
+    const ref = (await db.query('SELECT provider_ref FROM payments WHERE id=$1', [d.paymentId])).rows[0].provider_ref;
+    await fetch(`${MOCK}/__approve/${ref}`, { method: 'POST' });
+    for (let i = 0; i < 40; i++) { if ((await db.query('SELECT status FROM payments WHERE id=$1', [d.paymentId])).rows[0].status === 'success') break; await sleep(200); }
+    assert.equal((await api('/wallet/options', null, p.token)).withdrawBlock.error, 'deposits_first');
+    assert.match(await said(p, 'I want to withdraw'), /ID is approved.*Deposit 1, 2 and 3/);
+    // paused for everyone, with the admin's own words
+    await put('withdrawals', { ...open, suspended: true, message: 'Bank maintenance until 6pm.' });
+    assert.match(await said(p, 'I want to withdraw'), /paused for now – Bank maintenance until 6pm\. Your balance is safe/);
+    // agents are not held by the 3-deposit rule (as with play-through), but a pause applies to them too
+    await api(`/admin/users/${p.user.id}/agent`, { on: true }, ADMIN);
+    assert.match(await said(p, 'I want to withdraw'), /paused/);
+    await put('withdrawals', open);
+    assert.equal((await api('/wallet/options', null, p.token)).withdrawBlock, null, 'an agent can withdraw');
+    assert.match(await said(p, 'I want to withdraw'), /Me > Withdraw.*As an agent/);
+    // with the ladder off, the welcome bonus is quoted from its own settings
+    await put('deposit_bonuses', { ...RULES.deposit_bonuses, enabled: false });
+    const wb = (await db.query(`SELECT value FROM settings WHERE key='welcome_bonus'`)).rows[0].value;
+    assert.match(await said(await player('Yaw Welcome'), 'my bonus'), new RegExp(`${wb.GH.pct}% welcome bonus`));
+  } finally { for (const [k, v] of Object.entries(RULES)) if (v) await put(k, v); }
 });

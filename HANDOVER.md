@@ -21,7 +21,9 @@
 > - bonuses: Deposit 1·2·3 (settings `deposit_bonuses`) replaces the first-deposit welcome bonus while enabled; promo
 >   codes still work; a stake counts towards one bonus at a time (the oldest);
 > - manual deposits need a transfer reference (credited once); a USSD deposit's reference is its transaction ID;
-> - agents: the Nov 22 system (codes and links, % of each new player's first deposit, payout requests).
+> - agents: the Nov 22 system (codes and links, % of each new player's first deposit, payout requests); agents
+>   withdraw without the Deposit 1·2·3 rule and without play-through, but the suspend switch applies to everyone;
+> - the support assistant answers withdrawal and bonus questions from these same settings (never fixed figures).
 >
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
 > then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.

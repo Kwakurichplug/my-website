@@ -1350,7 +1350,7 @@
         const A = LIVE ? state.agent : null;
         if (!A) return '<div class="card-pad"><p class="muted">Loading your agent dashboard…</p></div>';
         const T = A.totals, ST = { no_deposit: ['Signed up', 'lost'], pending: ['Waiting for play', 'open'], available: ['Ready', 'won'], requested: ['Requested', 'open'], paid: ['Paid', 'won'] };
-        const msg = encodeURIComponent(`Join LetBetAfrika with my link and get a 200% welcome bonus on your first deposit: ${A.link}`);
+        const msg = encodeURIComponent(`Join LetBetAfrika with my link – new players get deposit bonuses: ${A.link}`);
         return `<div class="agent-dash">
           <div class="ag-hero"><small>Your earnings</small><b>${money(T.earned)}</b><span>Commission on every new player's first deposit</span></div>
           <div class="ag-tiles">
