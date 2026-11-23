@@ -20,9 +20,13 @@ const log = (...a) => console.log('•', ...a);
   if (LIVE) {
     await go('register');
     await p.fill('#regForm [name=phone]', '0' + phone); await p.fill('#regForm [name=pw]', 'Strong123'); await p.check('#regForm [name=agree]'); await p.click('#regBtn');
-    await p.waitForFunction(() => /Test code: \d{6}/.test(document.querySelector('#toast').textContent));
-    const code = (await p.textContent('#toast')).match(/(\d{6})/)[1];
-    await p.waitForSelector('#otpBoxes'); await p.fill('#otpBoxes input >> nth=0', code); await p.waitForSelector('.au-done', { timeout: 8000 });
+    // a code at sign-up only when the server asks for one (SIGNUP_CODE=on → GET /api/auth/methods signupCode)
+    if ((await (await fetch(BASE + 'api/auth/methods')).json()).signupCode) {
+      await p.waitForFunction(() => /Test code: \d{6}/.test(document.querySelector('#toast').textContent));
+      const code = (await p.textContent('#toast')).match(/(\d{6})/)[1];
+      await p.waitForSelector('#otpBoxes'); await p.fill('#otpBoxes input >> nth=0', code);
+    }
+    await p.waitForSelector('.au-done', { timeout: 8000 });
     await go('deposit/transfer'); await p.fill('#wlAmt', '20000'); await p.fill('input[name=sender]', 'Test Player'); await p.click('#depBtn'); await p.waitForSelector('.wl-res', { timeout: 8000 });
   } else {
     await go('login'); await p.fill('#loginForm [name=phone]', '0' + phone); await p.fill('#loginForm [name=pw]', 'x'); await p.click('#loginBtn'); await p.waitForTimeout(1200);

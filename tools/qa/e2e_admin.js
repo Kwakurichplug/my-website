@@ -34,7 +34,7 @@ async function player(cc, name) {
   await A.fill('input[name="NG.bank.bank"]', 'Test MFB'); await A.fill('input[name="NG.bank.number"]', '0123456789'); await A.fill('input[name="NG.bank.name"]', 'LETBETAFRIKA TEST'); await A.fill('input[name="NG.bank.note"]', 'Confirmed within 15 minutes, 7am–11pm');
   await A.click('#psSave'); await A.waitForTimeout(1500);
   ok(/Open – players see this account/.test(await A.textContent('#main')), 'bank account saved – Nigeria deposits open');
-  ok(/Payment API connected – test mode/.test(await A.textContent('#main')), 'Ghana: payment API shown as connected (test mode)');
+  ok(/connected – test mode/.test(await A.textContent('#main')), 'Ghana: payment API shown as connected (test mode)');
   ok(/Open/.test(await A.textContent('#wdState')) && /new members who have not deposited yet/.test(await A.textContent('#wdState')) && !(await A.isChecked('#wdSusp')) && await A.isChecked('#wdDeps') && await A.isChecked('#wdNew'), 'Withdrawals card: open – after Deposit 1·2·3, and new members before their first deposit');
   await A.screenshot({ path: OUT + '/adm-2-paysettings.png', fullPage: true });
 
@@ -99,7 +99,9 @@ async function player(cc, name) {
   ok(/Successful/.test(await P.textContent('#wxRecent')), 'player sees the deposit as successful');
 
   // ---------- ID check approved; withdrawal marked paid ----------
-  await api('/auth/verify', { fullName: 'Ada Obi', dob: '1994-03-02', idType: 'NIN', idNumber: '12345678901' }, ng.token);
+  // the ID check carries photos of the ID, front and back (any real image will do here)
+  const idPhoto = 'data:image/png;base64,' + (await A.screenshot({ clip: { x: 0, y: 0, width: 320, height: 200 } })).toString('base64');
+  await api('/auth/verify', { fullName: 'Ada Obi', dob: '1994-03-02', idType: 'NIN', idNumber: '12345678901', front: idPhoto, back: idPhoto }, ng.token);
   await A.goto(BASE + 'admin.html#/kyc'); await A.waitForTimeout(1500);
   ok(/12345678901/.test(await A.textContent('#main')), 'ID check waiting with the ID details');
   await A.screenshot({ path: OUT + '/adm-5-kyc.png' });
@@ -108,9 +110,12 @@ async function player(cc, name) {
   const lad = await api('/wallet/options', null, ng.token);
   ok(lad.ladder && lad.ladder.unlocked && lad.ladder.steps.length === 3, 'ID approved → Deposit 1 · 2 · 3 unlocked');
   ok((await api('/auth/notices', null, ng.token)).notices.some(x => x.kind === 'kyc_approved'), 'the player gets the “ID approved” pop-up');
+  sql(`UPDATE users SET playthrough_left=0 WHERE id='${ng.user.id}'`);   // deposit played through (play-through rule, server/test/playthrough.test.js)
   const w = await api('/wallet/withdraw', { amount: 2000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Obi' } }, ng.token);
   await A.goto(BASE + 'admin.html#/payments/pending:withdrawal'); await A.waitForTimeout(1500);
-  await A.click(`#main [data-pay="approve"][data-id="${w.paymentId}"]`); await A.waitForTimeout(400);
+  // a withdrawal is paid from the Review screen (account checks first), here sent by hand with the bank's reference
+  await A.click(`#main [data-review="${w.paymentId}"]`); await A.waitForTimeout(1500);
+  await A.click('#rvManual'); await A.waitForTimeout(600);
   await A.fill('#mRef', 'NIP-445566'); await A.click('#mGo'); await A.waitForTimeout(1200);
   ok(sql(`SELECT status || ':' || (details->>'payoutRef') FROM payments WHERE id='${w.paymentId}'`) === 'success:NIP-445566', 'withdrawal marked paid with its reference');
 
@@ -127,9 +132,13 @@ async function player(cc, name) {
   await fetch(MOCK + '/__approve/' + ref, { method: 'POST' }); await G.waitForTimeout(4500);
   ok(/Deposit successful/.test(await G.textContent('#wlSheet')), 'Ghana: deposit successful once approved');
   await G.screenshot({ path: OUT + '/gh-2-done.png' });
+  sql(`UPDATE users SET playthrough_left=0 WHERE id='${gh.user.id}'`);   // deposit played through (play-through rule)
   const gw = await api('/wallet/withdraw', { amount: 20, method: 'mobile_money', details: { phone: gh.phone, network: 'mtn', name: 'Kofi Mensah' } }, gh.token);
   await A.goto(BASE + 'admin.html#/payments/pending:withdrawal'); await A.click('#refreshBtn'); await A.waitForTimeout(1800);   // same page as before: refresh the list
-  await A.click(`#main [data-payout="${gw.paymentId}"]`); await A.waitForTimeout(400); await A.click('#mGo'); await A.waitForTimeout(2000);
+  // paid from the Review screen (account checks first), sent through the payment API
+  await A.click(`#main [data-review="${gw.paymentId}"]`); await A.waitForTimeout(1800);
+  if (await A.isDisabled('#rvSend')) { const ov = await A.$('#mBody input[type=checkbox], #modal input[type=checkbox]'); if (ov) await ov.check(); await A.waitForTimeout(300); }
+  await A.click('#rvSend'); await A.waitForTimeout(2500);
   ok(sql(`SELECT status FROM payments WHERE id='${gw.paymentId}'`) === 'success', 'Ghana payout sent through the API and confirmed');
 
   // ---------- the rest of the portal renders ----------

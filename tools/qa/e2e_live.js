@@ -43,11 +43,15 @@ const rnd = () => '80' + String(Math.floor(1e7 + Math.random() * 9e7)).slice(0, 
   await p.goto(URL + '#/register'); await p.waitForTimeout(500);
   await p.fill('#regForm [name=phone]', '0' + me); await p.fill('#regForm [name=pw]', 'Strong123'); await p.check('#regForm [name=agree]');
   await p.click('#regBtn');
-  const code = await codeFromToast(p);
-  await p.waitForSelector('#otpBoxes');
-  await p.fill('#otpBoxes input >> nth=0', code === '000000' ? '111111' : '000000'); await p.waitForTimeout(1200);
-  expect(await p.isVisible('#otpErr'), 'server rejects a wrong code');
-  await p.fill('#otpBoxes input >> nth=0', code); await p.waitForSelector('.au-done', { timeout: 8000 });
+  // a code at sign-up only when the server asks for one (SIGNUP_CODE=on → GET /api/auth/methods signupCode)
+  if ((await api('/auth/methods')).signupCode) {
+    const code = await codeFromToast(p);
+    await p.waitForSelector('#otpBoxes');
+    await p.fill('#otpBoxes input >> nth=0', code === '000000' ? '111111' : '000000'); await p.waitForTimeout(1200);
+    expect(await p.isVisible('#otpErr'), 'server rejects a wrong code');
+    await p.fill('#otpBoxes input >> nth=0', code);
+  }
+  await p.waitForSelector('.au-done', { timeout: 8000 });
   expect(true, 'server creates the account');
   const token = await p.evaluate(() => localStorage.getItem('lba_token'));
   expect(!!token, 'session token stored');
