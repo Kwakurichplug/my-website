@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ensureAdmins } from '../lib/admins.js';
+import { BASES as AGENT_BASES, period as agentPeriod } from '../lib/agents.js';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { getSetting } from '../lib/settings.js';
 import { z } from 'zod';
@@ -89,7 +90,17 @@ r.get('/referrals', requireUser, async (req, res, next) => {
       q(`SELECT coalesce(sum(amount),0)::float AS earned FROM transactions WHERE user_id=$1 AND type='referral'`, [req.user.id]),
       getSetting('referral'),
     ]);
-    res.json({ code: 'LB' + req.user.uid, joined: f[0].joined, qualified: f[0].qualified, earned: e[0].earned, reward: reward?.[req.user.country] ?? 0 });
+    // agents (lib/agents.js): their commission instead of the flat reward – totals only, never other players' details
+    let agent = null;
+    const a = (await q('SELECT * FROM agents WHERE user_id=$1 AND active', [req.user.id])).rows[0];
+    if (a) {
+      const [p, po] = await Promise.all([agentPeriod({ query: (t, v) => q(t, v) }, a),
+        q('SELECT amount, period_start, period_end, created_at FROM agent_payouts WHERE agent_id=$1 AND amount > 0 ORDER BY created_at DESC LIMIT 10', [a.user_id])]);
+      const paid = (await q('SELECT coalesce(sum(amount),0)::float AS s FROM agent_payouts WHERE agent_id=$1', [a.user_id])).rows[0].s;
+      agent = { rate: Number(a.rate), basis: a.basis, basisName: AGENT_BASES[a.basis], since: a.period_start, players: p.players.length, active: p.totals.active,
+        base: p.base, commission: p.commission, paid, payouts: po.rows.map(x => ({ amount: Number(x.amount), from: x.period_start, to: x.period_end, at: x.created_at })) };
+    }
+    res.json({ code: 'LB' + req.user.uid, joined: f[0].joined, qualified: f[0].qualified, earned: e[0].earned, reward: reward?.[req.user.country] ?? 0, agent });
   } catch (err) { next(err); }
 });
 

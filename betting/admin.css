@@ -354,3 +354,13 @@ textarea.json{width:100%;min-height:120px;border:1px solid var(--line-2);border-
 .set-foot.sticky{position:sticky;bottom:0;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:12px 0;background:linear-gradient(transparent,var(--bg, #f3f4f6) 35%)}
 .set-foot.sticky .form-err{margin:0 auto 0 0}
 .page-actions .seg{margin-right:4px}
+/* agents: find a player, pick from the hits; drawer section headings */
+.ag-find{margin:2px 0 8px;min-width:0;height:36px}
+.ag-hits{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ag-hit{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:8px 10px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);cursor:pointer;font:inherit;color:var(--ink)}
+.ag-hit:hover,.ag-hit:focus-visible{border-color:var(--g);background:var(--g-bg)}
+.ag-hit small{color:var(--mute);font-size:var(--fs-s)}
+.ag-hit .flag{margin-right:4px}
+.d-sub{margin:20px 0 8px;font-size:var(--fs);color:var(--ink);font-weight:700}
+.d-sub .small{font-weight:400;margin-left:4px}
+.m-actions .spacer{flex:1}

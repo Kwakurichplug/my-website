@@ -41,9 +41,11 @@ async function payReferral(user) {
   const reward = (await getSetting('referral'))?.[user.country];
   if (!reward) return;
   await tx(async c => {
-    const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
+    // an agent earns commission on their players instead (lib/agents.js), so no flat reward for an agent's referrals
+    const { rows } = await c.query(`SELECT u.referred_by, u.ref_paid, r.country AS rc, EXISTS (SELECT 1 FROM agents a WHERE a.user_id = u.referred_by AND a.active) AS agent
+      FROM users u LEFT JOIN users r ON r.id = u.referred_by WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
     const me = rows[0];
-    if (!me || !me.referred_by || me.ref_paid || me.rc !== user.country) return;
+    if (!me || !me.referred_by || me.ref_paid || me.agent || me.rc !== user.country) return;
     const { rows: st } = await c.query(`SELECT coalesce(sum(stake),0)::float AS staked FROM bets WHERE user_id=$1`, [user.id]);
     if (st[0].staked < reward) return;
     await c.query('UPDATE users SET ref_paid=true WHERE id=$1', [user.id]);

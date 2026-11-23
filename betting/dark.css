@@ -209,6 +209,8 @@ html[data-theme="dark"] .kyc-st.bad{background:#3a1f25}
 html[data-theme="dark"] .sh-code{color:#eef0f2;background:#15181c;border:1px dashed #3a4049}
 html[data-theme="dark"] .sh-link{background:#15181c}
 html[data-theme="dark"] .sh-btn{color:#eef0f2}
+html[data-theme="dark"] .ag-top{color:#eef0f2}
+html[data-theme="dark"] .ag-card .ref-stats{background:#1d2127}
 @media (min-width:1024px){
 html[data-theme="dark"] .left-rail{background:#1d2127}
 html[data-theme="dark"] .icon-row{background:#1d2127}

@@ -13,6 +13,7 @@ import * as crash from '../games/crash.js';
 import { creditDeposit } from '../lib/bonus.js';
 import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
+import { BASES, period as agentPeriod, pay as payAgent } from '../lib/agents.js';
 
 const r = Router();
 r.use(requireAdmin);
@@ -55,17 +56,20 @@ r.get('/series', async (req, res, next) => {
 
 r.get('/users/:id', async (req, res, next) => {
   try {
-    const u = (await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits, created_at FROM users WHERE id=$1', [req.params.id])).rows[0];
+    const u = (await q('SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, limits, created_at, referred_by FROM users WHERE id=$1', [req.params.id])).rows[0];
     if (!u) return res.status(404).json({ error: 'not_found' });
-    const [pay, bets, tx, games, sums] = await Promise.all([
+    const [pay, bets, tx, games, sums, ag, ref] = await Promise.all([
       q('SELECT id, kind, amount, method, provider, provider_ref, status, details, created_at, updated_at FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 30', [u.id]),
       q('SELECT id, type, stake, odds, potential, status, paid, placed_at, settled_at FROM bets WHERE user_id=$1 ORDER BY placed_at DESC LIMIT 30', [u.id]),
       q('SELECT id, type, amount, balance_after, ref, meta, created_at FROM transactions WHERE user_id=$1 ORDER BY id DESC LIMIT 50', [u.id]),
       q(`SELECT game, count(*)::int AS plays, coalesce(sum(stake),0) AS staked, coalesce(sum(payout),0) AS paid FROM game_bets WHERE user_id=$1 AND status <> 'void' GROUP BY game ORDER BY staked DESC`, [u.id]),
       q(`SELECT coalesce(sum(amount) FILTER (WHERE kind='deposit' AND status='success'),0) AS deposited, coalesce(sum(amount) FILTER (WHERE kind='withdrawal' AND status='success'),0) AS withdrawn,
           (SELECT coalesce(sum(stake),0) FROM bets WHERE user_id=$1) AS staked, (SELECT coalesce(sum(paid),0) FROM bets WHERE user_id=$1 AND status IN ('won','cashout')) AS won FROM payments WHERE user_id=$1`, [u.id]),
+      q(`SELECT a.*, (SELECT count(*)::int FROM users x WHERE x.referred_by = a.user_id) AS players FROM agents a WHERE a.user_id=$1`, [u.id]),
+      u.referred_by ? q(`SELECT u.id, u.uid, u.full_name, (SELECT active FROM agents a WHERE a.user_id = u.id) AS agent FROM users u WHERE u.id=$1`, [u.referred_by]) : { rows: [] },
     ]);
-    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0] });
+    const agent = ag.rows[0] ? { ...ag.rows[0], rate: Number(ag.rows[0].rate), basisName: BASES[ag.rows[0].basis] } : null;
+    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0], agent, referrer: ref.rows[0] || null });
   } catch (e) { next(e); }
 });
 
@@ -205,7 +209,7 @@ r.get('/overview', async (req, res, next) => {
 r.get('/users', async (req, res, next) => {
   const s = String(req.query.q || '');
   try {
-    const { rows } = await q(`SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, created_at FROM users ${s ? 'WHERE phone ILIKE $1 OR email ILIKE $1 OR uid::text LIKE $1 OR full_name ILIKE $1' : ''} ORDER BY created_at DESC LIMIT 100`, s ? ['%' + s + '%'] : []);
+    const { rows } = await q(`SELECT id, uid, country, phone, email, full_name, verified, role, status, balance, created_at, EXISTS (SELECT 1 FROM agents a WHERE a.user_id = users.id AND a.active) AS agent FROM users ${s ? 'WHERE phone ILIKE $1 OR email ILIKE $1 OR uid::text LIKE $1 OR full_name ILIKE $1' : ''} ORDER BY created_at DESC LIMIT 100`, s ? ['%' + s + '%'] : []);
     res.json({ users: rows });
   } catch (e) { next(e); }
 });
@@ -388,6 +392,51 @@ r.get('/settings', async (_req, res, next) => {
 });
 r.put('/settings/:key', async (req, res, next) => {
   try { await setSetting(req.params.key, req.body.value); res.json({ ok: true, value: await getSetting(req.params.key) }); } catch (e) { next(e); }
+});
+
+/* ---------- sub-agents (lib/agents.js): commission on the players they bring in, set and paid by an admin ---------- */
+const DB = { query: (t, p) => q(t, p) };
+const AGENT_SQL = `SELECT a.*, u.uid, u.country, u.phone, u.email, u.full_name, u.balance, u.status, u.role,
+    (SELECT count(*)::int FROM users x WHERE x.referred_by = a.user_id) AS players,
+    (SELECT coalesce(sum(amount), 0) FROM agent_payouts p WHERE p.agent_id = a.user_id) AS paid_total,
+    (SELECT max(created_at) FROM agent_payouts p WHERE p.agent_id = a.user_id) AS last_paid
+  FROM agents a JOIN users u ON u.id = a.user_id`;
+const agentOut = a => ({ ...a, rate: Number(a.rate), balance: Number(a.balance), paid_total: Number(a.paid_total), basisName: BASES[a.basis] });
+r.get('/agents', async (_req, res, next) => {
+  try {
+    const { rows } = await q(AGENT_SQL + ' ORDER BY a.active DESC, a.created_at DESC');
+    const agents = await Promise.all(rows.map(async a => { const p = await agentPeriod(DB, a); return { ...agentOut(a), base: p.base, commission: p.commission, totals: p.totals }; }));
+    res.json({ agents, bases: BASES });
+  } catch (e) { next(e); }
+});
+r.get('/agents/:id', async (req, res, next) => {
+  try {
+    const a = (await q(AGENT_SQL + ' WHERE a.user_id=$1', [req.params.id])).rows[0];
+    if (!a) return res.status(404).json({ error: 'not_agent' });
+    const [p, po] = await Promise.all([agentPeriod(DB, a), q('SELECT * FROM agent_payouts WHERE agent_id=$1 ORDER BY created_at DESC LIMIT 50', [a.user_id])]);
+    res.json({ agent: agentOut(a), period: p, payouts: po.rows.map(x => ({ ...x, amount: Number(x.amount), base: Number(x.base), commission: Number(x.commission), rate: Number(x.rate) })), bases: BASES });
+  } catch (e) { next(e); }
+});
+// make a player an agent, change the rate / basis, or remove them (active=false keeps the history)
+r.put('/agents/:id', async (req, res, next) => {
+  const p = z.object({ rate: z.number().positive().max(100), basis: z.enum(['revenue', 'deposits', 'stakes']), active: z.boolean().default(true), note: z.string().trim().max(200).optional() }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try {
+    const u = (await q('SELECT id FROM users WHERE id=$1', [req.params.id])).rows[0];
+    if (!u) return res.status(404).json({ error: 'not_found' });
+    // re-activating starts a fresh period: play while they were not an agent earns nothing
+    await q(`INSERT INTO agents (user_id, rate, basis, active, note, created_by) VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (user_id) DO UPDATE SET rate=EXCLUDED.rate, basis=EXCLUDED.basis, active=EXCLUDED.active, note=EXCLUDED.note, updated_at=now(),
+        period_start = CASE WHEN NOT agents.active AND EXCLUDED.active THEN now() ELSE agents.period_start END`,
+      [u.id, Math.round(p.data.rate * 100) / 100, p.data.basis, p.data.active, p.data.note || null, req.user.id]);
+    res.json({ agent: agentOut((await q(AGENT_SQL + ' WHERE a.user_id=$1', [u.id])).rows[0]) });
+  } catch (e) { next(e); }
+});
+// pay the commission into the agent's balance (amount defaults to what is due; 0 closes the period unpaid)
+r.post('/agents/:id/pay', async (req, res, next) => {
+  const p = z.object({ amount: z.number().min(0).max(1e8).optional(), note: z.string().trim().max(200).optional() }).safeParse(req.body || {});
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  try { res.json(await tx(c => payAgent(c, req.params.id, req.user.id, p.data))); } catch (e) { next(e); }
 });
 
 export default r;

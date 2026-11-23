@@ -120,6 +120,10 @@
       kycDecide: (id, approve, reason) => post(`/admin/users/${id}/kyc`, { approve, ...(reason ? { reason } : {}) }),
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
+      agents: () => get('/admin/agents'),                                   // { agents, bases }
+      agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
+      saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }
+      payAgent: (id, body) => post(`/admin/agents/${id}/pay`, body || {}),  // { amount?, note? }
       bets: status => get('/admin/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       voidBet: id => post(`/admin/bets/${id}/void`),
       market: (eventId, key, d) => post(`/admin/markets/${eventId}/${key}`, d),

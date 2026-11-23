@@ -345,3 +345,32 @@ CREATE TABLE IF NOT EXISTS admin_log (
 );
 ALTER TABLE admin_log ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS admin_log_at ON admin_log (at DESC);
+
+-- sub-agents: players who bring in other players (with their referral code) and earn a commission set by an admin –
+-- a % of their players' net revenue, deposits or stakes, counted from period_start (moved forward by each payout)
+CREATE TABLE IF NOT EXISTS agents (
+  user_id      uuid PRIMARY KEY REFERENCES users(id),
+  rate         numeric(5,2) NOT NULL CHECK (rate > 0 AND rate <= 100),
+  basis        text NOT NULL DEFAULT 'revenue' CHECK (basis IN ('revenue','deposits','stakes')),
+  active       boolean NOT NULL DEFAULT true,
+  period_start timestamptz NOT NULL DEFAULT now(),
+  note         text,
+  created_by   uuid REFERENCES users(id),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS agent_payouts (
+  id           bigserial PRIMARY KEY,
+  agent_id     uuid NOT NULL REFERENCES users(id),
+  period_start timestamptz NOT NULL,
+  period_end   timestamptz NOT NULL,
+  basis        text NOT NULL,
+  rate         numeric(5,2) NOT NULL,
+  base         numeric(14,2) NOT NULL,                   -- the players' net revenue / deposits / stakes in the period
+  commission   numeric(14,2) NOT NULL,                   -- what the rate gives
+  amount       numeric(14,2) NOT NULL CHECK (amount >= 0),   -- what was paid (the admin decides)
+  note         text,
+  paid_by      uuid REFERENCES users(id),
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_payouts_agent ON agent_payouts (agent_id, created_at DESC);

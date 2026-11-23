@@ -52,6 +52,30 @@ Mobile Money). In **Payments → Pending → Withdrawals**:
 They can request withdrawals while the check is waiting; pay them once the ID is approved. **ID checks** lists the
 waiting ones: **Approve**, or **Reject** with a reason the player sees (they can send their details again).
 
+## Agents (sub-agents who bring in players)
+
+Make any player an **agent** and decide their commission. Their players are the people who sign up with the agent's
+code (**LB + their ID**, for example `LB10000123`) or their link `https://letbetafrika.online/?ref=LB10000123#/register`
+– the link fills the code in for the new player. The agent finds both on Me → Refer & Earn.
+
+1. **Agents → Add agent** (or open a player → **Make agent**), find the player, choose what the commission is paid on
+   and the rate:
+   - **Net revenue** (recommended): what their players lose – stakes minus winnings and bonuses released. If their
+     players win more than they lose in a period, the commission is 0.
+   - **Deposits**: a % of every deposit their players make.
+   - **Stakes**: a % of everything their players stake (settled bets and games).
+   The dialog shows an example ("if their players lose ₦100,000, the agent earns ₦20,000").
+2. The **Agents** page shows each agent's players, what happened since the last payment, the commission due and
+   what was paid so far. Open an agent to see each player's deposits, stakes, winnings and net revenue.
+3. **Pay** when you decide (weekly, monthly…): the amount is proposed and you can change it; 0 closes the period
+   without paying. The money goes into the agent's balance (they can bet or withdraw it, ledger type `commission`) and
+   a new period starts.
+
+Only settled play counts (an open bet counts when it settles), and only from the moment someone becomes an agent.
+Agents earn commission **instead of** the Refer & Earn reward. **Edit** changes the rate or basis (it applies to the
+commission not yet paid); **Remove agent** stops it (pay what is due first – unpaid commission is dropped);
+**Restore** starts a fresh period. Every change and payment is in the audit log.
+
 ## Payment settings (you can edit everything)
 
 *Payment settings* holds what players see and the limits:
@@ -75,6 +99,7 @@ GH₵10–GH₵20,000 withdrawals; payouts "within 24 hours". Every save is writ
 | **Bets** | Tickets with player, stake, odds, potential, status; search by ticket, phone or player ID | Open a ticket (legs, results), void an open ticket (refunds the stake) |
 | **Players** | Accounts with status, ID check, role, balance; search by phone, ID, name or email | Player drawer: deposit reference, ID details, balance adjustment (ledger entry with a reason), suspend / reactivate, make / remove admin; tabs for bets, payments, ledger, games |
 | **Payments** | Deposits and withdrawals by status (pending, done, rejected, failed, cancelled) and kind, with the sender name, reference and payout details | Confirm / Mark paid / Send via Paystack / Reject, as above |
+| **Agents** | Agents with their commission (rate and basis), players, unpaid period, commission due, paid so far | Add / edit / remove / restore an agent, pay commission, open an agent's players |
 | **ID checks** | Players waiting for an ID check, with the details they sent | Approve, or reject with a reason |
 | **Payment settings** | The bank account, Ghana MoMo / payment API status, limits | Edit and save |
 | **Ledger** | Every money movement across all players with running balances | Filter by type, search by phone / ID / reference |
@@ -97,7 +122,10 @@ player search, a link to the site and a refresh button. The Overview refreshes i
   `POST /bets/:id/void`, `GET /events`, `GET /events/:id`, `POST /events/:id/suspend`, `POST /events/:id/result`,
   `POST /markets/:eventId/:key`, `GET /settings`, `PUT /settings/:key`, `GET /transactions`, `GET /feed`,
   `GET /games`, `GET /games/plays`, `GET /games/crash/verify/:id`, `GET /jackpot`, `POST /jackpot/settle`,
-  `GET /email/status`, `GET /email/log`, `POST /email/test`, `GET /log`.
+  `GET /email/status`, `GET /email/log`, `POST /email/test`, `GET /log`, `GET /agents`, `GET /agents/:id`,
+  `PUT /agents/:id {rate, basis: revenue|deposits|stakes, active, note}`, `POST /agents/:id/pay {amount?, note?}`.
+- Agents: `server/src/lib/agents.js` (commission maths and payouts), tables `agents` and `agent_payouts`;
+  the player's view is in `GET /api/auth/referrals` (`agent`).
 - Every non-GET admin request is written to the `admin_log` table (`schema.sql`) with the administrator, the action,
   the target and the request body (passwords stripped).
 - Payments: `server/src/lib/payments.js` (ways to pay per country, limits, settings), `server/src/payments/paystack.js`
