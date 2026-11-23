@@ -179,9 +179,7 @@
   /* =========================================================
      SIGN UP  (mobile number or email, verified by a 6-digit code)
      ========================================================= */
-  // a sign-up link with ?ref=LB10000123 (Refer & Earn, agents) fills in the referral code
-  const refFromLink = () => { try { const v = (new URLSearchParams(location.search).get('ref') || sessionStorage.getItem('lba_ref') || '').trim().toUpperCase(); if (/^(LB)?\d{6,12}$/.test(v)) { sessionStorage.setItem('lba_ref', v); return v; } } catch {} return ''; };
-  const reg = { step: 1, via: '', phone: '', email: '', pw: '', pwKeep: '', refCode: refFromLink(), agree: false, code: '', timer: null, next: '' };
+  const reg = { step: 1, via: '', phone: '', email: '', pw: '', pwKeep: '', refCode: '', agree: false, code: '', timer: null, next: '' };
   // Channels that can deliver a code right now. Live: asked once from the server (a channel without a working
   // provider is not offered); demo: both. If the server offers neither, email is shown and the server explains.
   const methods = { phone: true, email: true, signupCode: !live(), loaded: false };
@@ -312,7 +310,7 @@
         <a class="au-btn ghost" href="#/${a.esc(reg.next || 'home')}" data-reg-reset>Start Betting</a>
         <a class="au-link center" href="#/acct/verify" data-reg-reset>Verify your ID now for faster withdrawals ${ICON.chev}</a>
       </div>`;
-    $$('[data-reg-reset]', el).forEach(x => x.addEventListener('click', () => { Object.assign(reg, { step: 1, phone: '', email: '', refCode: refFromLink(), agree: false }); }));
+    $$('[data-reg-reset]', el).forEach(x => x.addEventListener('click', () => { Object.assign(reg, { step: 1, phone: '', email: '', refCode: '', agree: false }); }));
     if (window.Motion && Motion.confetti) Motion.confetti();
   }
 

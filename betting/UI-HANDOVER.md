@@ -334,11 +334,6 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   ways, **Deposit ₦X now** → `wl.amt.dep` + `#/deposit/transfer|momo`, **Later** = `sessionStorage lba_nt_later`), then
   one-time outcome sheets (`resultSheet`). app.js calls it 1.5 s after the app opens and on every live refresh (throttled
   to a minute); never on register/login/deposit/withdraw/game routes.
-- **Refer & Earn and agents** (`app.js` `refer`, styles `.ag-*` at the end of `app.css`): every player gets their code and
-  a sign-up link `/?ref=LB<ID>#/register` (`account.js` `refFromLink()` fills the code in, kept in `sessionStorage`
-  `lba_ref`), Copy buttons and WhatsApp share. An agent (`GET /api/auth/referrals` → `agent`) sees `.ag-card`: the
-  rate and basis, this period's commission, players / active / base tiles, what was paid and the last payouts;
-  the flat-reward stats are hidden for agents. Transaction records label `commission` as *Agent commission*.
 - **Mobile number or email** (`v23`, `account.js`): register, login and forgot password have a *Mobile Number | Email*
   switch (`.au-via`, `data-via`); the email field (`.au-mail`) has a mail icon where the dial code sits. Only channels
   that can deliver a code are offered (`Account.prefetch()` asks `/api/auth/methods` when the app goes live). The code

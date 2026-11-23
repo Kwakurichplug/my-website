@@ -1339,25 +1339,11 @@
       },
       refer: () => {
         const R = LIVE ? state.referrals : null, code = LIVE ? ((R && R.code) || u.refCode || '…') : 'LB' + u.uid, reward = R ? R.reward : C.referral;
-        // the sign-up link fills in the code (account.js reads ?ref=)
-        const link = (/^https?:$/.test(location.protocol) ? location.origin + '/' : 'https://letbetafrika.online/') + '?ref=' + code + '#/register';
-        const msg = encodeURIComponent(`Join me on LetBetAfrika – bonuses on your first 3 deposits. Sign up with my link: ${link} (or use my code ${code})`);
-        // agents (set by LetBetAfrika): commission on their players instead of the flat reward
-        const ag = R && R.agent, on = ag && ({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' })[ag.basis];
-        const how = ag && (ag.basis === 'revenue' ? `You earn ${ag.rate}% of what your players lose – their stakes minus their winnings and bonuses, counted when bets settle.`
-          : ag.basis === 'deposits' ? `You earn ${ag.rate}% of every deposit your players make.` : `You earn ${ag.rate}% of everything your players stake on settled bets and games.`);
-        const agentHTML = ag ? `<div class="ag-card">
-            <div class="ag-top"><span class="ag-badge">Agent</span><b>${ag.rate}% of your players' ${on}</b></div>
-            <div class="ag-due"><small>Commission this period</small><b>${money(ag.commission)}</b><span>Since ${new Date(ag.since).toLocaleDateString(C.locale, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-            <div class="ref-stats"><div><b>${ag.players}</b><small>Players</small></div><div><b>${ag.active}</b><small>Active this period</small></div><div><b>${whole(ag.base)}</b><small>${on[0].toUpperCase() + on.slice(1)}</small></div></div>
-            <p class="ag-note">${how} LetBetAfrika pays your commission into your balance. Paid so far: <b>${money(ag.paid)}</b>.</p>
-            ${ag.payouts.length ? `<div class="ag-pay">${ag.payouts.map(x => `<div><span>${new Date(x.at).toLocaleDateString(C.locale, { day: 'numeric', month: 'short' })}</span><b>+${money(x.amount)}</b></div>`).join('')}</div>` : ''}
-          </div>` : '';
-        return `<div class="card-pad refer">${agentHTML}<p>${ag ? 'Share your code or link. Everyone who signs up with it becomes your player.' : `Invite friends. When a friend who signed up with your code has staked <b>${whole(reward)}</b> or more on sports bets, you get <b>${whole(reward)}</b> in cash.`}</p>
+        const msg = encodeURIComponent(`Join me on LetBetAfrika – bonuses on your first 3 deposits. Use my code ${code} when you sign up: ${location.origin}`);
+        return `<div class="card-pad refer"><p>Invite friends. When a friend who signed up with your code has staked <b>${whole(reward)}</b> or more on sports bets, you get <b>${whole(reward)}</b> in cash.</p>
           <div class="code-box"><span>Your code</span><b>${code}</b><button class="btn btn-accent sm" data-copy="${code}">Copy</button></div>
-          <div class="code-box link"><span>Your link</span><b>${esc(link)}</b><button class="btn btn-accent sm" data-copy="${esc(link)}">Copy</button></div>
           <a class="btn btn-ghost block mt" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a>
-          ${ag ? '' : `<div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div>`}</div>`;
+          <div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div></div>`;
       },
       agent: () => {
         if (!u.isAgent) return '<div class="empty">This page is for LetBetAfrika agents.</div>';
@@ -1964,7 +1950,7 @@
     if (d.cat) { state.list = d.cat; state.sport = 'football'; renderHome(); return $('.sports-block').scrollIntoView({ behavior: 'smooth' }); }
     if (d.res) { state.resSport = d.res; return renderResults(); }
     if (d.txf) { state.txFilter = d.txf; return renderAcct('tx'); }
-    if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast(/^https?:/.test(d.copy) ? 'Link copied' : 'Code copied'); }
+    if (d.copy) { navigator.clipboard?.writeText(d.copy).catch(() => {}); return toast('Code copied'); }
     if (d.break) { if (!state.user) return openModal('loginModal'); if (LIVE) { const days = { '24 hours': 1, '7 days': 7, '30 days': 30, '6 months': 182 }[d.break] || 1; API.auth.limits({ selfExclude: new Date(Date.now() + days * 864e5).toISOString() }).then(() => toast(`Your break has started (${d.break})`)).catch(e => toast(apiErr(e), 'err')); return; } return toast(`Self-exclusion request for ${d.break} received`); }
     if (d.soon) { e.preventDefault(); return toast(`${d.soon} is coming soon`); }
     if ('chat' in d) return toast('Live chat will connect to your support desk');

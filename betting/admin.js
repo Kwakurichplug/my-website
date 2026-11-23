@@ -14,8 +14,6 @@
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
     trade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
     ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/></svg>',
-    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3.5-5-1s3.5 1 5 1c1.5 0 5 1.5 5-1s-3.5-2-5 1"/></svg>',
-    agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.6"/><circle cx="5" cy="18.5" r="2.6"/><circle cx="19" cy="18.5" r="2.6"/><path d="M12 7.6V12M12 12l-5.4 4.3M12 12l5.4 4.3"/></svg>',
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 0 1 6-4.6"/></svg>',
     card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
     ledger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
@@ -59,7 +57,7 @@
   const P_EV = { live: ['live', 'Live'], scheduled: ['info', 'Upcoming'], finished: ['', 'Finished'], cancelled: ['bad', 'Cancelled'] };
   const P_USER = { active: ['ok', 'Active'], suspended: ['bad', 'Suspended'], self_excluded: ['warn', 'Self-excluded'] };
   const P_GAME = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], cashed: ['ok', 'Cashed'], void: ['warn', 'Void'] };
-  const ERR = { reference_required: 'Enter the transfer reference from your bank or MoMo app – each transfer can be credited only once.', bad_image: 'That file is not a picture.', duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
+  const ERR = { reference_required: 'Enter the transfer reference from your bank or MoMo app – each transfer can be credited only once.', bad_image: 'That file is not a picture.', duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
   Object.assign(ERR, { not_pending: 'Someone already handled this one – the list is refreshed.', reason_required: 'Write the reason the player will see.',
     api_payment: 'Paid through the payment API – it is settled automatically.', api_not_configured: 'The payment API is not connected yet.', already_sent: 'This payout was already sent.',
     payout_failed: 'The payment API refused the payout.', review_required: 'Open Review and check the account first.', checks_failed: 'Red flags on this account – tick that you checked them to approve.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
@@ -231,7 +229,7 @@
         <div class="page-actions"><form class="search" id="pq"><i>${IC.search}</i><input placeholder="Search players" value="${esc(q)}"></form></div></div>
       <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Player</th><th>Contact</th><th>Status</th><th>KYC</th><th>Role</th><th class="r">Balance</th><th>Joined</th><th></th></tr></thead><tbody>
         ${users.map(u => `<tr class="click" data-user="${u.id}"><td><div class="who"><b>${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid}</small></div></td><td><div class="who">${flag(u.country)}${esc(phoneFmt(u.country, u.phone))}<small>${esc(u.email || '')}</small></div></td>
-          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : u.agent ? pill('g', { g: ['info', 'Agent'] }) : '<span class="muted">Player</span>'}</td>
+          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : '<span class="muted">Player</span>'}</td>
           <td class="r amt">${money(u.balance, u.country)}</td><td class="muted">${when(u.created_at)}</td><td><div class="acts"><button class="btn xs" data-user="${u.id}">Open</button></div></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No players found</b>Try another phone number or ID.</div></td></tr>'}
       </tbody></table></div></div>`;
     $('#pq').onsubmit = e => { e.preventDefault(); location.hash = '#/players/' + encodeURIComponent($('#pq input').value.trim()); };
@@ -275,111 +273,7 @@
     state.drawer = { type: 'user', id }; state.drawerUser = u; state.drawerPays = d.payments;
   }
 
-  /* ---------- Agents: players who bring in players and earn the commission you set ---------- */
-  const basisShort = a => `${Number(a.rate)}% of ${a.basis === 'revenue' ? 'net revenue' : a.basis === 'deposits' ? 'deposits' : 'stakes'}`;
-  const BASIS_OPTS = { revenue: 'Net revenue – what their players lose (recommended)', deposits: 'Deposits – what their players pay in', stakes: 'Stakes – everything their players bet' };
-  const refreshDrawer = () => { if (!state.drawer || !$('#drawer').classList.contains('open')) return; if (state.drawer.type === 'user') openUser(state.drawer.id); else if (state.drawer.type === 'agent') openAgent(state.drawer.id); };
-  PAGES.agents = async main => {
-    const { agents } = await API.admin.agents();
-    state.agents = new Map(agents.map(a => [a.user_id, a]));
-    const due = cc => agents.filter(a => a.active && a.country === cc).reduce((s, a) => s + a.commission, 0);
-    main.innerHTML = `
-      <div class="page-head"><div><h2>Agents</h2><p>Players you made agents. Their players are the people who signed up with their code or link. They earn the commission you set on what those players do, counted from the start of the unpaid period. You pay it into the agent’s balance when you decide; each payment starts a new period. Agents get this instead of the Refer &amp; Earn reward.</p></div>
-        <div class="page-actions">${['NG', 'GH'].map(cc => `<span class="chip">${flag(cc)}Due ${money(due(cc), cc)}</span>`).join('')}<button class="btn primary" data-agent-new="1">Add agent</button></div></div>
-      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Agent</th><th>Commission</th><th class="r">Players</th><th>Unpaid since</th><th class="r">This period</th><th class="r">Due</th><th class="r">Paid so far</th><th>Status</th><th></th></tr></thead><tbody>
-        ${agents.map(a => { const cc = a.country; return `<tr class="click" data-agent="${a.user_id}"><td><div class="who"><b>${esc(a.full_name || 'No name yet')}</b><small>ID ${a.uid} · ${flag(cc)}${esc(a.phone ? phoneFmt(cc, a.phone) : a.email || '')}</small></div></td>
-          <td>${esc(basisShort(a))}</td><td class="r">${int(a.players)}<div class="small muted">${int(a.totals.active)} active</div></td><td class="muted">${when(a.period_start)}<div class="small">${ago(a.period_start)}</div></td>
-          <td class="r">${money(a.base, cc)}<div class="small muted">${esc(a.basisName)}</div></td><td class="r amt ${a.commission > 0 ? 'in' : ''}"><b>${money(a.commission, cc)}</b></td><td class="r">${money(a.paid_total, cc)}</td>
-          <td>${a.active ? pill('a', { a: ['ok', 'Active'] }) : pill('r', { r: ['', 'Removed'] })}</td>
-          <td><div class="acts">${a.active ? `<button class="btn xs primary" data-agent-pay="${a.user_id}">Pay</button>` : ''}<button class="btn xs" data-agent-edit="${a.user_id}">${a.active ? 'Edit' : 'Restore'}</button></div></td></tr>`; }).join('')
-          || '<tr><td colspan="9"><div class="empty"><b>No agents yet</b>Press “Add agent”, or open a player and press “Make agent”.</div></td></tr>'}
-      </tbody></table></div></div>`;
-  };
-  // make a player an agent, change their commission, restore or remove them; id = null picks the player first
-  async function agentModal(id) {
-    let a = null, u = null;
-    if (id) {
-      try { a = (await API.admin.agent(id)).agent; } catch { a = null; }
-      u = a ? { id: a.user_id, uid: a.uid, full_name: a.full_name, country: a.country, phone: a.phone, email: a.email } : state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
-      if (!u) { try { u = (await API.admin.user(id)).user; } catch (e) { return toast(errMsg(e), 'err'); } }
-    }
-    const due = a && a.active ? (state.agents && state.agents.get(a.user_id) || {}).commission || 0 : 0;
-    const form = () => `
-      <h3>${a && a.active ? 'Agent commission' : a ? 'Restore this agent' : 'Make an agent'}</h3>
-      <p class="sub">${u ? `${esc(u.full_name || 'No name yet')} · ID ${u.uid} · ${flag(u.country)}${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')} · referral code LB${u.uid}` : 'Find the player who will bring in other players.'}</p>
-      ${u ? '' : `<form class="search ag-find" id="agFind"><i>${IC.search}</i><input placeholder="Phone, ID, name or email – then press Enter"></form><div id="agHits" class="ag-hits"></div>`}
-      <label class="field"><span>Commission is paid on</span><select id="agBasis">${Object.entries(BASIS_OPTS).map(([k, l]) => `<option value="${k}" ${(a ? a.basis : 'revenue') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="field"><span>Rate (%)</span><input id="agRate" type="number" min="0.1" max="100" step="0.1" value="${a ? a.rate : 20}"></label>
-      <p class="sub small" id="agEx"></p>
-      <label class="field"><span>Note (optional – only admins see it)</span><input id="agNote" maxlength="200" value="${esc((a && a.note) || '')}"></label>
-      ${a && a.active && due > 0 ? `<p class="form-err">${money(due, a.country)} commission is unpaid. Pay it before removing the agent, or it is dropped.</p>` : ''}
-      <div class="m-actions">${a && a.active ? '<button class="btn danger" id="agRemove" type="button">Remove agent</button><span class="spacer"></span>' : ''}<button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo" ${u ? '' : 'disabled'}>${a && a.active ? 'Save' : 'Make agent'}</button></div>`;
-    const ex = () => {
-      const r = +$('#agRate').value || 0, b = $('#agBasis').value, cc = (u && u.country) || 'NG', x = cc === 'GH' ? 1000 : 100000;
-      $('#agEx').textContent = `Example: if their players ${b === 'revenue' ? 'lose' : b === 'deposits' ? 'deposit' : 'stake'} ${money(x, cc)} in a period, the agent earns ${money(x * r / 100, cc)}.`;
-    };
-    const bind = () => {
-      $('#agRate').oninput = ex; $('#agBasis').onchange = ex; ex();
-      if ($('#agFind')) {
-        $('#agFind input').focus();
-        $('#agFind').onsubmit = async e => {
-          e.preventDefault(); const s = $('#agFind input').value.trim(); if (!s) return;
-          const list = await API.admin.users(s).catch(() => []);
-          $('#agHits').innerHTML = list.slice(0, 6).map(x => `<button type="button" class="ag-hit" data-pick="${x.id}"><b>${esc(x.full_name || 'No name yet')}</b><small>ID ${x.uid} · ${flag(x.country)}${esc(x.phone ? phoneFmt(x.country, x.phone) : x.email || '')}${x.agent ? ' · already an agent' : ''}</small></button>`).join('') || '<p class="muted small">No player found.</p>';
-          $$('#agHits [data-pick]').forEach(b => b.onclick = () => { closeModal(); agentModal(b.dataset.pick); });
-        };
-      }
-      if ($('#agRemove')) $('#agRemove').onclick = async () => {
-        try { await API.admin.saveAgent(a.user_id, { rate: a.rate, basis: a.basis, active: false, ...(a.note ? { note: a.note } : {}) }); closeModal(); toast('Agent removed', 'ok'); render(true); refreshDrawer(); }
-        catch (e) { toast(errMsg(e), 'err'); }
-      };
-      $('#mGo').onclick = async () => {
-        const rate = +$('#agRate').value; if (!(rate > 0 && rate <= 100)) return $('#agRate').focus();
-        const note = $('#agNote').value.trim();
-        try { $('#mGo').disabled = true; await API.admin.saveAgent(u.id, { rate, basis: $('#agBasis').value, active: true, ...(note ? { note } : {}) }); closeModal(); toast(a && a.active ? 'Commission saved' : 'Agent added', 'ok'); if (state.page === 'agents') render(true); refreshDrawer(); }
-        catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
-      };
-    };
-    openModal(form()); bind();
-  }
-  async function agentPayModal(id) {
-    const d = await API.admin.agent(id), a = d.agent, p = d.period, cc = a.country;
-    openModal(`<h3>Pay commission</h3>
-      <p class="sub">${esc(a.full_name || 'No name yet')} · ID ${a.uid} · ${esc(basisShort(a))}. The money goes into the agent’s balance (they can bet or withdraw it) and a new period starts.</p>
-      <dl class="kv"><dt>Period</dt><dd>${when(p.from)} – now</dd><dt>Players</dt><dd>${int(p.players.length)} (${int(p.totals.active)} active)</dd>
-        <dt>Deposits</dt><dd>${money(p.totals.deposits, cc)}</dd><dt>Stakes</dt><dd>${money(p.totals.staked, cc)}</dd><dt>Winnings paid</dt><dd>${money(p.totals.returned, cc)}</dd>${p.totals.bonus ? `<dt>Bonuses released</dt><dd>${money(p.totals.bonus, cc)}</dd>` : ''}<dt>Net revenue</dt><dd>${money(p.totals.revenue, cc)}</dd>
-        <dt>Commission</dt><dd><b>${money(p.commission, cc)}</b> · ${a.rate}% of ${money(p.base, cc)}</dd></dl>
-      <label class="field"><span>Amount to pay (${SYM[cc]}) – you decide</span><input id="mAmt" type="number" min="0" step="0.01" value="${p.commission.toFixed(2)}"></label>
-      <label class="field"><span>Note (optional)</span><input id="mNote" maxlength="200"></label>
-      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn primary" id="mGo"></button></div>`);
-    const upd = () => { const v = +$('#mAmt').value; $('#mGo').textContent = v > 0 ? 'Pay ' + money(v, cc) : 'Close the period without paying'; };
-    $('#mAmt').oninput = upd; upd();
-    $('#mGo').onclick = async () => {
-      const v = +$('#mAmt').value; if (!(v >= 0)) return $('#mAmt').focus();
-      const n = $('#mNote').value.trim();
-      try { $('#mGo').disabled = true; await API.admin.payAgent(id, { amount: Math.round(v * 100) / 100, ...(n ? { note: n } : {}) }); closeModal(); toast(v > 0 ? 'Commission paid into the agent’s balance' : 'Period closed', 'ok'); if (state.page === 'agents') render(true); refreshDrawer(); }
-      catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
-    };
-  }
-  async function openAgent(id) {
-    openDrawer('<div class="loading">Loading agent…</div>');
-    const d = await API.admin.agent(id), a = d.agent, p = d.period, cc = a.country;
-    $('#drawerBody').innerHTML = `
-      <div class="d-head"><span class="avatar">${initials(a)}</span><div><h3>${esc(a.full_name || 'No name yet')}</h3><p>Agent · ID ${a.uid} · ${flag(cc)}${esc(a.phone ? phoneFmt(cc, a.phone) : '')}${a.email ? ' · ' + esc(a.email) : ''}</p></div></div>
-      <div class="d-actions">${a.active ? pill('a', { a: ['ok', 'Active agent'] }) : pill('r', { r: ['', 'Removed'] })} <span class="pill gold plain">${esc(basisShort(a))}</span> <span class="muted small">Referral code LB${a.uid}</span></div>
-      <div class="stat-row"><div class="stat"><small>Due now</small><b>${money(p.commission, cc)}</b></div><div class="stat"><small>${esc(a.basisName)} this period</small><b>${money(p.base, cc)}</b></div><div class="stat"><small>Players</small><b>${int(p.players.length)}</b></div><div class="stat"><small>Paid so far</small><b>${money(a.paid_total, cc)}</b></div></div>
-      <div class="d-actions">${a.active ? `<button class="btn sm primary" data-agent-pay="${a.user_id}">Pay commission</button>` : ''}<button class="btn sm" data-agent-edit="${a.user_id}">${a.active ? 'Change commission' : 'Restore agent'}</button><button class="btn sm" data-user="${a.user_id}">Open player</button></div>
-      ${a.note ? `<dl class="kv"><dt>Note</dt><dd>${esc(a.note)}</dd></dl>` : ''}
-      <h4 class="d-sub">Players this period <span class="muted small">since ${when(p.from)}</span></h4>
-      <table class="mini"><thead><tr><th>Player</th><th>Joined</th><th class="r">Deposits</th><th class="r">Stakes</th><th class="r">Won</th><th class="r">Net revenue</th></tr></thead><tbody>
-        ${p.players.map(x => `<tr><td><span class="lnk" data-user="${x.id}">${esc(x.full_name || 'ID ' + x.uid)}</span><div class="muted small">ID ${x.uid}</div></td><td class="muted">${when(x.created_at)}</td><td class="r">${money(x.deposits, cc)}</td><td class="r">${money(x.staked, cc)}</td><td class="r">${money(x.returned, cc)}</td><td class="r amt ${x.revenue >= 0 ? 'in' : 'out'}">${money(x.revenue, cc)}</td></tr>`).join('') || `<tr><td colspan="6" class="muted">No players yet – they sign up with code LB${a.uid}.</td></tr>`}
-      </tbody></table>
-      <h4 class="d-sub">Commission paid</h4>
-      <table class="mini"><thead><tr><th>Paid</th><th>Period</th><th class="r">Base</th><th class="r">Commission</th><th class="r">Paid</th></tr></thead><tbody>
-        ${d.payouts.map(x => `<tr><td class="muted">${when(x.created_at)}</td><td class="small">${when(x.period_start)} – ${when(x.period_end)}</td><td class="r">${money(x.base, cc)}</td><td class="r">${money(x.commission, cc)}</td><td class="r amt in">${money(x.amount, cc)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing paid yet.</td></tr>'}
-      </tbody></table>`;
-    state.drawer = { type: 'agent', id };
-  }
+  const refreshDrawer = () => { if (state.drawer && state.drawer.type === 'user' && $('#drawer').classList.contains('open')) openUser(state.drawer.id); };
 
   /* ---------- Deposit 1·2·3 tracker: players with an approved ID, each step marked; those with deposits left first ---------- */
   const LAD_SEG = [['left', 'Deposits left'], ['s0', 'Not started'], ['s1', '1 of 3 done'], ['s2', '2 of 3 done'], ['checking', 'Being checked'], ['s3', 'All 3 done'], ['all', 'All']];
@@ -973,7 +867,7 @@
   PAGES.finance = async main => {
     const [type = '', q = ''] = (state.arg || '').split(':').map(decodeURIComponent);
     const rows = await API.admin.transactions(type || undefined, q || undefined);
-    const TYPES = ['deposit', 'withdrawal', 'bet', 'win', 'refund', 'cashout', 'bonus', 'commission', 'adjustment', 'game_bet', 'game_win', 'transfer_in', 'transfer_out', 'jackpot'];
+    const TYPES = ['deposit', 'withdrawal', 'bet', 'win', 'refund', 'cashout', 'bonus', 'adjustment', 'game_bet', 'game_win', 'transfer_in', 'transfer_out', 'jackpot'];
     main.innerHTML = `
       <div class="page-head"><div><h2>Ledger</h2><p>Every movement of player money, newest first. Balances are the running total after each entry, so the book always reconciles.</p></div></div>
       <div class="card"><div class="toolbar"><div class="seg"><button class="${!type ? 'on' : ''}" data-t="">All</button>${TYPES.map(t => `<button class="${t === type ? 'on' : ''}" data-t="${t}">${t.replace('_', ' ')}</button>`).join('')}</div>
@@ -1491,8 +1385,6 @@
       if (/deposit-request/.test(a)) return `Asked a player to deposit${m.amount ? ' ' + esc(String(m.amount)) : ''}${m.note ? ' – “' + esc(m.note) + '”' : ''}`;
       if (/notices\/:id\/cancel/.test(a)) return 'Cancelled a deposit request';
       if (/users\/:id\/deposits/.test(a)) return `${m.credit ? 'Credited' : 'Added a pending'} deposit for a player – ${esc(String(m.amount))}${m.reference ? ' · ref ' + esc(m.reference) : ''}`;
-      if (/agents\/:id\/pay/.test(a)) return `Paid agent commission${m.amount != null ? ' – ' + esc(String(m.amount)) : ''}${m.note ? ' – ' + esc(m.note) : ''}`;
-      if (/agents/.test(a)) return m.active === false ? 'Removed an agent' : `Set agent commission – ${esc(String(m.rate))}% of ${esc({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' }[m.basis] || '')}`;
       if (/payment-settings/.test(a)) return `Changed payment settings${m.NG && m.NG.bank ? ` · Nigeria account ${esc(m.NG.bank.bank || '')} ${esc(m.NG.bank.number || '')}` : ''}`;
       if (/payout/.test(a)) return `Sent payout ${esc((l.target || '').split('/')[0].slice(0, 8))} through the payment API`;
       if (/kyc/.test(a)) return `${m.approve ? 'Approved' : 'Rejected'} ID check${m.reason ? ' – ' + esc(m.reason) : ''}`;
@@ -1611,7 +1503,7 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-pay],[data-review],[data-agent-set],[data-agpay],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price],[data-lad-req],[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-payout]');
+      const b = t.closest('[data-pay],[data-review],[data-agent-set],[data-agpay],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price],[data-lad-req],[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-payout]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
@@ -1621,10 +1513,6 @@
       if (d.addDep) return addDepositModal(d.addDep);
       if (d.reqDep) return requestDepositModal(d.reqDep);
       if (d.cancelReq) { API.admin.cancelNotice(d.cancelReq).then(() => { toast('Request cancelled', 'ok'); refreshDrawer(); }).catch(err => toast(errMsg(err), 'err')); return; }
-      if (d.agentPay) return agentPayModal(d.agentPay).catch(err => toast(errMsg(err), 'err'));
-      if (d.agentEdit) return agentModal(d.agentEdit).catch(err => toast(errMsg(err), 'err'));
-      if (d.agentNew) return agentModal(null).catch(err => toast(errMsg(err), 'err'));
-      if (d.agent) return openAgent(d.agent).catch(err => toast(errMsg(err), 'err'));
       if (d.pay) return payAction(d.id, d.pay);
       if (d.review) return reviewModal(d.review);
       if (d.agentSet) { const on = d.v === 'true'; if (!on && !confirm('Stop this agent? Their players stay linked to them, but new sign-ups and new first deposits no longer earn them anything.')) return;

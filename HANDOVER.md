@@ -58,9 +58,8 @@ Never copy another operator's brand assets – we match their quality and layout
 | `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash), **payments** (Paystack webhook). |
 | `server/src/lib/payments.js` | **Ways to pay per country** (what the deposit page offers, limits, the bank account / MoMo wallet the admin sets, the player's reference `LB` + account ID). |
 | `server/src/payments/` | `paystack.js` (Paystack API: MoMo charge, OTP, verify, transfers, balance, webhook signature), `flows.js` (credit / fail a deposit, payout result – idempotent, one row lock). |
-| `server/src/lib/agents.js` | **Sub-agents**: commission per agent (rate + basis: net revenue, deposits or stakes) on the players who signed up with their code, counted on settled play from the start of the unpaid period; `pay()` credits the agent through the ledger (`commission`) and starts a new period. |
 | `server/src/lib/admins.js`, `server/scripts/make-admin.js` | Admin accounts: `ADMIN_EMAILS` at boot / sign-up / login; promote or demote from a shell. |
-| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js`, `agents-api.test.js` (money-flow integration). |
+| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js` (money-flow integration). |
 | `docs/ADMIN.md` | **Admin portal guide** – access, the daily deposit/withdrawal routine, every page. |
 | `docs/QUALITY-BAR.md` | **Definition of Done** – professional acceptance checklist for every area. |
 | `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
@@ -251,16 +250,6 @@ Earn reward per country (₦1,000 / GH₵10).
   queue (confirm / mark paid / send via Paystack / reject with quick reasons), ID checks, payment settings (the bank
   account and limits – editable), players (drawer with deposit reference, ID details, balance adjustment, suspend,
   make admin), trading desk, bets, ledger, games, jackpot, settings, email, and an audit log in plain words.
-- **Sub-agents** (`lib/agents.js`, portal *Agents*): an admin makes any player an agent and sets the commission – a
-  rate on their players' **net revenue** (stakes − winnings − bonuses released; never below 0), **deposits** or
-  **stakes**. Their players are the people who signed up with the agent's code `LB<ID>` or link
-  `https://letbetafrika.online/?ref=LB<ID>#/register` (the link fills the code in). Only settled play counts (an open
-  bet counts when it settles; void bets and cancelled games never), from the start of the unpaid period – activity
-  before someone became an agent earns nothing. The admin pays when they decide (the amount is editable; 0 closes the
-  period unpaid) into the agent's balance (ledger `commission`, ref `AG<payout id>`), which starts a new period.
-  Agents get this **instead of** the flat Refer & Earn reward. The agent sees their rate, players, this period's
-  commission and what was paid on Me → Refer & Earn (totals only – never other players' details). Every change is
-  in the audit log. Tables `agents`, `agent_payouts`. Tests: `server/test/agents-api.test.js`, `tools/qa/e2e_agents.js`.
 - **Money**: register/login, deposit, withdraw, transfer to friend, bets single/multiple with win boost, cashout,
   booking codes. Payout tests pass (exact to the cent, void legs, refunds, cashout, no double pay, ledger = balance).
 - **All 11 games are live for real money** – see §6. Nothing simulated in live mode: Rocket Crash shows only real

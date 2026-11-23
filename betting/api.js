@@ -154,10 +154,6 @@
       depositRequest: (id, body) => post(`/admin/users/${id}/deposit-request`, body || {}),   // { amount?, note? } → pop-up + email
       cancelNotice: id => post(`/admin/notices/${id}/cancel`),   // support: { amount, sender?, reference?, note?, credit }
       ladder: (cc, q) => get('/admin/ladder?' + new URLSearchParams({ ...(cc ? { cc } : {}), ...(q ? { q } : {}) })),   // Deposit 1·2·3 tracker
-      agents: () => get('/admin/agents'),                                   // { agents, bases }
-      agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
-      saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }
-      payAgent: (id, body) => post(`/admin/agents/${id}/pay`, body || {}),  // { amount?, note? }
       bets: status => get('/admin/bets' + (status ? '?status=' + status : '')).then(r => r.bets),
       voidBet: id => post(`/admin/bets/${id}/void`),
       market: (eventId, key, d) => post(`/admin/markets/${eventId}/${key}`, d),
