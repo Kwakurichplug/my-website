@@ -1,4 +1,4 @@
-// Integration: welcome bonus, Refer & Earn, Code Hub feed and the Acca Win Boost rule – real money through the API.
+// Integration: deposit bonuses 1 · 2 · 3, Refer & Earn, Code Hub feed and the Acca Win Boost rule – real money through the API.
 // Needs a running server on a TEST database with PAYMENTS_MODE=demo:
 //   API_URL=… DATABASE_URL=… node --test test/account-api.test.js
 import { test, before, after } from 'node:test';
@@ -37,20 +37,28 @@ before(async () => {
 });
 after(() => db.end());
 
-test('welcome bonus: 200% of the first deposit, locked, released after 5× turnover on 1.50+ multiples', async () => {
-  const { token } = await newUser({ deposit: 1000 });
+test('deposit bonuses 1 · 2 · 3: only after the ID check, three bonuses, locked; a stake counts towards one bonus at a time', async () => {
+  const { token, user } = await newUser({ deposit: 1000 });   // deposited before the ID check: no bonus
   let b = await api('/wallet/bonuses', null, token);
-  const wb = b.bonuses.find(x => x.kind === 'welcome');
-  assert.ok(wb, 'bonus granted on the first deposit');
-  assert.equal(wb.amount, 2000); assert.equal(wb.required, 10000); assert.equal(wb.status, 'active');
-  assert.equal(await balance(token), 1000, 'the bonus is locked, not in the balance');
-  await api('/wallet/deposit', { amount: 20000, method: 'card' }, token);
+  assert.equal(b.bonuses.length, 0, 'no bonus before the ID is approved');
+  assert.equal(b.ladder.unlocked, false); assert.equal(b.ladder.steps[0].status, 'locked');
+  await db.query('UPDATE users SET verified=true WHERE id=$1', [user.id]);
   b = await api('/wallet/bonuses', null, token);
-  assert.equal(b.bonuses.length, 1, 'only the first deposit earns the bonus');
+  assert.equal(b.ladder.unlocked, true); assert.equal(b.ladder.next, 1);
+  const opts = await api('/wallet/options', null, token);
+  assert.deepEqual(opts.ladder.steps.map(x => x.pct), [200, 100, 50], 'the deposit page gets the ladder');
+  for (const amount of [1000, 2000, 4000, 5000]) await api('/wallet/deposit', { amount, method: 'card' }, token);
+  b = await api('/wallet/bonuses', null, token);
+  const k = kind => b.bonuses.find(x => x.kind === kind);
+  assert.deepEqual(['deposit1', 'deposit2', 'deposit3'].map(x => k(x) && k(x).amount), [2000, 2000, 2000], '200% of 1,000 · 100% of 2,000 · 50% of 4,000');
+  assert.equal(b.bonuses.length, 3, 'the 4th deposit earns nothing');
+  assert.equal(k('deposit1').required, 10000); assert.equal(k('deposit1').status, 'active');
+  assert.equal(await balance(token), 13000, 'bonuses are locked, not in the balance');
+  assert.deepEqual(b.ladder.steps.map(x => x.status), ['active', 'active', 'active']);
 
-  // a multiple with a leg under 1.50 does not count; two 1.50+ multiples of 5,000 do
+  // a multiple with a leg under 1.50 does not count; two 1.50+ multiples of 5,000 release deposit 1 only
   const [e1, e2, e3, e4, e5, e6] = open1x2();
-  const low = (() => { const o = e5.markets.find(m => m.key === '1x2').outcomes; const k = ['1', 'X', '2'].sort((x, y) => o[x].o - o[y].o)[0]; return { eventId: e5.id, market: '1x2', outcome: k, odd: o[k].o }; })();
+  const low = (() => { const o = e5.markets.find(m => m.key === '1x2').outcomes; const x = ['1', 'X', '2'].sort((a, c) => o[a].o - o[c].o)[0]; return { eventId: e5.id, market: '1x2', outcome: x, odd: o[x].o }; })();
   const s1 = [pick(e1), pick(e2)], s2 = [pick(e3), pick(e4)];
   assert.ok(s1.every(Boolean) && s2.every(Boolean), 'fixtures with a price of 1.50+');
   await multiple(token, s1, 5000); await multiple(token, s2, 5000);
@@ -59,11 +67,12 @@ test('welcome bonus: 200% of the first deposit, locked, released after 5× turno
   for (const e of [e1, e2, e3, e4, e5, e6]) await finish(e, 1, 0);
   await sleep(300);
   b = await api('/wallet/bonuses', null, token);
-  const after = b.bonuses.find(x => x.kind === 'welcome');
-  assert.equal(after.status, 'released', 'released once 10,000 was staked on qualifying multiples');
-  const tx = (await api('/wallet/transactions', null, token)).transactions.find(t => t.type === 'bonus');
-  assert.ok(tx && tx.amount === 2000, 'the bonus is paid into the balance');
-  const bets = (await api('/bets?status=settled', null, token)).bets, won = bets.reduce((s, x) => s + (x.status === 'won' ? +x.paid : 0), 0);
+  assert.equal(k('deposit1') && b.bonuses.find(x => x.kind === 'deposit1').status, 'released', 'deposit 1 released once 10,000 was staked on qualifying multiples');
+  assert.equal(b.bonuses.find(x => x.kind === 'deposit2').wagered, 0, 'the same stake never counts towards two bonuses');
+  assert.equal(b.bonuses.find(x => x.kind === 'deposit3').wagered, 0);
+  const tx = (await api('/wallet/transactions', null, token)).transactions.filter(t => t.type === 'bonus');
+  assert.ok(tx.length === 1 && tx[0].amount === 2000, 'only deposit 1 is paid into the balance');
+  const bets = (await api('/bets?status=settled', null, token)).bets, won = bets.reduce((sum, x) => sum + (x.status === 'won' ? +x.paid : 0), 0);
   assert.equal(await balance(token), r2(before + won + 2000));
 });
 
@@ -116,4 +125,17 @@ test('Acca Win Boost counts only selections at odds 1.20+', async () => {
   if (mixed.length < 3) return;
   const b = (await multiple(token, mixed, 100)).bets[0];
   assert.equal(b.boost, 0, 'a selection under 1.20 does not count towards the boost');
+});
+
+test('no double bonus: a player who already had the old welcome bonus continues the ladder at Deposit 2', async () => {
+  const { token, user } = await newUser();
+  await db.query('UPDATE users SET verified=true WHERE id=$1', [user.id]);
+  await db.query(`INSERT INTO bonuses (user_id, kind, amount, required, expires_at) VALUES ($1, 'welcome', 2000, 10000, now() + interval '14 days')`, [user.id]);
+  let o = await api('/wallet/options', null, token);
+  assert.equal(o.ladder.steps[0].status, 'active', 'the welcome bonus stands in for Deposit 1'); assert.equal(o.ladder.next, 2);
+  for (const amount of [2000, 4000, 8000]) await api('/wallet/deposit', { amount, method: 'card' }, token);
+  const b = (await api('/wallet/bonuses', null, token)).bonuses;
+  assert.deepEqual(b.map(x => x.kind).sort(), ['deposit2', 'deposit3', 'welcome'], 'three bonuses in all – never four');
+  assert.equal(b.find(x => x.kind === 'deposit2').amount, 2000, '100% of 2,000');
+  assert.equal(b.find(x => x.kind === 'deposit3').amount, 2000, '50% of 4,000');
 });

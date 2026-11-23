@@ -10,7 +10,7 @@ import { sendEmail, deliver, emailProvider, render, emailStatus, checkEmail, log
 import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
 import * as crash from '../games/crash.js';
-import { creditDeposit } from '../lib/bonus.js';
+import { creditDeposit, ladderOf } from '../lib/bonus.js';
 import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS, referenceOf } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
 import { BASES, period as agentPeriod, pay as payAgent } from '../lib/agents.js';
@@ -18,6 +18,7 @@ import { notify, closeDepositRequests } from '../lib/notices.js';
 import { options as payOptions } from '../lib/payments.js';
 
 const r = Router();
+const DB = { query: (t, p) => q(t, p) };
 r.use(requireAdmin);
 
 // every change made from the portal is written to admin_log (who, what, on which record)
@@ -72,7 +73,7 @@ r.get('/users/:id', async (req, res, next) => {
       q(`SELECT id, data, created_at, expires_at FROM notices WHERE user_id=$1 AND kind='deposit_request' AND done_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at DESC`, [u.id]),
     ]);
     const agent = ag.rows[0] ? { ...ag.rows[0], rate: Number(ag.rows[0].rate), basisName: BASES[ag.rows[0].basis] } : null;
-    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0], agent, referrer: ref.rows[0] || null, requests: reqs.rows });
+    res.json({ user: { ...u, balance: Number(u.balance) }, payments: pay.rows.map(x => ({ ...x, amount: Number(x.amount), methodName: methodName(x.method) })), bets: bets.rows, transactions: tx.rows, games: games.rows, totals: sums.rows[0], agent, referrer: ref.rows[0] || null, requests: reqs.rows, ladder: await ladderOf(u) });
   } catch (e) { next(e); }
 });
 
@@ -269,6 +270,7 @@ r.post('/users/:id/deposits', async (req, res, next) => {
     credit: z.boolean().default(false) }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   const d = p.data, amount = Math.round(d.amount * 100) / 100, now = new Date().toISOString();
+  if (d.credit && !(d.reference || '').length) return res.status(400).json({ error: 'reference_required' });   // credited once per transfer reference
   try {
     const out = await tx(async c => {
       const u = (await c.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
@@ -298,9 +300,20 @@ r.get('/payments', async (req, res, next) => {
     if (st === 'done') where.push("p.status <> 'pending'");
     else if (st !== 'all') { params.push(String(st)); where.push(`p.status=$${params.length}`); }
     if (kind) { params.push(kind); where.push(`p.kind=$${params.length}`); }
-    const { rows } = await q(`SELECT p.*, u.phone, u.email, u.full_name, u.country, u.uid, u.verified, u.balance AS user_balance, u.limits->'kyc'->>'status' AS kyc
+    const { rows } = await q(`SELECT p.*, u.phone, u.email, u.full_name, u.country, u.uid, u.verified, u.balance AS user_balance,
+        EXISTS (SELECT 1 FROM payment_proofs x WHERE x.payment_id = p.id) AS has_proof, u.limits->'kyc'->>'status' AS kyc
       FROM payments p JOIN users u ON u.id=p.user_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${st === 'pending' ? 'p.created_at' : 'p.updated_at DESC'} LIMIT 200`, params);
     res.json({ payments: rows.map(x => ({ ...x, amount: Number(x.amount), user_balance: Number(x.user_balance), methodName: methodName(x.method) })) });
+  } catch (e) { next(e); }
+});
+
+// the transfer screenshot a player added to a deposit
+r.get('/payments/:id/proof', async (req, res, next) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  try {
+    const { rows } = await q('SELECT mime, data FROM payment_proofs WHERE payment_id=$1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.set({ 'content-type': rows[0].mime, 'cache-control': 'private, max-age=300', 'x-content-type-options': 'nosniff' }).send(rows[0].data);
   } catch (e) { next(e); }
 });
 
@@ -315,7 +328,8 @@ r.post('/payments/:id/:action', async (req, res, next) => {
     await tx(async c => {
       const { rows } = await c.query('SELECT * FROM payments WHERE id=$1 AND status=\'pending\' FOR UPDATE', [req.params.id]);
       const p = rows[0]; if (!p) throw Object.assign(new Error('not_pending'), { status: 409 });
-      if (p.provider === 'paystack' && p.kind === 'deposit') throw Object.assign(new Error('api_payment'), { status: 409 });   // the payment API settles these itself
+      if (p.provider === 'paystack' && p.kind === 'deposit') throw Object.assign(new Error('api_payment'), { status: 409 });
+      if (p.kind === 'deposit' && action === 'approve' && !(b.data.reference || '').length) throw Object.assign(new Error('reference_required'), { status: 400 });   // the payment API settles these itself
       const ok = action === 'approve';
       // a deposit is credited with what actually arrived (the admin may correct the amount the player typed)
       const amount = p.kind === 'deposit' && ok && b.data.amount ? Math.round(b.data.amount * 100) / 100 : Number(p.amount);
@@ -372,6 +386,8 @@ r.post('/users/:id/kyc', async (req, res, next) => {
     const { rows } = await q(`UPDATE users SET verified=$2, limits = jsonb_set(coalesce(limits,'{}'::jsonb), '{kyc}', coalesce(limits->'kyc','{}'::jsonb) || $3::jsonb) WHERE id=$1 RETURNING *`,
       [req.params.id, p.data.approve, JSON.stringify({ status: st, decidedAt: new Date().toISOString(), ...(p.data.reason ? { reason: p.data.reason } : {}) })]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    await q(`UPDATE notices SET done_at=now() WHERE user_id=$1 AND kind IN ('kyc_approved','kyc_rejected') AND done_at IS NULL`, [rows[0].id]);
+    await notify(DB, rows[0].id, p.data.approve ? 'kyc_approved' : 'kyc_rejected', p.data.approve ? {} : { reason: p.data.reason }, req.user.id);
     res.json({ ok: true, status: st });
     sendEmail(p.data.approve ? 'kycVerified' : 'kycRejected', rows[0], { reason: p.data.reason });
   } catch (e) { next(e); }
@@ -448,12 +464,16 @@ r.post('/events/:id/result', async (req, res, next) => {
 r.get('/settings', async (_req, res, next) => {
   try { const { rows } = await q('SELECT key, value FROM settings'); res.json(Object.fromEntries(rows.map(x => [x.key, x.value]))); } catch (e) { next(e); }
 });
+const LADDER = z.object({ enabled: z.boolean(), requireId: z.boolean(),
+  NG: z.array(z.object({ pct: z.number().min(0).max(500), max: z.number().min(0).max(1e7) })).length(3),
+  GH: z.array(z.object({ pct: z.number().min(0).max(500), max: z.number().min(0).max(1e5) })).length(3),
+  times: z.number().min(1).max(50), min_odds: z.number().min(1.01).max(10), days: z.number().int().min(1).max(90) });
 r.put('/settings/:key', async (req, res, next) => {
+  if (req.params.key === 'deposit_bonuses' && !LADDER.safeParse(req.body.value).success) return res.status(400).json({ error: 'invalid' });
   try { await setSetting(req.params.key, req.body.value); res.json({ ok: true, value: await getSetting(req.params.key) }); } catch (e) { next(e); }
 });
 
 /* ---------- sub-agents (lib/agents.js): commission on the players they bring in, set and paid by an admin ---------- */
-const DB = { query: (t, p) => q(t, p) };
 const AGENT_SQL = `SELECT a.*, u.uid, u.country, u.phone, u.email, u.full_name, u.balance, u.status, u.role,
     (SELECT count(*)::int FROM users x WHERE x.referred_by = a.user_id) AS players,
     (SELECT coalesce(sum(amount), 0) FROM agent_payouts p WHERE p.agent_id = a.user_id) AS paid_total,

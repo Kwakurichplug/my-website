@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { requireUser } from '../lib/auth.js';
 import { move, debit } from '../lib/wallet.js';
-import { creditDeposit, bonusesOf } from '../lib/bonus.js';
+import { creditDeposit, bonusesOf, ladderOf } from '../lib/bonus.js';
 import { getSetting } from '../lib/settings.js';
 import { sendEmail } from '../emails/index.js';
 import { options, demoMode, methodName, referenceOf, NETWORKS } from '../lib/payments.js';
@@ -20,7 +20,7 @@ const fail = (res, status, error, extra) => res.status(status).json({ error, ...
 const phone9 = z.string().transform(s => s.replace(/\D/g, '').replace(/^233/, '').replace(/^0/, '')).refine(s => s.length === 9, 'bad_phone');
 
 // what this player can use to pay in and out right now (country, limits, bank / MoMo details, their reference)
-r.get('/options', async (req, res, next) => { try { res.json(await options(req.user)); } catch (e) { next(e); } });
+r.get('/options', async (req, res, next) => { try { res.json({ ...(await options(req.user)), ladder: await ladderOf(req.user) }); } catch (e) { next(e); } });
 
 r.get('/', (req, res) => res.json({ balance: Number(req.user.balance), currency: req.user.country === 'GH' ? 'GHS' : 'NGN' }));
 
@@ -140,7 +140,7 @@ r.get('/payments/:id', async (req, res, next) => {
 r.get('/bonuses', async (req, res, next) => {
   try {
     const { rows } = await q(`SELECT count(*)::int AS n FROM transactions WHERE user_id=$1 AND type='deposit'`, [req.user.id]);
-    res.json({ bonuses: await bonusesOf(req.user.id), rules: await getSetting('welcome_bonus'), eligible: rows[0].n === 0 });
+    res.json({ bonuses: await bonusesOf(req.user.id), rules: await getSetting('welcome_bonus'), eligible: rows[0].n === 0, ladder: await ladderOf(req.user) });
   } catch (e) { next(e); }
 });
 
@@ -207,9 +207,28 @@ r.post('/transfer', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// A screenshot of the transfer for a manual deposit that is still being checked – the admin sees it before crediting.
+// A data URL (JPEG / PNG / WebP, up to 2 MB – the app shrinks photos first); the file's own bytes must match its type.
+const IMG = { 'image/jpeg': b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, 'image/png': b => b.subarray(1, 4).toString('latin1') === 'PNG',
+  'image/webp': b => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' };
+r.post('/payments/:id/proof', async (req, res, next) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return fail(res, 404, 'not_found');
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).image || ''));
+  const buf = m && Buffer.from(m[2], 'base64');
+  if (!m || buf.length < 200 || buf.length > 2_000_000 || !IMG[m[1]](buf)) return fail(res, 400, 'bad_image');
+  try {
+    const { rows } = await q(`SELECT id FROM payments WHERE id=$1 AND user_id=$2 AND kind='deposit' AND provider='manual' AND status='pending'`, [req.params.id, req.user.id]);
+    if (!rows[0]) return fail(res, 404, 'not_found');
+    await q(`INSERT INTO payment_proofs (payment_id, user_id, mime, data, size) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (payment_id) DO UPDATE SET mime=EXCLUDED.mime, data=EXCLUDED.data, size=EXCLUDED.size, created_at=now()`, [rows[0].id, req.user.id, m[1], buf, buf.length]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 r.get('/payments', async (req, res, next) => {
   try {
-    const { rows } = await q(`SELECT id, kind, amount, method, provider, status, created_at, details->>'reason' AS reason FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
+    const { rows } = await q(`SELECT id, kind, amount, method, provider, status, created_at, details->>'reason' AS reason,
+      EXISTS (SELECT 1 FROM payment_proofs x WHERE x.payment_id = payments.id) AS proof FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
     res.json({ payments: rows });
   } catch (e) { next(e); }
 });

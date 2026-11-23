@@ -10,15 +10,15 @@ export const templates = {
   /* ---------------- Account ---------------- */
   welcome: ({ user }) => ({
     subject: 'Welcome to LetBetAfrika',
-    preheader: 'Your account is ready. Make your first deposit to unlock your 200% welcome bonus.',
+    preheader: 'Your account is ready. Verify your ID and get a bonus on each of your first 3 deposits.',
     html: wrap({ cc: user.country, title: 'Welcome', body:
       h1(`Welcome, ${first(user)}`) +
       p('Your LetBetAfrika account is ready. You can bet on live and upcoming matches, play virtuals and enter the weekly jackpot.') +
       details([['Account ID', String(user.uid), { bold: true }], user.phone ? ['Phone', `+${user.country === 'GH' ? '233' : '234'} ${user.phone}`] : ['Email', user.email], ['Currency', user.country === 'GH' ? 'Ghana cedi (GH₵)' : 'Nigerian naira (₦)']]) +
-      note(`<b>200% welcome bonus.</b> Deposit now and we triple it, up to ${money(user.country === 'GH' ? 1000 : 100000, user.country)}.`, 'success') +
+      note(`<b>Deposit bonuses 1 · 2 · 3.</b> Verify your ID – it takes 2 minutes – and each of your first 3 deposits earns a bonus.`, 'success') +
       button('Make your first deposit', `${site}/#/me`) +
       small('Please keep your password private. We will never ask for it by phone, SMS or email.') }),
-    text: text([`Welcome, ${first(user)}.`, `Your account ID is ${user.uid}.`, `Deposit now to unlock your 200% welcome bonus: ${site}`]),
+    text: text([`Welcome, ${first(user)}.`, `Your account ID is ${user.uid}.`, `Verify your ID and get a bonus on each of your first 3 deposits: ${site}`]),
   }),
 
   otp: ({ user, code: c, purpose }) => ({

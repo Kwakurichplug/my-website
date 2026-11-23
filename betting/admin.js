@@ -54,7 +54,7 @@
   const P_EV = { live: ['live', 'Live'], scheduled: ['info', 'Upcoming'], finished: ['', 'Finished'], cancelled: ['bad', 'Cancelled'] };
   const P_USER = { active: ['ok', 'Active'], suspended: ['bad', 'Suspended'], self_excluded: ['warn', 'Self-excluded'] };
   const P_GAME = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], cashed: ['ok', 'Cashed'], void: ['warn', 'Void'] };
-  const ERR = { duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
+  const ERR = { reference_required: 'Enter the transfer reference from your bank or MoMo app – each transfer can be credited only once.', bad_image: 'That file is not a picture.', duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
   Object.assign(ERR, { not_pending: 'Someone already handled this one – the list is refreshed.', reason_required: 'Write the reason the player will see.',
     api_payment: 'Paid through the payment API – it is settled automatically.', api_not_configured: 'The payment API is not connected yet.', already_sent: 'This payout was already sent.',
     payout_failed: 'The payment API refused the payout.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
@@ -230,7 +230,7 @@
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
         ${d.agent && d.agent.active ? `<button class="btn sm" data-agent="${u.id}">Agent · ${esc(basisShort(d.agent))}</button>` : `<button class="btn sm" data-agent-edit="${u.id}">${d.agent ? 'Restore agent' : 'Make agent'}</button>`}
       </div>
-      <dl class="kv">${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
+      <dl class="kv">${d.ladder ? `<dt>Deposit bonuses</dt><dd class="lad">${d.ladder.steps.map(x => `<span class="pill ${x.status === 'released' ? 'ok' : x.status === 'active' ? 'gold' : x.status === 'next' ? 'info' : ''}">${x.n} · ${x.bonus != null ? money(x.bonus, cc) + (x.status === 'active' ? ` · ${x.required ? Math.floor(100 * x.wagered / x.required) : 0}% played` : x.status === 'released' ? ' released' : ' ' + x.status) : x.status === 'next' ? 'next deposit' : x.status === 'locked' ? 'after the ID check' : 'later'}</span>`).join(' ')}</dd>` : ''}${(d.requests || []).length ? `<dt>Deposit request</dt><dd>${d.requests.map(r => `${r.data && r.data.amount ? money(r.data.amount, cc) : 'Any amount'} · sent ${ago(r.created_at)} · waiting for the player <button class="btn xs" data-cancel-req="${r.id}">Cancel</button>`).join('<br>')}</dd>` : ''}${d.referrer ? `<dt>Signed up with</dt><dd>code LB${d.referrer.uid} · <span class="lnk" data-${d.referrer.agent ? 'agent' : 'user'}="${d.referrer.id}">${esc(d.referrer.full_name || 'ID ' + d.referrer.uid)}</span>${d.referrer.agent ? ' (agent)' : ''}</dd>` : ''}<dt>ID check</dt><dd>${u.verified ? 'Verified' : kyc.status === 'pending' ? 'Waiting for review' : kyc.status === 'rejected' ? 'Rejected – ' + esc(kyc.reason || '') : 'Not sent'}${kyc.idType ? ` · ${esc(kyc.idType)} <span class="mono">${esc(kyc.idNumber || '')}</span> · ${esc(kyc.fullName || '')} · born ${esc(kyc.dob || '')}` : ''}</dd><dt>Deposit reference</dt><dd class="mono">LB${String(u.uid).padStart(6, '0')}</dd><dt>Joined</dt><dd>${when(u.created_at)}</dd><dt>Country</dt><dd>${cc === 'GH' ? 'Ghana' : 'Nigeria'}</dd><dt>Deposit limit</dt><dd>${lim.amt ? money(lim.amt, cc) + ' per ' + esc(lim.period || 'week') : 'None set'}</dd><dt>Referral code</dt><dd>LB${u.uid}</dd></dl>
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
     $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
@@ -376,7 +376,7 @@
       <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · reference <span class="mono">LB${String(u.uid).padStart(6, '0')}</span></dd><dt>Method</dt><dd>${momo ? 'Mobile money' : 'Bank transfer'}</dd></dl>
       <label class="field"><span>Amount that arrived (${SYM[cc]})</span><input id="dAmt" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
       <label class="field"><span>Paid by (name on the ${momo ? 'MoMo wallet' : 'sending account'})</span><input id="dSender" maxlength="80" value="${esc(u.full_name || '')}"></label>
-      <label class="field"><span>Transfer reference from your ${momo ? 'MoMo' : 'bank'} app (recommended – a reference can be credited only once)</span><input id="dRef" maxlength="80" placeholder="${momo ? 'e.g. MoMo transaction ID' : 'e.g. session ID or reference'}"></label>
+      <label class="field"><span>Transfer reference from your ${momo ? 'MoMo' : 'bank'} app (required to credit – each transfer can be credited only once)</span><input id="dRef" maxlength="80" placeholder="${momo ? 'e.g. MoMo transaction ID' : 'e.g. session ID or reference'}"></label>
       <label class="field"><span>Note (optional)</span><input id="dNote" maxlength="200" placeholder="e.g. Player messaged support on WhatsApp"></label>
       <p class="form-err" id="dErr" hidden></p>
       <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn" id="dPend">Add to pending</button><button class="btn primary" id="mGo">Credit now</button></div>`);
@@ -384,6 +384,7 @@
     $('#dAmt').oninput = upd; upd(); $('#dAmt').focus();
     const send = async credit => {
       const v = Math.round(+$('#dAmt').value * 100) / 100; if (!(v > 0)) return $('#dAmt').focus();
+      if (credit && !$('#dRef').value.trim()) { $('#dErr').textContent = 'Enter the transfer reference to credit it now (or add it to pending).'; $('#dErr').hidden = false; return $('#dRef').focus(); }
       const body = { amount: v, credit }, sender = $('#dSender').value.trim(), ref = $('#dRef').value.trim(), note = $('#dNote').value.trim();
       if (sender) body.sender = sender; if (ref) body.reference = ref; if (note) body.note = note;
       $('#mGo').disabled = $('#dPend').disabled = true; $('#dErr').hidden = true;
@@ -429,29 +430,43 @@
     if (d.reason && p.status !== 'success') out.push('<span class="muted">' + esc(d.reason) + '</span>');
     return out.join(' · ') || '–';
   };
+  // the transfer screenshot a player added (fetched with the session token)
+  async function proofInto(box, id) {
+    try { const b = await API.admin.proof(id), url = URL.createObjectURL(b); box.innerHTML = `<a href="${url}" target="_blank" rel="noopener" title="Open full size"><img src="${url}" alt="Transfer screenshot"></a>`; }
+    catch { box.innerHTML = '<span class="muted small">The screenshot could not be loaded.</span>'; }
+  }
+  function proofModal(id) {
+    const p = state.payRows.get(id) || {};
+    openModal(`<h3>Transfer screenshot</h3><p class="sub">${p.uid ? `${esc(p.full_name || 'Player')} · ID ${p.uid} · ${money(p.amount, p.country)}` : ''} – check the amount, the date and the reference against your ${p.method === 'mobile_money' ? 'MoMo' : 'bank'} app before you credit it.</p>
+      <div class="proof-box big" id="mProofBig"><span class="muted small">Loading…</span></div>
+      <div class="m-actions"><button class="btn" data-close-modal>Close</button>${p.status === 'pending' ? `<button class="btn primary" data-pay="approve" data-id="${id}">Confirm this deposit</button>` : ''}</div>`);
+    proofInto($('#mProofBig'), id);
+  }
   const payActs = p => {
     if (p.status !== 'pending') { const at = d => d && (d.at || d.paidAt || d.confirmedAt); return `<span class="muted small">${at(p.details) ? 'handled ' + ago(at(p.details)) : ''}</span>`; }
     if (p.provider === 'paystack') return `<span class="muted small">${p.kind === 'deposit' ? 'Waiting for the player to approve on their phone' : 'Sent via the payment API – waiting for confirmation'}</span>`;
-    return `<button class="btn xs primary" data-pay="approve" data-id="${p.id}">${p.kind === 'withdrawal' ? 'Mark paid' : 'Confirm'}</button>${p.kind === 'withdrawal' && p.method === 'mobile_money' && state.api && state.api.enabled ? `<button class="btn xs" data-payout="${p.id}">Send via Paystack</button>` : ''}<button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
+    return `${p.kind === 'deposit' && p.has_proof ? `<button class="btn xs" data-proof-view="${p.id}">Screenshot</button>` : ''}<button class="btn xs primary" data-pay="approve" data-id="${p.id}">${p.kind === 'withdrawal' ? 'Mark paid' : 'Confirm'}</button>${p.kind === 'withdrawal' && p.method === 'mobile_money' && state.api && state.api.enabled ? `<button class="btn xs" data-payout="${p.id}">Send via Paystack</button>` : ''}<button class="btn xs danger" data-pay="reject" data-id="${p.id}">Reject</button>`;
   };
 
   function payAction(id, action) {
     const p = state.payRows.get(id) || {}, approve = action === 'approve', dep = p.kind === 'deposit', cc = p.country || 'NG';
     const quick = approve ? [] : dep ? ['No transfer received', 'The amount does not match the transfer', 'The sender name does not match'] : ['The account name does not match yours', 'The account details are not valid', 'Please verify your ID first'];
     openModal(`<h3>${approve ? (dep ? 'Confirm this deposit' : 'Mark this withdrawal as paid') : (dep ? 'Reject this deposit' : 'Reject this withdrawal')}</h3>
-      <p class="sub">${approve ? (dep ? 'Only confirm once you can see the money in the account. The player is credited at once (welcome bonus included) and gets a receipt by email.' : 'Only mark it paid after the money has left your account. The player gets an email.') : (dep ? 'The player is told by email with your reason.' : 'The player is told by email and the money goes back to their balance at once.')}</p>
+      <p class="sub">${approve ? (dep ? 'Only confirm once you can see the money in the account. The player is credited at once (with their Deposit 1 · 2 · 3 bonus when it applies) and gets a receipt by email.' : 'Only mark it paid after the money has left your account. The player gets an email.') : (dep ? 'The player is told by email with your reason.' : 'The player is told by email and the money goes back to their balance at once.')}</p>
       ${p.id ? `<dl class="kv"><dt>Player</dt><dd>${esc(p.full_name || phoneFmt(cc, p.phone))} · ID ${p.uid}</dd><dt>${dep ? 'Amount sent' : 'Amount'}</dt><dd><b>${money(p.amount, cc)}</b></dd><dt>${dep ? 'Details' : 'Pay to'}</dt><dd>${payDetails(p)}</dd></dl>` : ''}
       ${approve && dep ? `<label class="field"><span>Amount that arrived (${SYM[cc] || ''})</span><input id="mAmt" type="number" step="0.01" min="0.01" value="${p.amount || ''}"></label>` : ''}
-      ${approve && dep ? '<label class="field"><span>Transfer reference from your bank or MoMo app (optional – a reference can be credited only once)</span><input id="mRef"></label>' : ''}
+      ${approve && dep && p.has_proof ? '<div class="proof-box" id="mProof"><span class="muted small">Loading the screenshot…</span></div>' : ''}
+      ${approve && dep ? '<label class="field"><span>Transfer reference from your bank or MoMo app (required – each transfer can be credited only once)</span><input id="mRef" placeholder="e.g. the session ID or transaction ID"></label>' : ''}
       ${approve && !dep ? '<label class="field"><span>Payout reference (optional)</span><input id="mRef" placeholder="Bank or MoMo transaction ID"></label>' : ''}
       ${approve ? '<label class="field"><span>Note (optional)</span><input id="mNote"></label>' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason"></label>`}
       <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : 'danger solid'}" id="mGo">${approve ? (dep ? 'Credit the player' : 'Mark paid') : 'Reject'}</button></div>`);
     $$('#modalBody [data-quick]').forEach(b => b.onclick = () => { $('#mReason').value = b.dataset.quick; });
+    if (approve && dep && p.has_proof) proofInto($('#mProof'), id);
     if (approve && dep) { const upd = () => { const v = +$('#mAmt').value; $('#mGo').textContent = v > 0 ? 'Credit ' + money(v, cc) : 'Credit the player'; }; $('#mAmt').oninput = upd; upd(); }
     $('#mGo').onclick = async () => {
       const body = {};
       if (approve) {
-        if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; }
+        if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; if (!$('#mRef').value.trim()) { toast('Enter the transfer reference first', 'err'); return $('#mRef').focus(); } }
         { const r = $('#mRef').value.trim(); if (r) body.reference = r; }
         const n = $('#mNote').value.trim(); if (n) body.note = n;
       } else { const r = $('#mReason').value.trim(); if (!r) return $('#mReason').focus(); body.reason = r; }
@@ -632,6 +647,16 @@
       ${fields.map(([f, l, step]) => `<div class="set-row one"><label>${l}</label><input type="number" step="${step || 'any'}" data-f="${f}" value="${esc(f === '' ? v : v[f])}"></div>`).join('')}
       <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="${key}">Save</button></div></div></div>`; };
     const wb = s.welcome_bonus || {};
+    const L = s.deposit_bonuses || { enabled: false, requireId: true, NG: [{}, {}, {}], GH: [{}, {}, {}], times: 5, min_odds: 1.5, days: 14 };
+    const ladderCard = () => `<div class="card set-card wide" data-set="deposit_bonuses"><div class="card-b"><h4>Deposit bonuses 1 · 2 · 3</h4>
+      <div class="desc">A bonus on each of the first three deposits a player makes once their ID is approved (it replaces the welcome bonus while it is on). Bonus money stays locked until the player has staked it the number of times below on multiples, within the days below – it can never be withdrawn before that.</div>
+      <div class="lad-flags"><label class="chk"><input type="checkbox" id="ladOn" ${L.enabled ? 'checked' : ''}> On</label><label class="chk"><input type="checkbox" id="ladId" ${L.requireId !== false ? 'checked' : ''}> Only after the ID is approved</label></div>
+      <div class="lad-grid"><span></span><span>${flag('NG')}Bonus %</span><span>Max ₦</span><span>${flag('GH')}Bonus %</span><span>Max GH₵</span>
+        ${[0, 1, 2].map(i => `<label>Deposit ${i + 1}</label>${['NG', 'GH'].map(cc => `<input type="number" min="0" max="500" step="1" data-lad="${cc}.${i}.pct" value="${esc((L[cc] && L[cc][i] || {}).pct ?? '')}"><input type="number" min="0" step="any" data-lad="${cc}.${i}.max" value="${esc((L[cc] && L[cc][i] || {}).max ?? '')}">`).join('')}`).join('')}</div>
+      <div class="set-row one"><label>Stake the bonus this many times</label><input type="number" min="1" max="50" step="1" id="ladTimes" value="${esc(L.times ?? 5)}"></div>
+      <div class="set-row one"><label>Minimum odds of every selection</label><input type="number" min="1.01" max="10" step="0.01" id="ladOdds" value="${esc(L.min_odds ?? 1.5)}"></div>
+      <div class="set-row one"><label>Days to play it through</label><input type="number" min="1" max="90" step="1" id="ladDays" value="${esc(L.days ?? 14)}"></div>
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn sm primary" id="ladSave">Save</button></div></div></div>`;
     const boost = Array.isArray(s.boost) ? s.boost : [];
     main.innerHTML = `
       <div class="page-head"><div><h2>Settings</h2><p>Live configuration of the book. Changes apply to new bets and new deposits immediately and are written to the audit log.</p></div></div>
@@ -641,7 +666,8 @@
         ${cc2('max_payout', 'Maximum payout', 'The most one ticket can win. Tickets above it are refused at placement.', [])}
         ${cc2('games', 'Game stakes', 'Stake limits for instant games and Rocket Crash.', [['min', 'Minimum'], ['max', 'Maximum']])}
         ${cc2('jackpot', 'Jackpot prizes', 'Prize money and the price of one line.', [['jackpot', '12 correct (shared)'], ['t11', '11 correct (per line)'], ['t10', '10 correct (per line)'], ['line', 'Line price']])}
-        ${cc2('welcome_bonus', 'Welcome bonus', `First-deposit bonus. Released after ${wb.times || 5}× turnover on multiples with every selection at ${wb.min_odds || 1.5}+ within ${wb.days || 14} days.`, [['pct', 'Bonus %'], ['max', 'Maximum bonus']])}
+        ${ladderCard()}
+        ${cc2('welcome_bonus', 'Welcome bonus (old)', `First-deposit bonus, used only while Deposit bonuses 1 · 2 · 3 is off. Released after ${wb.times || 5}× turnover on multiples with every selection at ${wb.min_odds || 1.5}+ within ${wb.days || 14} days.`, [['pct', 'Bonus %'], ['max', 'Maximum bonus']])}
         <div class="card set-card" data-set="boost"><div class="card-b"><h4>Accumulator win boost</h4><div class="desc">Extra percentage added to winnings by number of selections (each at odds 1.20 or more).</div>
           <div class="boost-rows" id="boostRows">${boost.map(([n, p]) => `<div class="boost-row"><input type="number" min="2" value="${n}" placeholder="selections"><input type="number" min="0" value="${p}" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>`).join('')}</div>
           <div class="set-foot"><button class="btn sm" id="boostAdd">Add tier</button><span class="spacer" style="flex:1"></span><span class="saved" hidden>Saved</span><button class="btn sm primary" data-save="boost">Save</button></div></div></div>
@@ -658,6 +684,13 @@
     simpleCC('min_stake', 'Per bet'); simpleCC('max_payout', 'Per ticket');
     const rawShow = () => { $('#rawVal').value = JSON.stringify(s[$('#rawKey').value], null, 2); }; rawShow(); $('#rawKey').onchange = rawShow;
     $('#rawSave').onclick = async () => { try { const v = JSON.parse($('#rawVal').value); await API.admin.setSetting($('#rawKey').value, v); s[$('#rawKey').value] = v; toast('Saved', 'ok'); } catch (e) { toast(e instanceof SyntaxError ? 'That is not valid JSON' : errMsg(e), 'err'); } };
+    $('#ladSave').onclick = async () => {
+      const card = $('[data-set="deposit_bonuses"]'), v = { enabled: $('#ladOn').checked, requireId: $('#ladId').checked, NG: [{}, {}, {}], GH: [{}, {}, {}], times: +$('#ladTimes').value, min_odds: +$('#ladOdds').value, days: +$('#ladDays').value };
+      $$('[data-lad]', card).forEach(i => { const [cc, k, f] = i.dataset.lad.split('.'); v[cc][+k][f] = +i.value || 0; });
+      try { $('#ladSave').disabled = true; await API.admin.setSetting('deposit_bonuses', v); s.deposit_bonuses = v; const ok = card.querySelector('.saved'); ok.hidden = false; setTimeout(() => ok.hidden = true, 2500); toast('Deposit bonuses saved', 'ok'); }
+      catch (e) { toast(e.message === 'invalid' ? 'Check the numbers: % 0–500, a maximum for every deposit, times 1–50, odds 1.01–10, days 1–90' : errMsg(e), 'err'); }
+      finally { $('#ladSave').disabled = false; }
+    };
     $('#boostAdd').onclick = () => $('#boostRows').insertAdjacentHTML('beforeend', '<div class="boost-row"><input type="number" min="2" placeholder="selections"><input type="number" min="0" placeholder="boost %"><button class="btn xs" data-rm-row>×</button></div>');
     main.onclick = e => { const rm = e.target.closest('[data-rm-row]'); if (rm) rm.parentElement.remove(); };
     $$('#main [data-save]').forEach(b => b.onclick = async () => {
@@ -890,11 +923,12 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-proof-view],[data-req-dep],[data-cancel-req],[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
+      if (d.proofView) return proofModal(d.proofView);
       if (d.addDep) return addDepositModal(d.addDep);
       if (d.reqDep) return requestDepositModal(d.reqDep);
       if (d.cancelReq) { API.admin.cancelNotice(d.cancelReq).then(() => { toast('Request cancelled', 'ok'); refreshDrawer(); }).catch(err => toast(errMsg(err), 'err')); return; }

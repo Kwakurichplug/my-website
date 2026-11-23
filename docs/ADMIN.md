@@ -23,11 +23,12 @@ transfer narration. They transfer from their bank app, type the sender's name an
 appears in **Payments → Pending** with the sender name and reference, and the player gets a "we are checking your
 deposit" email.
 
-1. Open your bank app and find the transfer (match the reference and the sender's name).
-2. Press **Confirm**, check **Amount that arrived** (change it if they sent a different amount) and press
-   **Credit ₦X**. The player is credited at once – the welcome bonus is added on their first deposit – and gets a
+1. Press **Screenshot** to see the transfer screenshot the player added (the deposit page asks every player for it).
+2. Open your bank app and find the transfer (match the amount, the reference and the sender's name).
+3. Press **Confirm**, check **Amount that arrived** (change it if they sent a different amount), type the **transfer
+   reference** from your bank / MoMo app (required – each transfer can be credited only once) and press **Credit ₦X**. The player is credited at once – the welcome bonus is added on their first deposit – and gets a
    receipt by email.
-3. Nothing arrived? Press **Reject** and pick a reason (*No transfer received*, *The amount does not match*, *The
+4. Nothing arrived? Press **Reject** and pick a reason (*No transfer received*, *The amount does not match*, *The
    sender name does not match*). The player is emailed the reason and asked to reply with their receipt if they did pay.
 
 A player can have at most 3 deposits waiting at a time.
@@ -106,6 +107,26 @@ Only settled play counts (an open bet counts when it settles), and only from the
 Agents earn commission **instead of** the Refer & Earn reward. **Edit** changes the rate or basis (it applies to the
 commission not yet paid); **Remove agent** stops it (pay what is due first – unpaid commission is dropped);
 **Restore** starts a fresh period. Every change and payment is in the audit log.
+
+## Deposit bonuses 1 · 2 · 3 (Settings)
+
+Once a player's ID is approved, each of their next **three deposits** earns a bonus you set per country: Deposit 1,
+Deposit 2 and Deposit 3, each with a **bonus %** and a **maximum**. Defaults: 200% (max ₦100,000 / GH₵1,000), 100%
+(max ₦50,000 / GH₵500), 50% (max ₦25,000 / GH₵250). The player gets an "ID approved" pop-up listing 1, 2, 3 with a
+**Make deposit 1** button; the deposit page shows the list, which step is next and what their deposit will earn.
+
+No money leaks:
+- bonus money is **locked** – it can't be bet with, sent or withdrawn – until the player has staked it the number of
+  times you set (default 5×) on multiples with every selection at the minimum odds (default 1.50) within the days you
+  set (default 14); then it moves into their balance. Otherwise it expires;
+- a stake counts towards **one** bonus at a time (the oldest), never two;
+- only deposits made **after** the ID is approved count (switch "Only after the ID is approved" off to allow earlier
+  ones), and only three ever – a player who had the old welcome bonus continues at Deposit 2;
+- revoking an ID stops further bonuses.
+
+The player's profile shows their ladder (1 · 2 · 3 with the bonus, how much is played through, released / expired).
+**Settings → Deposit bonuses 1 · 2 · 3**: on/off, the ID rule, the % and maximum per deposit and country, the times,
+the minimum odds and the days. The old "Welcome bonus" card is used only while the ladder is off.
 
 ## Payment settings (you can edit everything)
 

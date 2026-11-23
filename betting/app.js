@@ -417,7 +417,7 @@
     const t1 = big[0], t2 = big[3] || big[1];
     const mt = m => m ? `<a class="tile tile-match" href="#/match/${m.id}"><span class="tm">${crest(m.home, 1, m.sport)}<em>vs</em>${crest(m.away, 1, m.sport)}</span><b>${esc(LBA.code(m.home))} vs ${esc(LBA.code(m.away))}</b></a>` : '';
     $('#tiles').innerHTML = `
-      <a class="tile" href="#" data-open="registerModal" style="background-image:url(${C.b1})"><b>Welcome Bonus</b></a>
+      <a class="tile" href="#" data-open="registerModal" style="background-image:url(${C.b1})"><b>Deposit Bonuses</b></a>
       ${mt(t1)}
       <a class="tile" href="#/virtuals" style="background-image:url(img/banner-2.jpg)"><b>Virtuals</b></a>
       ${mt(t2)}
@@ -1135,6 +1135,17 @@
             <span class="status ${wb.status === 'active' ? 'open' : wb.status === 'released' ? 'won' : 'lost'}">${wb.status === 'active' ? 'LOCKED' : wb.status.toUpperCase()}</span></div>`;
         } else if (!LIVE || B.eligible) welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>Make your first deposit and get 200% of it as a bonus, up to ${whole(C.bonusMax)}. Unlock it by staking ${rules.times}× the bonus on multiples (every selection ${(+rules.min_odds).toFixed(2)}+) within ${rules.days} days.</small></div><span class="status won">AVAILABLE</span></div>`;
         else welcome = `<div class="bonus"><div><b>200% Welcome Bonus</b><small>For a player's first deposit only.</small></div><span class="status lost">NOT ELIGIBLE</span></div>`;
+        // Deposit 1, 2, 3 (live, when the operator runs the ladder): one row per step with its bonus and progress
+        const L = B && B.ladder;
+        if (L && L.steps && L.steps.length) welcome = L.steps.map(s => {
+          const b = B.bonuses.find(x => x.kind === 'deposit' + s.n), pct = b && b.required ? Math.min(100, b.wagered / b.required * 100) : 0;
+          const tag = b ? (b.status === 'active' ? ['open', 'LOCKED'] : b.status === 'released' ? ['won', 'RELEASED'] : ['lost', b.status.toUpperCase()]) : s.status === 'next' ? ['won', 'NEXT'] : s.status === 'locked' ? ['lost', 'VERIFY ID'] : ['lost', 'LATER'];
+          const info = b ? (b.status === 'active' ? `Stake ${money(Math.max(0, b.required - b.wagered))} more on multiples (every selection ${(+L.min_odds).toFixed(2)} or more) by ${new Date(b.expiresAt).toLocaleDateString()} to unlock it.` : b.status === 'released' ? `Unlocked and added to your balance on ${new Date(b.releasedAt).toLocaleDateString()}.` : 'Ended before the stake target was reached.')
+            : s.status === 'locked' ? `Verify your ID to unlock it. Then your ${['first', 'second', 'third'][s.n - 1]} deposit earns ${s.pct}% as a bonus, up to ${whole(s.max)}.` : `Your ${['first', 'second', 'third'][s.n - 1]} deposit after your ID check earns ${s.pct}% as a bonus, up to ${whole(s.max)}. Unlock it by staking ${L.times}× the bonus on multiples (every selection ${(+L.min_odds).toFixed(2)}+) within ${L.days} days.`;
+          return `<div class="bonus wb"><div><b>Deposit ${s.n} · ${s.pct}% bonus${b ? ' · ' + money(b.amount) : ''}</b><small>${info}</small>
+            ${b && b.status === 'active' ? `<div class="wb-bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><small>${money(b.wagered)} of ${money(b.required)} staked</small>` : ''}</div>
+            <span class="status ${tag[0]}">${tag[1]}</span></div>`;
+        }).join('') + (L.unlocked ? '' : '<a class="btn btn-accent block mt" href="#/acct/verify">Verify my ID</a>');
         return `<div class="card-list">${welcome}
           <div class="bonus"><div><b>Acca Win Boost</b><small>5% to 1000% extra winnings on multiples with 3 or more selections at odds 1.20+</small></div><span class="status open">ACTIVE</span></div>
           <div class="bonus"><div><b>Free Bets</b><small>You have no free bets right now</small></div><span class="status lost">NONE</span></div>
@@ -1144,7 +1155,7 @@
         const R = LIVE ? state.referrals : null, code = LIVE ? ((R && R.code) || u.refCode || '…') : 'LB' + u.uid, reward = R ? R.reward : C.referral;
         // the sign-up link fills in the code (account.js reads ?ref=)
         const link = (/^https?:$/.test(location.protocol) ? location.origin + '/' : 'https://letbetafrika.online/') + '?ref=' + code + '#/register';
-        const msg = encodeURIComponent(`Join me on LetBetAfrika and get a 200% welcome bonus on your first deposit. Sign up with my link: ${link} (or use my code ${code})`);
+        const msg = encodeURIComponent(`Join me on LetBetAfrika – bonuses on your first 3 deposits. Sign up with my link: ${link} (or use my code ${code})`);
         // agents (set by LetBetAfrika): commission on their players instead of the flat reward
         const ag = R && R.agent, on = ag && ({ revenue: 'net revenue', deposits: 'deposits', stakes: 'stakes' })[ag.basis];
         const how = ag && (ag.basis === 'revenue' ? `You earn ${ag.rate}% of what your players lose – their stakes minus their winnings and bonuses, counted when bets settle.`
@@ -1163,7 +1174,7 @@
           ${ag ? '' : `<div class="ref-stats"><div><b>${R ? R.joined : 0}</b><small>Friends joined</small></div><div><b>${R ? R.qualified : 0}</b><small>Qualified</small></div><div><b>${whole(R ? R.earned : 0)}</b><small>Earned</small></div></div>`}</div>`;
       },
       messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
-          ['Welcome to LetBetAfrika', `Your account is ready. Make your first deposit to get a 200% welcome bonus, up to ${whole(C.bonusMax)}.`],
+          ['Welcome to LetBetAfrika', `Your account is ready. Verify your ID and get a bonus on each of your first 3 deposits.`],
           ['Acca Win Boost is on', 'Add 3 or more selections at odds 1.20+ to a multiple and get up to 1000% extra winnings.'],
           ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
       verify: () => u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">

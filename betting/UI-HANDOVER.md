@@ -311,6 +311,12 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   `GET /api/wallet/payments/:id` every 3 s) or the OTP sheet; a country with nothing open shows `.wx-closed` (no fake
   method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
   (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
+- **Deposit bonuses 1 · 2 · 3** (`account.js` `ladderHTML()`, `.wx-ladder` / `.wx-steps`): the deposit page lists the three
+  steps from `opt.data.ladder` (done / bonus active with % played through / next / later / locked behind *Verify your ID*);
+  the amount hint shows the bonus this deposit earns. Me → Bonuses shows one row per step with its progress bar.
+- **Transfer screenshot** (`proofHTML()` / `bindProof()` / `shrinkImage()`, `.wx-proof*`): required on real manual
+  deposits (`way.mode === 'manual'`) – the button says "Add the screenshot of your transfer" until one is picked; sent after
+  "I have sent it"; *Add screenshot* on a pending deposit in Recent deposits (`addProofLater`).
 - **Payment pop-ups** (`account.js` `checkNotices()` / `Account.notices()`, styles `.nt-*` at the end of `app.css`): the
   wallet bottom sheet (`#wlSheet`) shows the oldest open notice from `GET /api/auth/notices` – a support deposit request
   first (`.nt`: icon, amount, support's message `.nt-msg`, numbered `.nt-steps`, the `.wx-payto` account block for manual

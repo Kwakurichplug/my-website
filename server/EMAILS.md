@@ -34,7 +34,7 @@ Subject lines lead with the fact ("Deposit received: ₦5,000.00"). Preheaders a
 
 | # | Template | Trigger | Subject | Key content |
 |---|---|---|---|---|
-| 1 | `welcome` | Account created | Welcome to LetBetAfrika | Account ID, phone, currency; 200% bonus callout; **Make your first deposit** |
+| 1 | `welcome` | Account created | Welcome to LetBetAfrika | Account ID, phone, currency; "Deposit bonuses 1 · 2 · 3 after your ID check" callout; **Make your first deposit** |
 | 2 | `otp` | Code requested by email | *482913* is your LetBetAfrika code | Large dashed code box; expires in 10 min |
 | 3 | `passwordChanged` | Password updated | Your password was changed | Time, location; warn callout; **Secure my account** |
 | 4 | `newDevice` | Login from unseen device | New login to your account | Device, time, location; **Change password** |

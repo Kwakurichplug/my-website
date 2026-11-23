@@ -46,20 +46,34 @@ async function player(cc, name) {
   ok(/Test MFB/.test(page) && /0123456789/.test(page) && /LETBETAFRIKA TEST/.test(page) && /LB0*\d+/.test(page), 'player sees the bank account and their reference');
   ok(!/Card|USSD|OPay|PalmPay/.test(await P.textContent('#depForm .wx-methods')), 'only bank transfer offered (no card / USSD / wallets)');
   await P.fill('#wlAmt', '5000'); await P.fill('input[name=sender]', 'ADA OBI'); await P.waitForTimeout(300);
+  ok(/Add the screenshot of your transfer/.test(await P.textContent('#depBtn')) && await P.isDisabled('#depBtn'), 'asks for the screenshot of the transfer first');
+  // a real picture (a screenshot of the bank details on the page) as the transfer screenshot
+  const shotPng = await P.screenshot({ clip: { x: 0, y: 0, width: 360, height: 420 } });
+  await P.setInputFiles('#proofFile', { name: 'transfer.png', mimeType: 'image/png', buffer: shotPng }); await P.waitForTimeout(1200);
+  ok(await P.isVisible('.wx-proof-prev img'), 'the screenshot preview shows');
   ok(/I have sent ₦5,000/.test(await P.textContent('#depBtn')), 'button: "I have sent ₦5,000.00"');
   await P.screenshot({ path: OUT + '/ply-1-deposit.png', fullPage: true });
   await P.click('#depBtn'); await P.waitForTimeout(2200);
-  ok(/Deposit being checked/.test(await P.textContent('#wlSheet')), 'player told the deposit is being checked');
+  ok(/Deposit being checked/.test(await P.textContent('#wlSheet')) && /Screenshot\s*Sent/.test(await P.textContent('#wlSheet')), 'player told the deposit is being checked – screenshot sent');
   await P.screenshot({ path: OUT + '/ply-2-checking.png' });
 
   // ---------- admin: confirm what arrived (₦4,500) ----------
   await A.goto(BASE + 'admin.html#/payments'); await A.waitForTimeout(1800);
   ok(/From ADA OBI/.test(await A.textContent('#main')), 'payments queue shows the sender name and reference');
+  const dep0 = sql(`SELECT id FROM payments WHERE user_id='${ng.user.id}' AND kind='deposit' AND status='pending'`);
+  await A.click(`#main [data-proof-view="${dep0}"]`); await A.waitForTimeout(1500);
+  ok(await A.isVisible('#mProofBig img'), 'admin opens the transfer screenshot');
+  await A.screenshot({ path: OUT + '/adm-3b-screenshot.png' });
+  await A.click('#modalBody [data-close-modal]'); await A.waitForTimeout(300);
   await A.screenshot({ path: OUT + '/adm-3-payments.png' });
   const dep = sql(`SELECT id FROM payments WHERE user_id='${ng.user.id}' AND kind='deposit' AND status='pending'`);
   await A.click(`#main [data-pay="approve"][data-id="${dep}"]`); await A.waitForTimeout(500);
-  await A.fill('#mAmt', '4500'); await A.waitForTimeout(200);
+  await A.fill('#mAmt', '4500'); await A.waitForTimeout(1200);
   ok(/Credit ₦4,500/.test(await A.textContent('#mGo')), 'confirm button names the amount');
+  ok(await A.isVisible('#mProof img'), 'the screenshot is in the confirm dialog');
+  await A.click('#mGo'); await A.waitForTimeout(800);
+  ok((await api('/wallet', null, ng.token)).balance === 0 && await A.isVisible('#mRef'), 'no transfer reference → not credited (no double credit possible)');
+  await A.fill('#mRef', 'NIP-' + Date.now());
   await A.screenshot({ path: OUT + '/adm-4-confirm.png' });
   await A.click('#mGo'); await A.waitForTimeout(1500);
   ok((await api('/wallet', null, ng.token)).balance === 4500, 'player credited ₦4,500');
@@ -73,6 +87,9 @@ async function player(cc, name) {
   await A.screenshot({ path: OUT + '/adm-5-kyc.png' });
   await A.click('#main [data-kyc="approve"]'); await A.waitForTimeout(400); await A.click('#mGo'); await A.waitForTimeout(1200);
   ok((await api('/auth/me', null, ng.token)).user.verified === true, 'ID approved');
+  const lad = await api('/wallet/options', null, ng.token);
+  ok(lad.ladder && lad.ladder.unlocked && lad.ladder.steps.length === 3, 'ID approved → Deposit 1 · 2 · 3 unlocked');
+  ok((await api('/auth/notices', null, ng.token)).notices.some(x => x.kind === 'kyc_approved'), 'the player gets the “ID approved” pop-up');
   const w = await api('/wallet/withdraw', { amount: 2000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Obi' } }, ng.token);
   await A.goto(BASE + 'admin.html#/payments/pending:withdrawal'); await A.waitForTimeout(1500);
   await A.click(`#main [data-pay="approve"][data-id="${w.paymentId}"]`); await A.waitForTimeout(400);
@@ -98,6 +115,11 @@ async function player(cc, name) {
   ok(sql(`SELECT status FROM payments WHERE id='${gw.paymentId}'`) === 'success', 'Ghana payout sent through the API and confirmed');
 
   // ---------- the rest of the portal renders ----------
+  await A.goto(BASE + 'admin.html#/settings'); await A.waitForTimeout(1500);
+  ok(/Deposit bonuses 1 · 2 · 3/.test(await A.textContent('#main')) && (await A.inputValue('[data-lad="NG.0.pct"]')) === '200', 'settings: Deposit 1 · 2 · 3 card with the % per deposit');
+  await A.fill('[data-lad="NG.1.pct"]', '120'); await A.click('#ladSave'); await A.waitForTimeout(1200);
+  ok(sql(`SELECT value->'NG'->1->>'pct' FROM settings WHERE key='deposit_bonuses'`) === '120', 'the admin changes Deposit 2 to 120%');
+  await A.screenshot({ path: OUT + '/adm-10-ladder-settings.png', fullPage: true });
   for (const pg of ['overview', 'players', 'bets', 'trading', 'finance', 'games', 'jackpot', 'settings', 'email', 'audit']) {
     await A.goto(BASE + 'admin.html#/' + pg); await A.waitForTimeout(1300);
     const txt = await A.textContent('#main');

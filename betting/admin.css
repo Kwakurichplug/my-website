@@ -369,3 +369,16 @@ textarea.json{width:100%;min-height:120px;border:1px solid var(--line-2);border-
 .dep-pend div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dep-pend .btn{margin-left:auto}
 #modalBody dl.kv{margin-bottom:12px}
+/* payment screenshots; Deposit 1·2·3 settings; the ladder on a player's profile */
+.proof-box{display:flex;align-items:center;justify-content:center;min-height:90px;background:var(--soft);border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;padding:6px}
+.proof-box img{display:block;max-width:100%;max-height:260px;border-radius:6px}
+.proof-box.big img{max-height:62vh}
+.set-card.wide{grid-column:1/-1}
+.lad-flags{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs)}
+.lad-grid{display:grid;grid-template-columns:90px repeat(4,minmax(70px,1fr));gap:6px 8px;align-items:center;margin-bottom:10px;font-size:var(--fs-s);color:var(--mute)}
+.lad-grid label{color:var(--ink);font-weight:600;font-size:var(--fs)}
+.lad-grid input{height:34px;border:1px solid var(--line-2);border-radius:6px;padding:0 8px;width:100%;min-width:0}
+.lad-grid .flag{margin-right:4px}
+dd.lad{display:flex;flex-wrap:wrap;gap:4px}
+@media (max-width:600px){ .lad-grid{grid-template-columns:70px repeat(2,1fr)} .lad-grid span:nth-child(n+4):nth-child(-n+5){display:none} }

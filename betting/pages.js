@@ -328,9 +328,9 @@
      PROMOTIONS  (#/promos[/tab])  +  detail (#/promo/<id>)
      ========================================================= */
   const PROMOS = () => { const a = A(), C = a.C, w = a.whole; const y = new Date().getFullYear(); return [
-    { id: 'welcome', cat: 'sports', title: '200% Welcome Bonus', img: C.b1, from: `1/1/${y}`, to: `12/31/${y}`, lead: `Triple your first deposit, up to ${w(C.bonusMax)}.`, cta: ['Join Now', '#/register'],
-      steps: ['Register with your mobile number.', 'Make your first deposit.', 'Your bonus is added straight away as locked bonus funds.', 'Bet the bonus 5 times on multiples with odds of 1.50 or more per selection to unlock it.'],
-      terms: ['New players only, one bonus per person, household and device.', `Maximum bonus ${w(C.bonusMax)}.`, 'Bonus must be wagered within 14 days or it expires.', 'Cashed-out and void bets do not count towards wagering.'] },
+    { id: 'welcome', cat: 'sports', title: 'Deposit Bonuses 1 · 2 · 3', img: C.b1, from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Verify your ID, then each of your first 3 deposits earns a bonus.', cta: ['Join Now', '#/register'],
+      steps: ['Register and verify your ID (it takes 2 minutes).', 'Make deposit 1, 2 and 3 – each one earns a bonus; the deposit page shows how much.', 'Each bonus is added straight away as locked bonus funds.', 'Stake the bonus 5 times on multiples with odds of 1.50 or more per selection to unlock it.'],
+      terms: ['Players with an approved ID only; one set of bonuses per person, household and device.', 'The bonus % and the maximum for each deposit are shown on the deposit page before you pay.', 'Each bonus must be wagered within 14 days or it expires.', 'Cashed-out and void bets do not count towards wagering.'] },
     { id: 'acca', cat: 'sports', title: 'Acca Win Boost – up to 1000%', img: 'img/banner-2.jpg', from: `1/1/${y}`, to: `12/31/${y}`, lead: 'Add 3 or more selections to a multiple and your winnings get boosted.', cta: ['Bet Now', '#/home'],
       steps: ['Add 3+ selections with odds of 1.20 or more to the betslip.', 'Choose Multiple.', 'The boost grows with the number of selections at 1.20+: 5% for 3, 50% for 5, 200% for 10, 500% for 15 and 1000% for 20 or more.'],
       terms: ['Applies to pre-match and live multiples.', 'The boost is paid as cash on winning bets.', 'Cashed-out bets do not get the boost.'] },

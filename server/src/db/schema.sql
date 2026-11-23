@@ -389,3 +389,17 @@ CREATE TABLE IF NOT EXISTS notices (
   done_at    timestamptz                    -- closed: seen (one-time notices), deposit made, or cancelled
 );
 CREATE INDEX IF NOT EXISTS notices_open ON notices (user_id, created_at) WHERE done_at IS NULL;
+-- Deposit 1, 2, 3 (admin-set): a bonus on each of the first three deposits made once the player's ID is approved, held
+-- as locked bonus funds until wagered (lib/bonus.js). While enabled it replaces the first-deposit welcome bonus.
+INSERT INTO settings (key, value) VALUES ('deposit_bonuses', '{"enabled":true,"requireId":true,"NG":[{"pct":200,"max":100000},{"pct":100,"max":50000},{"pct":50,"max":25000}],"GH":[{"pct":200,"max":1000},{"pct":100,"max":500},{"pct":50,"max":250}],"times":5,"min_odds":1.5,"days":14}')
+  ON CONFLICT (key) DO NOTHING;
+ALTER TABLE bonuses ADD COLUMN IF NOT EXISTS payment_id uuid;
+-- a screenshot of the transfer the player sent (manual deposits), for the admin who confirms it
+CREATE TABLE IF NOT EXISTS payment_proofs (
+  payment_id uuid PRIMARY KEY REFERENCES payments(id),
+  user_id    uuid NOT NULL REFERENCES users(id),
+  mime       text NOT NULL CHECK (mime IN ('image/jpeg','image/png','image/webp')),
+  data       bytea NOT NULL,
+  size       int NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);

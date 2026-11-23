@@ -177,6 +177,8 @@ Earn reward per country (₦1,000 / GH₵10).
 - **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
   pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
   and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).
+- **Bonuses**: see *Deposit bonuses 1 · 2 · 3* under Payments below (the 200% first-deposit welcome bonus is used only
+  when the ladder is switched off).
 - **Payments – real money, nothing that cannot complete** (`lib/payments.js`, `GET /api/wallet/options` tells the
   deposit page what is open for the player's country, with the limits):
   - **Nigeria – bank transfer, confirmed by an admin.** The deposit page shows the account from *Payment settings*
@@ -193,6 +195,16 @@ Earn reward per country (₦1,000 / GH₵10).
     marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
     transfer fails), or rejects (refunded at once). ID check: players can request while it is waiting; the admin
     approves or rejects it with a reason the player sees.
+  - **Transfer screenshots + references (no leaks)**: the deposit page asks for a screenshot of the transfer on manual
+    deposits (shrunk to a JPEG in the browser, `POST /api/wallet/payments/:id/proof`, table `payment_proofs`, type
+    checked by the file's bytes, only the owner, only while being checked; *Add screenshot* later from Recent deposits).
+    The admin sees it in the queue and the Confirm dialog (`GET /api/admin/payments/:id/proof`). Crediting a manual
+    deposit **requires the bank / MoMo transfer reference** (`reference_required`), and each reference is credited once.
+  - **Deposit bonuses 1 · 2 · 3** (`lib/bonus.js`, settings `deposit_bonuses`, validated on save): a bonus on each of the
+    first three deposits after the ID check (% and cap per step and country), locked until wagered; a stake counts
+    towards the oldest active bonus only; an old welcome bonus counts as Deposit 1. `GET /api/wallet/options` →
+    `ladder` (steps, next, unlocked); ID approval sends a `kyc_approved` pop-up listing them. Replaces the welcome bonus
+    while enabled (default on, after ID approval).
   - **Support adds a deposit** (portal: player profile → *Add deposit*, `POST /api/admin/users/:id/deposits`): for a
     player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
     MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited

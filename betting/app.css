@@ -2863,3 +2863,39 @@ html[data-theme="dark"] .sh-btn.wa{color:#fff}
 .nt-steps li::before{content:counter(nt);position:absolute;left:0;top:5px;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .nt .wx-payto{align-self:stretch;text-align:left;margin-top:6px}
 .nt .wl-sheet-btns{align-self:stretch}
+/* Deposit 1, 2, 3 (ladder card on the deposit page) and the transfer screenshot */
+.wx-ladder-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wx-ladder-h .wx-h{display:flex;align-items:center;gap:6px}
+.wx-ladder-h .wx-h svg{width:16px;height:16px;color:#c99a00}
+.wx-steps{list-style:none;margin:8px 0 0;padding:0}
+.wx-steps li{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.wx-steps li:first-child{border-top:0}
+.wx-step-n{flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;background:#eef0f3;color:#5d636b}
+.wx-step-n svg{width:15px;height:15px}
+.wx-steps li.next .wx-step-n,.wx-steps li.active .wx-step-n{background:var(--brand);color:#fff}
+.wx-steps li.released .wx-step-n{background:#e6f4ec;color:var(--brand)}
+.wx-steps li.locked{opacity:.6}
+.wx-step-m{flex:1;min-width:0;display:flex;flex-direction:column}
+.wx-step-m b{font-size:14px;color:var(--ink)}
+.wx-step-m small{font-size:12px;color:var(--muted)}
+.wx-st.next{background:#e6f4ec;color:var(--brand)}
+.wx-ladder .wl-verify{margin:8px 0 2px}
+.wx-proof{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.wx-l-t{font-size:13px;font-weight:600;color:var(--ink)}
+.wx-proof-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:48px;border:1.5px dashed var(--brand);border-radius:8px;background:#f4faf6;color:var(--brand);font-weight:700;font-size:14px}
+.wx-proof-btn svg{width:18px;height:18px}
+.wx-proof-prev{position:relative;align-self:flex-start}
+.wx-proof-prev img{display:block;max-width:160px;max-height:200px;border-radius:8px;border:1px solid var(--line)}
+.wx-proof-x{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;background:#353a45;color:#fff;display:flex;align-items:center;justify-content:center}
+.wx-proof-x svg{width:14px;height:14px}
+.wx-proof-hint{font-size:12px;color:var(--muted);line-height:1.4}
+.wx-proof-later{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;border:1px solid var(--brand);border-radius:12px;color:var(--brand);font-size:11.5px;font-weight:700;background:#fff;align-self:flex-start}
+.wx-proof-later svg{width:12px;height:12px}
+.nt-ico.ok{background:var(--brand);color:#fff}
+.nt-ladder{align-self:stretch;list-style:none;margin:10px 0 6px;padding:0;text-align:left}
+.nt-ladder li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+.nt-ladder li span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.nt-ladder li b{flex:1;font-size:14px;color:var(--ink)}
+.nt-ladder li em{font-style:normal;font-size:12.5px;color:var(--brand);font-weight:700}
+.nt-ladder li.released,.nt-ladder li.active,.nt-ladder li.expired{opacity:.65}
+.nt .wx-note{align-self:stretch;text-align:left}

@@ -222,7 +222,7 @@
       </div>
       <div class="au-tabs"><a class="on" href="#/register${next ? '/' + next : ''}">Register</a><a href="#/login${next ? '/' + next : ''}">Login</a></div>
       <form class="au-form" id="regForm" novalidate>
-        <div class="au-bonus">${ICON.gift}<span><b>200% Welcome Bonus</b> up to ${app().whole(app().C.bonusMax)} on your first deposit</span></div>
+        <div class="au-bonus">${ICON.gift}<span><b>Deposit bonuses</b> on your first 3 deposits after your ID check</span></div>
         ${countryRow()}
         ${viaTabs(reg.via, vias)}
         <div class="au-group">
@@ -294,7 +294,7 @@
         <div class="au-tick">${ICON.check}</div>
         <h2>Welcome to LetBetAfrika!</h2>
         <p>Your account <b>${reg.via === 'email' ? a.esc(reg.email) : fmtPhone(reg.phone)}</b> is ready.</p>
-        <div class="au-bonus big">${ICON.gift}<span><b>Claim your 200% Welcome Bonus</b>Deposit now and we'll triple it, up to ${a.whole(a.C.bonusMax)}.</span></div>
+        <div class="au-bonus big">${ICON.gift}<span><b>Get bonuses on your first 3 deposits</b>Verify your ID – it takes 2 minutes – then each of your first 3 deposits earns a bonus.</span></div>
         <a class="au-btn" href="#/deposit" data-reg-reset>Deposit Now</a>
         <a class="au-btn ghost" href="#/${a.esc(reg.next || 'home')}" data-reg-reset>Start Betting</a>
         <a class="au-link center" href="#/acct/verify" data-reg-reset>Verify your ID now for faster withdrawals ${ICON.chev}</a>
@@ -592,6 +592,7 @@
       if (v && v < min) { msg = `Minimum is ${a.whole(min)}`; cls = 'bad'; }
       else if (v > max) { msg = `Maximum is ${a.whole(max)}`; cls = 'bad'; }
       else if (!dep && v > user().balance) { msg = 'That is more than your balance'; cls = 'bad'; }
+      else if (dep && v && ladder()) { const lb = ladderBonus(v); if (lb && lb.locked) { msg = 'Verify your ID to get a bonus on this deposit'; cls = ''; } else if (lb && lb.amount > 0) { msg = `+${a.whole(lb.amount)} bonus with this deposit (Deposit ${lb.n})`; cls = 'good'; } }
       else if (dep && v && firstDeposit()) { msg = `+${a.whole(Math.min(v * 2, a.C.bonusMax))} welcome bonus with this deposit`; cls = 'good'; }
       hint.textContent = msg; hint.className = 'wx-hint ' + cls;
       $$('[data-set]', form).forEach(b => b.classList.toggle('on', +b.dataset.set === v));
@@ -609,6 +610,67 @@
     return { get, valid: () => { const v = get(); return v >= min && v <= max && (dep || v <= user().balance); } };
   }
   const firstDeposit = () => live() ? wl.hasDeposit === false : !app().state.tx.some(t => t.type === 'Deposit' && t.status !== 'failed');
+  /* ----- Deposit 1, 2, 3 (live, settings deposit_bonuses): a bonus on each of the first three deposits after the ID check ----- */
+  const ladder = () => (live() && opt.data && opt.data.ladder) || null;
+  const nth = n => ['first', 'second', 'third'][n - 1];
+  function ladderHTML() {
+    const L = ladder(), a = app(); if (!L || !L.steps.length) return '';
+    const ST = { released: ['Done', 'ok'], active: ['Bonus active', 'pend'], expired: ['Expired', 'bad'], forfeited: ['Ended', 'bad'], next: ['Next', 'next'], later: ['', ''], locked: ['', ''] };
+    return `<section class="wx-card wx-ladder"><div class="wx-ladder-h"><h2 class="wx-h">${ICON.gift}Deposit bonuses</h2>${L.unlocked ? '' : '<em class="wx-st pend">ID check needed</em>'}</div>
+      ${!L.unlocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="deposit">${ICON.shield}<span><b>Verify your ID to unlock your deposit bonuses</b>It takes 2 minutes. Then each of your next 3 deposits earns a bonus.</span>${ICON.chev}</a>` : ''}
+      <ol class="wx-steps">${L.steps.map(s => { const [lab, cls] = ST[s.status] || ['', '']; return `<li class="${s.status}"><span class="wx-step-n">${s.status === 'released' ? ICON.check : s.n}</span>
+        <span class="wx-step-m"><b>Deposit ${s.n} · ${s.pct}% bonus</b><small>${s.bonus != null ? `You got ${a.money(s.bonus)}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}` : `Up to ${a.whole(s.max)} on your ${nth(s.n)} deposit`}</small></span>
+        ${lab ? `<em class="wx-st ${cls}">${lab}</em>` : ''}</li>`; }).join('')}</ol>
+      <p class="wx-note">${ICON.shield}<span>Bonus money is released into your balance once you have staked ${L.times}× the bonus on multiples with every selection at ${L.min_odds}+ odds, within ${L.days} days.</span></p></section>`;
+  }
+  // the bonus this deposit earns (next step of the ladder), for the amount hint
+  function ladderBonus(v) {
+    const L = ladder(); if (!L) return null;
+    if (!L.unlocked) return { locked: true };
+    const s = L.steps.find(x => x.status === 'next'); if (!s) return null;
+    return { n: s.n, amount: Math.min(s.max, v * s.pct / 100) };
+  }
+
+  /* ----- the transfer screenshot (manual deposits): shrunk in the browser to a JPEG before it is sent ----- */
+  function shrinkImage(file, maxSide = 1400, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error('bad_image'));
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url); resolve(cv.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad_image')); };
+      img.src = url;
+    });
+  }
+  const proofHTML = momo => `<div class="wx-proof" id="wxProof"><span class="wx-l-t">Screenshot of your ${momo ? 'MoMo payment' : 'transfer'}</span>
+    <input type="file" accept="image/*" id="proofFile" hidden>
+    <button type="button" class="wx-proof-btn" data-proof-pick>${ICON.plus}<span>Add screenshot</span></button>
+    <div class="wx-proof-prev" hidden><img alt="Your screenshot"><button type="button" class="wx-proof-x" data-proof-clear aria-label="Remove screenshot">${ICON.close}</button></div>
+    <small class="wx-proof-hint">Take a screenshot of the successful ${momo ? 'payment' : 'transfer'} in your ${momo ? 'MoMo' : 'bank'} app – it helps us confirm it fast.</small></div>`;
+  function bindProof(form, onChange) {
+    const box = $('#wxProof', form); if (!box) return () => null;
+    const file = $('#proofFile', box), prev = $('.wx-proof-prev', box), pick = $('[data-proof-pick]', box);
+    const show = () => { const on = !!wl.proof; prev.hidden = !on; pick.hidden = on; if (on) $('img', prev).src = wl.proof; onChange && onChange(); };
+    pick.onclick = () => file.click();
+    $('[data-proof-clear]', box).onclick = () => { wl.proof = null; file.value = ''; show(); };
+    file.onchange = async () => { try { wl.proof = await shrinkImage(file.files[0]); } catch { app().toast('That file is not a picture – choose a screenshot', 'err'); } show(); };
+    show();
+    return () => wl.proof;
+  }
+  // a pending manual deposit without a screenshot: add one later from Recent deposits
+  async function addProofLater(id) {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = async () => {
+      try { const img = await shrinkImage(inp.files[0]); await API.wallet.proof(id, img); app().toast('Screenshot sent – thank you', 'ok'); wl.recentAt = 0; loadRecent('dep'); }
+      catch (x) { app().toast(err(x, 'The screenshot could not be sent'), 'err'); }
+    };
+    inp.click();
+  }
+
   function depositLimit() {
     const u = user(), L = live() ? u.limits?.deposit : u.limits;
     const amt = L && (L.amount ?? L.amt); if (!amt) return null;
@@ -632,11 +694,12 @@
     const list = (live()
       ? wl.recent.filter(x => x.kind === (dep ? 'deposit' : 'withdrawal')).map(x => ({ amt: +x.amount, method: API_NAME[x.method] || x.method, at: new Date(x.created_at).getTime(), st: x.status, why: x.reason }))
       : a.state.tx.filter(t => t.type === (dep ? 'Deposit' : 'Withdrawal')).map(t => ({ amt: Math.abs(t.amt), method: t.method, at: t.at, st: t.status || 'success' }))).slice(0, 5);
+    if (live()) list.forEach((x, i) => { const src = wl.recent.filter(y => y.kind === (dep ? 'deposit' : 'withdrawal'))[i]; if (src) { x.id = src.id; x.needProof = dep && src.status === 'pending' && src.provider === 'manual' && !src.proof; } });
     if (!list.length) return `<p class="wx-empty">No ${dep ? 'deposits' : 'withdrawals'} yet.</p>`;
     return list.map(x => {
       const [label, cls] = dep && x.st === 'pending' ? ['Being checked', 'pend'] : ST[x.st] || [x.st, ''];
       return `<div class="wx-tx"><span class="wx-tx-i ${kind}">${dep ? ICON.down : ICON.up}</span>
-        <span class="wx-tx-m"><b>${a.esc(x.method || (dep ? 'Deposit' : 'Withdrawal'))}</b><small>${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${x.why && x.st !== 'success' ? `<small class="wx-why">${a.esc(x.why)}</small>` : ''}</span>
+        <span class="wx-tx-m"><b>${a.esc(x.method || (dep ? 'Deposit' : 'Withdrawal'))}</b><small>${new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${x.why && x.st !== 'success' ? `<small class="wx-why">${a.esc(x.why)}</small>` : ''}${x.needProof ? `<button type="button" class="wx-proof-later" data-proof-later="${x.id}">${ICON.plus}Add screenshot</button>` : ''}</span>
         <span class="wx-tx-r"><b>${dep ? '+' : '−'}${a.money(x.amt)}</b><em class="wx-st ${cls}">${label}</em></span></div>`;
     }).join('');
   }
@@ -657,6 +720,7 @@
   function copyBtn(text, label = 'Copy') { return `<button type="button" class="wl-copy" data-copy-text="${app().esc(text)}">${ICON.copy}${label}</button>`; }
   document.addEventListener('click', e => {
     const c = e.target.closest('[data-copy-text]'); if (c) { navigator.clipboard?.writeText(c.dataset.copyText).catch(() => {}); app().toast('Copied'); }
+    const pl = e.target.closest('[data-proof-later]'); if (pl) return addProofLater(pl.dataset.proofLater);
     const eye = e.target.closest('[data-eye]');
     if (eye) { const i = eye.previousElementSibling, show = i.type === 'password'; i.type = show ? 'text' : 'password'; eye.innerHTML = show ? ICON.eyeOff : ICON.eye; eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); }
   });
@@ -727,8 +791,8 @@
       const way = o && o.deposit && o.deposit[0], bank = !!way && way.method === 'bank_transfer', api = !!way && way.mode === 'api', tab = bank ? 'transfer' : 'momo';
       const rc = (o && o.reference) || refCode(), how = amt ? `<b>${a.money(amt)}</b>` : 'the amount you want';
       const steps = !way ? [] : api ? ['Tap <b>Deposit now</b> below.', 'Enter your MoMo number and pick your network.', 'Approve the prompt on your phone – your balance updates at once.']
-        : bank ? [`Open your bank app and transfer ${how} to the account below.`, `Put your reference <b>${esc(rc)}</b> in the narration.`, 'Tap <b>Deposit now</b>, then <b>I have sent it</b>.']
-        : [`Send ${how} by MoMo to the number below.`, `Use <b>${esc(rc)}</b> as the reference.`, 'Tap <b>Deposit now</b>, then <b>I have sent it</b>.'];
+        : bank ? [`Open your bank app and transfer ${how} to the account below.`, `Put your reference <b>${esc(rc)}</b> in the narration.`, 'Tap <b>Deposit now</b>, add the <b>screenshot</b> of your transfer and tap <b>I have sent it</b>.']
+        : [`Send ${how} by MoMo to the number below.`, `Use <b>${esc(rc)}</b> as the reference.`, 'Tap <b>Deposit now</b>, add the <b>screenshot</b> of your payment and tap <b>I have sent it</b>.'];
       const s = sheet(`<div class="nt">
         <div class="nt-ico">${bank ? ICON.bank : ICON.phone}</div>
         <h3>Complete your deposit</h3>
@@ -744,7 +808,25 @@
       $('[data-nt-later]', s).onclick = () => { try { sessionStorage.setItem('lba_nt_later', JSON.stringify([...ntLater(), n.id])); } catch {} closeSheet(); };
       return;
     }
+    if (n.kind === 'kyc_approved') {
+      let o = null; try { o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); } catch {}
+      const L = o && o.ladder, steps = (L && L.steps) || [];
+      API.auth.closeNotice(n.id).catch(() => {});
+      const s = sheet(`<div class="nt">
+        <div class="nt-ico ok">${ICON.check}</div>
+        <h3>Your ID is approved</h3>
+        <p class="wl-p">${steps.length ? 'Your deposit bonuses are open. Each of your next deposits earns a bonus:' : 'You can now withdraw your winnings.'}</p>
+        ${steps.length ? `<ol class="nt-ladder">${steps.map(x => `<li class="${x.status}"><span>${x.n}</span><b>Deposit ${x.n}</b><em>${x.bonus != null ? 'Done' : `${x.pct}% bonus · up to ${a.whole(x.max)}`}</em></li>`).join('')}</ol>
+          <p class="wx-note">${ICON.shield}<span>Bonus money is released once you have staked ${L.times}× the bonus on multiples at ${L.min_odds}+ odds, within ${L.days} days.</span></p>` : ''}
+        <div class="wl-sheet-btns col">${steps.length && L.next ? `<a class="au-btn" href="#/deposit" data-nt-dep>Make deposit ${L.next} now</a>` : '<a class="au-btn" href="#/withdraw">Go to my wallet</a>'}<button class="au-btn ghost" data-close-sheet>Later</button></div>
+      </div>`);
+      $$('[data-close-sheet]', s).forEach(b => b.onclick = () => { closeSheet(); setTimeout(() => checkNotices(true), 350); });
+      $$('a', s).forEach(x => x.addEventListener('click', closeSheet));
+      return;
+    }
     const R = {
+      kyc_rejected: { ok: 'fail', title: 'Your ID check was not approved', primary: ['Send it again', '#/acct/verify'],
+        note: `${d.reason ? '<b>Reason:</b> ' + esc(d.reason) + '<br>' : ''}Please check your details and send them again – it takes 2 minutes.`, rows: [] },
       deposit_credited: { ok: 'ok', title: d.support ? 'Your deposit was added' : 'Deposit confirmed', primary: ['Start betting', '#/home'],
         note: `${d.support ? 'Our support team added your deposit' : 'We confirmed your deposit'}${d.method ? ' (' + esc(d.method) + ')' : ''}. It is in your balance – you are ready to bet.`,
         rows: [['Balance now', `<b>${a.money(user().balance)}</b>`]] },
@@ -823,7 +905,7 @@
     el.innerHTML = `${pageHead('Deposit', { help: true })}
       <div class="wx">
         ${heroHTML('dep')}
-        ${firstDeposit() ? bonusHTML() : ''}
+        ${ladder() ? ladderHTML() : firstDeposit() ? bonusHTML() : ''}
         ${lim ? `<div class="wl-note">${ICON.shield}<span>Your ${lim.period.toLowerCase()} deposit limit is <b>${a.whole(lim.amt)}</b>${lim.left != null ? ` – <b>${a.whole(lim.left)}</b> left` : ''}. <a href="#/acct/limits">Change</a></span></div>` : ''}
         <form class="wx-form" id="depForm" novalidate>
           <section class="wx-card">
@@ -834,6 +916,7 @@
           <section class="wx-card">${amountHTML('dep')}
             ${manual && tab === 'transfer' ? `<label class="wx-l">Name on the account you are sending from<input name="sender" maxlength="80" autocomplete="name" value="${a.esc(prefs.get().sender || u.fullName || '')}" placeholder="e.g. ADA OBI"></label>` : ''}
             ${manual && tab === 'momo' ? `<h3 class="wx-h sm">The MoMo number you are sending from</h3>${momoHTML()}` : ''}
+            ${way.mode === 'manual' ? proofHTML(tab === 'momo') : ''}
           </section>
           <button class="au-btn wx-cta" id="depBtn" disabled>Deposit</button>
           <p class="wx-secure">${ICON.lock}<span>${manual ? `We add it to your balance as soon as the money arrives – ${a.esc(way.eta || 'usually within 15 minutes')}. We email you too.` : 'You approve the payment on your phone with your MoMo PIN. Credited as soon as it is approved.'}</span></p>
@@ -846,11 +929,12 @@
     // the button says what is still missing, then the exact amount
     const sync = () => {
       if (!amt) return;
-      const need = !mm() ? 'Enter your mobile money number' : manual && tab === 'transfer' && f.sender.value.trim().length < 3 ? 'Enter the sender’s name' : '';
+      const need = !mm() ? 'Enter your mobile money number' : manual && tab === 'transfer' && f.sender.value.trim().length < 3 ? 'Enter the sender’s name' : way.mode === 'manual' && !proof() ? 'Add the screenshot of your transfer' : '';
       btn.disabled = !amt.valid() || !!need;
       btn.textContent = !amt.valid() ? (manual ? 'I have sent the money' : 'Deposit') : need || (manual ? `I have sent ${a.money(amt.get())}` : `Deposit ${a.money(amt.get())}`);
     };
     if (tab === 'momo') mm = bindMomo(f, u, sync);
+    const proof = bindProof(f, sync);
     amt = bindAmount(f, 'dep', sync);
     f.addEventListener('input', sync); f.addEventListener('change', sync); sync();
     f.addEventListener('submit', async e => {
@@ -871,6 +955,7 @@
     if (live()) {
       res = await API.wallet.deposit(amount, m.api, details);
       if (res.balance != null) u.balance = res.balance;
+      if (res.mode === 'manual' && wl.proof) { try { await API.wallet.proof(res.paymentId, wl.proof); wl.proof = null; } catch { res.proofFailed = true; } }
       status = res.status; next = res.next || null; r = res.reference || String(res.paymentId).slice(0, 8).toUpperCase();
       if (status === 'success') wl.hasDeposit = true;
       wl.recentAt = 0;
@@ -888,7 +973,7 @@
     if (status !== 'success') {
       return resultSheet({ ok: 'pending', title: 'Deposit being checked', amount,
         note: a.esc((next && next.message) || 'We add it to your balance as soon as the money arrives.'),
-        rows: [['Method', m.name], ['Your reference', a.esc(r)], ['Status', '<em class="wx-st pend">Being checked</em>']],
+        rows: [['Method', m.name], ['Your reference', a.esc(r)], ['Screenshot', res && res.proofFailed ? 'Not sent – add it from Recent deposits' : res && res.mode === 'manual' ? 'Sent' : '–'], ['Status', '<em class="wx-st pend">Being checked</em>']],
         primary: ['Keep browsing', '#/home'], secondary: 'Done' });
     }
     depositDone(amount, m, r, bonus);
