@@ -10,6 +10,19 @@
 > **Admin portal:** https://letbetafrika.online/admin.html – deposits, withdrawals, ID checks, payment details, players,
 > trading, settings (guide: `docs/ADMIN.md`).
 >
+> **Version history – read before deploying.** The Nov 20–22 version (support chat, live desk, promo codes, Moolre,
+> agent dashboard, two-photo ID checks, play-through) was once deployed with `railway up` from outside git; a deploy
+> from git then replaced it. It was recovered from the running service and is now in git (commit "Nov 22 version as it
+> ran live"), with the Nov 23 work merged on top. **Always deploy from this branch – never upload from elsewhere**, or
+> work goes missing again. How the money rules combine now:
+> - withdrawals (and sending to a friend): new members with no deposit can withdraw; after a deposit, only once the ID
+>   is approved and Deposit 1, 2, 3 are done (settings `withdrawals`, emergency suspend switch); on top of that the Nov 22
+>   play-through rule keeps deposits not yet staked in the account – winnings are always free;
+> - bonuses: Deposit 1·2·3 (settings `deposit_bonuses`) replaces the first-deposit welcome bonus while enabled; promo
+>   codes still work; a stake counts towards one bonus at a time (the oldest);
+> - manual deposits need a transfer reference (credited once); a USSD deposit's reference is its transaction ID;
+> - agents: the Nov 22 system (codes and links, % of each new player's first deposit, payout requests).
+>
 > **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
 > then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
 

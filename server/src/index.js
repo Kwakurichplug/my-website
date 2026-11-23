@@ -69,7 +69,9 @@ app.get('/api/crests/:id', async (req, res, next) => {
 // Serve the front end from the same origin (betting/ folder one level up)
 const here = dirname(fileURLToPath(import.meta.url));
 const site = join(here, '..', '..', 'betting');
-app.use(express.static(site, { extensions: ['html'], maxAge: '1h' }));
+// pages, scripts and styles are checked on every load (a quick 304 when unchanged), so a deploy reaches every player at
+// once and old screens never run against a newer server; images keep an hour's cache
+app.use(express.static(site, { extensions: ['html'], maxAge: '1h', setHeaders: (res, file) => { if (/\.(html|js|css|webmanifest)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); } }));
 app.get('/', (_req, res) => res.sendFile(join(site, 'index.html')));
 
 app.use((err, req, res, _next) => {
