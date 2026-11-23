@@ -35,7 +35,12 @@ const SETTINGS = {
   NG: { bank: { bank: 'Test Bank', number: '0123456789', name: 'LETBETAFRIKA LTD', note: 'Use your reference' }, minDeposit: 1000, maxDeposit: 5000000, minWithdraw: 1000, maxWithdraw: 2000000, payoutTime: 'within 24 hours' },
   GH: { momo: { network: 'mtn', number: '0241234567', name: 'LETBETAFRIKA GH', note: '' }, minDeposit: 10, maxDeposit: 50000, minWithdraw: 10, maxWithdraw: 20000, payoutTime: 'within 24 hours' },
 };
-before(async () => { if (!skip) ADMIN = (await player('NG', { admin: true })).token; });
+const OPEN = { suspended: false, requireDeposits: false, message: '' };
+before(async () => {
+  if (skip) return;
+  ADMIN = (await player('NG', { admin: true })).token;
+  await api('/admin/settings/withdrawals', { value: OPEN }, ADMIN, 'PUT');   // the payment tests below need withdrawals open
+});
 after(() => db.end());
 
 test('Nigeria: no bank account set → no deposit method; admin sets it (validated) → bank transfer opens', { skip }, async () => {
@@ -353,3 +358,133 @@ test('Deposit 1·2·3 tracker: every step marked (✓ amount, being checked, nex
   assert.equal((await api('/wallet/options', null, p2.token)).ladder.next, null, 'no next step: the sticky bar goes away');
   assert.ok(un);
 });
+
+test('withdrawals: suspended for everyone; then open only after Deposit 1·2·3 (sending to a friend too); a 0% step still counts', { skip }, async () => {
+  const set = v => api('/admin/settings/withdrawals', { value: v }, ADMIN, 'PUT');
+  const L0 = (await api('/admin/settings', null, ADMIN)).deposit_bonuses;
+  const p = await player('NG', { name: 'Gate Player' }), friend = await player('NG');
+  const credit = amount => api(`/admin/users/${p.user.id}/deposits`, { amount, credit: true, reference: `GATE-${p.user.uid}-${amount}-${Date.now()}` }, ADMIN);
+  const wd = () => api('/wallet/withdraw', { amount: 1000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Gate Player' } }, p.token);
+  const tf = () => api('/wallet/transfer', { phone: friend.phone, amount: 500 }, p.token);
+  await credit(5000);                                                       // before the ID check: not a ladder step
+  // 1) suspended for everyone (withdraw and send to a friend); the admin's message reaches the player
+  assert.equal((await set({ suspended: true, requireDeposits: true, message: 'Back on Monday' })).ok, true);
+  let r = await wd(); assert.equal(r.status, 403); assert.equal(r.error, 'withdrawals_suspended'); assert.equal(r.message, 'Back on Monday');
+  assert.equal((await tf()).error, 'withdrawals_suspended');
+  assert.equal((await api('/wallet/options', null, p.token)).withdrawBlock.error, 'withdrawals_suspended');
+  assert.equal(await bal(p.token), 5000, 'nothing left the balance');
+  assert.equal((await set({ suspended: 'yes' })).status, 400, 'the switch is validated');
+  // 2) open, but only after Deposit 1, 2, 3 – Deposit 3 set to 0%: it still counts
+  await set({ suspended: false, requireDeposits: true, message: '' });
+  await api('/admin/settings/deposit_bonuses', { value: { ...L0, NG: [{ pct: 200, max: 100000 }, { pct: 100, max: 50000 }, { pct: 0, max: 0 }] } }, ADMIN, 'PUT');
+  r = await wd(); assert.equal(r.error, 'deposits_first'); assert.equal(r.unlocked, false, 'ID not approved yet');
+  await db.query('UPDATE users SET verified=true WHERE id=$1', [p.user.id]);
+  r = await wd(); assert.equal(r.error, 'deposits_first'); assert.equal(r.left, 3); assert.equal(r.next, 1);
+  assert.equal((await tf()).error, 'deposits_first', 'no way round it by sending money to a friend');
+  await credit(1000); await credit(2000);
+  r = await wd(); assert.equal(r.left, 1); assert.equal(r.next, 3);
+  await credit(3000);                                                       // Deposit 3: 0% bonus, still a step
+  const o = await api('/wallet/options', null, p.token);
+  assert.equal(o.ladder.left, 0); assert.equal(o.withdrawBlock, null); assert.equal(o.ladder.steps[2].done, true); assert.equal(o.ladder.steps[2].bonus, null);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM deposit_steps WHERE user_id=$1', [p.user.id])).rows[0].n, 3);
+  assert.deepEqual((await db.query(`SELECT kind FROM bonuses WHERE user_id=$1 ORDER BY kind`, [p.user.id])).rows.map(x => x.kind), ['deposit1', 'deposit2']);
+  r = await wd(); assert.equal(r.status, 'pending', 'all three done → the withdrawal is accepted');
+  assert.equal((await tf()).ok, true, 'and sending to a friend');
+  assert.equal(await bal(p.token), 5000 + 1000 + 2000 + 3000 - 1000 - 500);
+  // a 4th deposit is not a step
+  await credit(4000);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM deposit_steps WHERE user_id=$1', [p.user.id])).rows[0].n, 3);
+  await api('/admin/settings/deposit_bonuses', { value: L0 }, ADMIN, 'PUT');
+  await set(OPEN);
+});
+
+test('withdrawals: a new member can withdraw before the first deposit (told on the deposit page); from the first deposit, only after Deposit 1·2·3', { skip }, async () => {
+  const set = v => api('/admin/settings/withdrawals', { value: v }, ADMIN, 'PUT');
+  await set({ suspended: false, requireDeposits: true, newMembersOpen: true, message: '' });
+  const p = await player('NG', { name: 'New Member' }), friend = await player('NG');
+  const wd = amount => api('/wallet/withdraw', { amount, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'New Member' } }, p.token);
+  const tf = amount => api('/wallet/transfer', { phone: friend.phone, amount }, p.token);
+  // money that did not come from a deposit of theirs (support credited it)
+  assert.ok((await api(`/admin/users/${p.user.id}/adjust`, { amount: 3000, reason: 'Goodwill credit' }, ADMIN)).balance >= 3000);
+  let o = await api('/wallet/options', null, p.token);
+  assert.equal(o.withdrawBlock, null, 'no deposit yet → withdrawals open');
+  assert.equal(o.withdrawRuleAhead, true, 'the deposit page tells them the rule starts with their first deposit');
+  let r = await wd(1000); assert.equal(r.status, 'pending', 'a new member’s withdrawal is accepted');
+  assert.equal((await tf(500)).ok, true, 'and sending to a friend');
+  // a deposit still waiting for the admin does not start the rule
+  const pend = await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, credit: false }, ADMIN);
+  assert.equal(pend.status, 'pending');
+  assert.equal((await api('/wallet/options', null, p.token)).withdrawBlock, null, 'pending deposit → still open');
+  // the first credited deposit starts it: withdrawals (and sending) wait for Deposit 1, 2, 3
+  await api(`/admin/users/${p.user.id}/deposits`, { amount: 5000, credit: true, reference: `NEW-${p.user.uid}-${Date.now()}` }, ADMIN);
+  o = await api('/wallet/options', null, p.token);
+  assert.equal(o.withdrawBlock && o.withdrawBlock.error, 'deposits_first'); assert.equal(o.withdrawRuleAhead, false, 'no longer “ahead”');
+  r = await wd(500); assert.equal(r.status, 403); assert.equal(r.error, 'deposits_first');
+  assert.equal((await tf(100)).error, 'deposits_first');
+  assert.equal(await bal(p.token), 3000 - 1000 - 500 + 5000, 'nothing left the balance after the rule started');
+  // with the switch off, a new member waits for Deposit 1, 2, 3 too
+  const n2 = await player('NG');
+  await set({ suspended: false, requireDeposits: true, newMembersOpen: false, message: '' });
+  o = await api('/wallet/options', null, n2.token);
+  assert.equal(o.withdrawBlock && o.withdrawBlock.error, 'deposits_first'); assert.equal(o.withdrawRuleAhead, false);
+  // the emergency switch beats everything, new members included
+  await set({ suspended: true, requireDeposits: true, newMembersOpen: true, message: '' });
+  assert.equal((await api('/wallet/options', null, n2.token)).withdrawBlock.error, 'withdrawals_suspended');
+  assert.equal((await api('/wallet/options', null, n2.token)).withdrawRuleAhead, false);
+  // validated
+  assert.equal((await set({ suspended: false, requireDeposits: true, newMembersOpen: 'yes' })).status, 400);
+  await set(OPEN);
+  await ledgerOk(p.user.id);
+});
+
+test('no leaks: a first deposit credited while a new member’s withdrawal (or transfer) is being made can’t be taken straight out', { skip }, async () => {
+  await api('/admin/settings/withdrawals', { value: { suspended: false, requireDeposits: true, newMembersOpen: true, message: '' } }, ADMIN, 'PUT');
+  const friend = await player('NG');
+  const tries = [
+    ['withdraw', tok => api('/wallet/withdraw', { amount: 8000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Race Player' } }, tok)],
+    ['transfer', tok => api('/wallet/transfer', { phone: friend.phone, amount: 8000 }, tok)],
+  ];
+  for (const [what, take] of tries) {
+    const p = await player('NG', { name: 'Race Player' });
+    await api(`/admin/users/${p.user.id}/adjust`, { amount: 3000, reason: 'Goodwill credit' }, ADMIN);
+    // their first deposit is being credited right now: that transaction holds the balance row and has not committed
+    const c = await db.connect();
+    try {
+      await c.query('BEGIN');
+      const { rows: [pay] } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'deposit',5000,'bank_transfer','manual','success','{}') RETURNING id`, [p.user.id]);
+      const { rows: [u] } = await c.query('UPDATE users SET balance = balance + 5000 WHERE id=$1 RETURNING balance', [p.user.id]);
+      await c.query(`INSERT INTO transactions (user_id, type, amount, balance_after, ref) VALUES ($1,'deposit',5000,$2,$3)`, [p.user.id, u.balance, pay.id]);
+      // at that moment the player asks to take out everything, the deposit included
+      const req = take(p.token);
+      let waiting = 0;
+      for (let i = 0; i < 60 && !waiting; i++) { await sleep(100); waiting = (await db.query(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND datname=current_database()`)).rows[0].n; }
+      assert.ok(waiting, `the ${what} waits for the balance row`);
+      await c.query('COMMIT');
+      const r = await req;
+      assert.equal(r.status, 403, what); assert.equal(r.error, 'deposits_first', `${what}: the deposit started the 1·2·3 rule before any money left`);
+    } finally { c.release(); }
+    assert.equal(await bal(p.token), 8000, `${what}: nothing left the balance`);
+    await ledgerOk(p.user.id);
+  }
+  assert.equal(await bal(friend.token), 0, 'the friend received nothing');
+  await api('/admin/settings/withdrawals', { value: OPEN }, ADMIN, 'PUT');
+});
+
+test('no leaks: half-cent amounts are rounded once, so both sides of a transfer and a ticket match the ledger', { skip }, async () => {
+  const a = await player('NG'), b = await player('NG');
+  await api(`/admin/users/${a.user.id}/deposits`, { amount: 10000, credit: true, reference: 'RND-' + a.user.uid + '-' + Date.now() }, ADMIN);
+  const before = await bal(a.token);
+  assert.equal((await api('/wallet/transfer', { phone: b.phone, amount: 100.005 }, a.token)).ok, true);
+  const sent = before - await bal(a.token), got = await bal(b.token);
+  assert.equal(r2c(sent), r2c(got), 'the receiver gets exactly what the sender paid – no cent made up');
+  const ev = (await api('/events?status=scheduled&sport=football&limit=50', null)).events.find(e => new Date(e.kickoff) > Date.now() + 5 * 60e3 && e.markets.some(m => m.key === '1x2' && !m.suspended));
+  if (ev) {
+    const odd = ev.markets.find(m => m.key === '1x2').outcomes['1'].o;
+    const placed = await api('/bets/place', { type: 'single', selections: [{ eventId: ev.id, market: '1x2', outcome: '1', odd }], stakes: [1000.005], acceptChanges: true }, a.token);
+    const t = placed.bets[0];
+    const row = (await db.query('SELECT stake::float AS stake FROM bets WHERE id=$1', [t.id])).rows[0];
+    const led = (await db.query(`SELECT amount::float AS amount FROM transactions WHERE ref=$1 AND type='bet'`, [t.id])).rows[0];
+    assert.equal(row.stake, -led.amount, 'the ticket keeps exactly what the balance paid');
+  }
+});
+const r2c = n => Math.round(n * 100) / 100;

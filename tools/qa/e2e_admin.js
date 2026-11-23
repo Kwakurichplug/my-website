@@ -21,7 +21,7 @@ async function player(cc, name) {
   const b = await chromium.launch(), errs = [];
   const admin = await player('NG', 'Ops Admin'); sql(`UPDATE users SET role='admin' WHERE id='${admin.user.id}'`);
   const ng = await player('NG', 'Ada Obi'), gh = await player('GH', 'Kofi Mensah');
-  sql(`DELETE FROM settings WHERE key='payments'`);
+  sql(`DELETE FROM settings WHERE key IN ('payments', 'withdrawals')`);   // as on a new install (the other suites change them)
   // ---------- admin portal: sign in, fill the Nigeria bank account ----------
   const actx = await b.newContext({ viewport: { width: 1366, height: 860 } }), A = await actx.newPage(); A.on('pageerror', e => errs.push('admin: ' + e.message));
   await A.goto(BASE + 'admin.html'); await A.waitForTimeout(800);
@@ -35,6 +35,7 @@ async function player(cc, name) {
   await A.click('#psSave'); await A.waitForTimeout(1500);
   ok(/Open – players see this account/.test(await A.textContent('#main')), 'bank account saved – Nigeria deposits open');
   ok(/Payment API connected – test mode/.test(await A.textContent('#main')), 'Ghana: payment API shown as connected (test mode)');
+  ok(/Open/.test(await A.textContent('#wdState')) && /new members who have not deposited yet/.test(await A.textContent('#wdState')) && !(await A.isChecked('#wdSusp')) && await A.isChecked('#wdDeps') && await A.isChecked('#wdNew'), 'Withdrawals card: open – after Deposit 1·2·3, and new members before their first deposit');
   await A.screenshot({ path: OUT + '/adm-2-paysettings.png', fullPage: true });
 
   // ---------- Nigerian player: bank transfer deposit ----------
@@ -44,6 +45,7 @@ async function player(cc, name) {
   await P.goto(BASE + '#/deposit'); await P.waitForTimeout(3500);
   const page = await P.textContent('#page-deposit');
   ok(/Test MFB/.test(page) && /0123456789/.test(page) && /LETBETAFRIKA TEST/.test(page) && /LB0*\d+/.test(page), 'player sees the bank account and their reference');
+  ok(/Good to know before you deposit/.test(page) && /once you make your first deposit/.test(page), 'deposit page: tells a new member the 1·2·3 rule starts with the first deposit');
   ok(!/Card|USSD|OPay|PalmPay/.test(await P.textContent('#depForm .wx-methods')), 'only bank transfer offered (no card / USSD / wallets)');
   await P.fill('#wlAmt', '5000'); await P.fill('input[name=sender]', 'ADA OBI'); await P.waitForTimeout(300);
   ok(/Add the screenshot of your transfer/.test(await P.textContent('#depBtn')) && await P.isDisabled('#depBtn'), 'asks for the screenshot of the transfer first');
@@ -56,6 +58,22 @@ async function player(cc, name) {
   await P.click('#depBtn'); await P.waitForTimeout(2200);
   ok(/Deposit being checked/.test(await P.textContent('#wlSheet')) && /Screenshot\s*Sent/.test(await P.textContent('#wlSheet')), 'player told the deposit is being checked – screenshot sent');
   await P.screenshot({ path: OUT + '/ply-2-checking.png' });
+  // a new member (the deposit is not credited yet): withdrawals are open – the form shows
+  await P.goto(BASE + '?w=0#/withdraw'); await P.waitForTimeout(2500);
+  ok(await P.isVisible('#wdForm') && !/Complete your 3 deposits|paused for now/.test(await P.textContent('#page-withdraw')), 'new member (no deposit credited yet): withdrawals open – the form shows');
+  await P.screenshot({ path: OUT + '/ply-5-withdraw-new-member.png' });
+  // the emergency switch: the admin suspends all withdrawals → the player sees them paused, with the admin's message
+  await A.goto(BASE + 'admin.html#/paysettings'); await A.waitForTimeout(1500);
+  await A.check('#wdSusp'); await A.fill('#wdMsg', 'Back in one hour'); await A.click('#wdSave'); await A.waitForTimeout(1500);
+  ok(/Suspended/.test(await A.textContent('#wdState')), 'admin suspends all withdrawals');
+  await P.goto(BASE + '?w=1#/withdraw'); await P.waitForTimeout(2500);
+  const ptxt = await P.textContent('#page-withdraw');
+  ok(/Withdrawals are paused for now/.test(ptxt) && /Back in one hour/.test(ptxt) && !(await P.isVisible('#wdForm')), 'player: withdrawals paused with the admin’s message – no form');
+  await P.screenshot({ path: OUT + '/ply-5b-withdraw-paused.png' });
+  // the admin opens them again – for every player for now – so the payment flows below can run
+  await A.goto(BASE + 'admin.html#/paysettings'); await A.waitForTimeout(1500);
+  await A.uncheck('#wdSusp'); await A.fill('#wdMsg', ''); await A.uncheck('#wdDeps'); await A.click('#wdSave'); await A.waitForTimeout(1500);
+  ok(/Open – for every player/.test(await A.textContent('#wdState')), 'admin opens withdrawals for every player');
 
   // ---------- admin: confirm what arrived (₦4,500) ----------
   await A.goto(BASE + 'admin.html#/payments'); await A.waitForTimeout(1800);
@@ -85,7 +103,7 @@ async function player(cc, name) {
   await A.goto(BASE + 'admin.html#/kyc'); await A.waitForTimeout(1500);
   ok(/12345678901/.test(await A.textContent('#main')), 'ID check waiting with the ID details');
   await A.screenshot({ path: OUT + '/adm-5-kyc.png' });
-  await A.click('#main [data-kyc="approve"]'); await A.waitForTimeout(400); await A.click('#mGo'); await A.waitForTimeout(1200);
+  await A.click(`#main [data-kyc="approve"][data-id="${ng.user.id}"]`); await A.waitForTimeout(400); await A.click('#mGo'); await A.waitForTimeout(1200);
   ok((await api('/auth/me', null, ng.token)).user.verified === true, 'ID approved');
   const lad = await api('/wallet/options', null, ng.token);
   ok(lad.ladder && lad.ladder.unlocked && lad.ladder.steps.length === 3, 'ID approved → Deposit 1 · 2 · 3 unlocked');
@@ -173,6 +191,16 @@ async function player(cc, name) {
   ok(await P.isVisible('#ladBar'), 'the bar stays while browsing');
   await P.click('#ladBar .lb-in'); await P.waitForTimeout(1200);
   ok(P.url().includes('#/deposit') && !(await P.isVisible('#ladBar')), 'the bar opens the deposit page (and hides there)');
+  // withdrawals only after Deposit 1, 2, 3: Ada has made Deposit 1 → the withdraw page lists what is left
+  await A.goto(BASE + 'admin.html#/paysettings'); await A.waitForTimeout(1500);
+  await A.check('#wdDeps'); await A.click('#wdSave'); await A.waitForTimeout(1500);
+  ok(/Deposit 1, 2 and 3/.test(await A.textContent('#wdState')), 'admin: withdrawals only after Deposit 1, 2, 3');
+  await P.goto(BASE + '?w=2#/withdraw'); await P.waitForTimeout(3000);
+  for (let i = 0; i < 8 && await P.isVisible('#wlSheet.open'); i++) { await P.click('#wlSheet.open [data-close-sheet]'); await P.waitForTimeout(1200); }
+  const wtxt = await P.textContent('#page-withdraw');
+  ok(/Complete your 3 deposits to unlock withdrawals/.test(wtxt) && /1 of 3 done/.test(wtxt) && /Make deposit 2 now/.test(wtxt) && !(await P.isVisible('#wdForm')), 'player: withdrawals locked until Deposit 2 and 3 – with a button to deposit 2');
+  await P.screenshot({ path: OUT + '/ply-6-withdraw-locked.png', fullPage: true });
+  ok((await api('/wallet/withdraw', { amount: 1000, method: 'bank_transfer', details: { bank: 'GTBank', acct: '0123456789', name: 'Ada Obi' } }, ng.token)).error === 'deposits_first', 'the server refuses the withdrawal too');
   // the admin's tracker: players with deposits left first, each step marked
   await A.goto(BASE + 'admin.html#/ladder'); await A.waitForTimeout(1800);
   const trk = await A.textContent('#main');

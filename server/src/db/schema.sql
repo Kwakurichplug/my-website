@@ -403,3 +403,19 @@ CREATE TABLE IF NOT EXISTS payment_proofs (
   size       int NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Deposit 1, 2, 3 steps the player has made (whatever the bonus – a 0% step still counts), so "all three done" never
+-- depends on a bonus being paid; filled from the ladder bonuses that existed before this table
+CREATE TABLE IF NOT EXISTS deposit_steps (
+  user_id    uuid NOT NULL REFERENCES users(id),
+  step       int NOT NULL CHECK (step BETWEEN 1 AND 3),
+  payment_id uuid,
+  amount     numeric(14,2) NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, step)
+);
+INSERT INTO deposit_steps (user_id, step, payment_id, amount, created_at)
+  SELECT b.user_id, substr(b.kind, 8)::int, b.payment_id, coalesce(p.amount, 0), b.created_at
+  FROM bonuses b LEFT JOIN payments p ON p.id = b.payment_id WHERE b.kind IN ('deposit1','deposit2','deposit3')
+  ON CONFLICT DO NOTHING;
+-- withdrawals (and sending money to a friend): suspended for everyone, and/or only after Deposit 1, 2, 3 are all done
+INSERT INTO settings (key, value) VALUES ('withdrawals', '{"suspended":false,"requireDeposits":true,"newMembersOpen":true,"message":""}') ON CONFLICT (key) DO NOTHING;

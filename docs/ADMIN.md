@@ -71,8 +71,9 @@ confirmed by hand (the portal refuses, so nobody can credit money Paystack has n
 deposits are closed – unless you enter a MoMo wallet under *Payment settings*, in which case they work like Nigeria's
 bank transfers (the player sends to that wallet, you confirm).
 
-**Withdrawals.** The amount leaves the player's balance when they request it (Nigeria: to a bank account; Ghana: to
-Mobile Money). In **Payments → Pending → Withdrawals**:
+**Withdrawals.** Who can request one is set under *Payment settings → Withdrawals* (below): by default after
+Deposit 1, 2 and 3, and new members before their first deposit. The amount leaves the player's balance when they
+request it (Nigeria: to a bank account; Ghana: to Mobile Money). In **Payments → Pending → Withdrawals**:
 
 - **Mark paid** – after you have sent the money yourself. Type the bank or MoMo transaction ID as the payout
   reference; the player gets a "paid" email.
@@ -81,7 +82,8 @@ Mobile Money). In **Payments → Pending → Withdrawals**:
 - **Reject** with a reason – the money goes back to the player's balance at once and they are emailed.
 
 **ID checks.** Players send their name, date of birth, ID type and number (Nigeria: NIN, BVN, passport, driver's licence, voter's card; Ghana: Ghana Card, passport, driver's licence, voter's ID) from Me → Verify ID.
-They can request withdrawals while the check is waiting; pay them once the ID is approved. **ID checks** lists the
+A new member who has not deposited yet can request a withdrawal while the check is waiting – pay it once the ID is
+approved. **ID checks** lists the
 waiting ones: **Approve**, or **Reject** with a reason the player sees (they can send their details again).
 
 ## Agents (sub-agents who bring in players)
@@ -141,6 +143,28 @@ The player's profile shows their ladder (1 · 2 · 3 with ✓, the amount, the b
 **Settings → Deposit bonuses 1 · 2 · 3**: on/off, the ID rule, the % and maximum per deposit and country, the times,
 the minimum odds and the days. The old "Welcome bonus" card is used only while the ladder is off.
 
+## Withdrawals – when players can take money out (Payment settings → Withdrawals)
+
+The **Withdrawals** card at the top of *Payment settings* decides who can request a withdrawal **and** who can send
+money to a friend – the same rule for both, so it can't be got round by sending the money to someone else:
+
+- **Only after Deposit 1, 2 and 3 are all done** (on by default, with Deposit bonuses 1 · 2 · 3 on). Once a player has
+  made a deposit, they can withdraw when their ID is approved and Deposit 1, 2 and 3 are all made. A step set to a
+  0% bonus still counts. Their withdraw page shows what is left – "Complete your 3 deposits to unlock withdrawals",
+  1 · 2 · 3 with ✓, and a **Make deposit N now** (or **Verify my ID**) button – and the server refuses the request
+  too, so it can't be skipped. A fourth deposit is never a step.
+- **New members can withdraw before their first deposit** (on by default). Until a deposit of theirs is credited, a
+  new member's withdrawals are open (for money a friend sent them, or that you credited). Their first credited deposit
+  starts the rule above, and the deposit page tells them before they pay: "Good to know before you deposit: you can
+  withdraw now, but once you make your first deposit, withdrawals open again after Deposit 1, 2 and 3 are all done."
+  A deposit still waiting in Payments does not start it. Untick this to hold new members to the rule too.
+- **Suspend all withdrawals** (off by default – an emergency switch). Nobody can request a withdrawal or send money to
+  a friend; the withdraw page says "Withdrawals are paused for now" with your optional message, and the overview
+  shows a warning while it is on. Withdrawals already waiting can still be paid or rejected.
+
+Untick "Only after Deposit 1, 2 and 3" to open withdrawals for every player. The card saves on its own (**Save
+withdrawals**) and every change is written to the audit log.
+
 ## Payment settings (you can edit everything)
 
 *Payment settings* holds what players see and the limits:
@@ -189,7 +213,8 @@ player search, a link to the site and a refresh button. The Overview refreshes i
   `reason` required to reject, `note`), `POST /payments/:id/payout` (Ghana, through Paystack), `GET /kyc`,
   `POST /users/:id/kyc {approve, reason}`, `GET|PUT /payment-settings`, `GET /bets`, `GET /bets/:id`,
   `POST /bets/:id/void`, `GET /events`, `GET /events/:id`, `POST /events/:id/suspend`, `POST /events/:id/result`,
-  `POST /markets/:eventId/:key`, `GET /settings`, `PUT /settings/:key`, `GET /transactions`, `GET /feed`,
+  `POST /markets/:eventId/:key`, `GET /settings`, `PUT /settings/:key` (validated for `deposit_bonuses` and
+  `withdrawals {suspended, requireDeposits, newMembersOpen, message}`), `GET /transactions`, `GET /feed`,
   `GET /games`, `GET /games/plays`, `GET /games/crash/verify/:id`, `GET /jackpot`, `POST /jackpot/settle`,
   `GET /email/status`, `GET /email/log`, `POST /email/test`, `GET /log`, `GET /agents`, `GET /agents/:id`,
   `PUT /agents/:id {rate, basis: revenue|deposits|stakes, active, note}`, `POST /agents/:id/pay {amount?, note?}`.
@@ -197,6 +222,9 @@ player search, a link to the site and a refresh button. The Overview refreshes i
   the player's view is in `GET /api/auth/referrals` (`agent`).
 - Every non-GET admin request is written to the `admin_log` table (`schema.sql`) with the administrator, the action,
   the target and the request body (passwords stripped).
+- Withdrawal rule: `withdrawBlock(user)` in `server/src/lib/payments.js` – checked by `POST /api/wallet/withdraw` and
+  `POST /api/wallet/transfer` (403 `withdrawals_suspended` or `deposits_first`) and returned by `GET /api/wallet/options`
+  (`withdrawBlock`, plus `withdrawRuleAhead` for the deposit-page note). Steps are recorded in `deposit_steps`.
 - Payments: `server/src/lib/payments.js` (ways to pay per country, limits, settings), `server/src/payments/paystack.js`
   (Paystack API), `server/src/payments/flows.js` (crediting / failing / payout results – idempotent, one row lock),
   `server/src/routes/payments.js` (`POST /api/payments/paystack/webhook`, signature checked).

@@ -1,7 +1,11 @@
 // All balance changes go through here, inside the caller's transaction client,
 // so a bet or payout can never leave the ledger and the cached balance out of step.
 export async function move(client, userId, type, amount, ref = null, meta = {}) {
-  const amt = Math.round(Number(amount) * 100) / 100;
+  // round half-cents the same way up and down (Math.round alone turns -100.005 into -100.00 but 100.005 into 100.01,
+  // which would create a cent from nothing on every move); callers round their inputs too
+  const n = Number(amount);
+  if (!Number.isFinite(n)) throw Object.assign(new Error('invalid_amount'), { status: 400 });
+  const amt = Math.sign(n) * Math.round(Math.abs(n) * 100) / 100;
   const { rows } = await client.query(
     'UPDATE users SET balance = balance + $2 WHERE id = $1 RETURNING balance',
     [userId, amt],

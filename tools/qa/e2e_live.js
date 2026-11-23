@@ -17,6 +17,13 @@ async function codeFromToast(p) {
 const rnd = () => '80' + String(Math.floor(1e7 + Math.random() * 9e7)).slice(0, 8);
 
 (async () => {
+  // withdrawals only after Deposit 1, 2, 3 (settings 'withdrawals'): a helper admin opens them for every player for this test
+  {
+    const ph = rnd(), oo = await api('/auth/otp', { country: 'NG', phone: ph, purpose: 'register' });
+    const ad = await api('/auth/register', { country: 'NG', phone: ph, code: oo.devCode, password: 'Admin1234' });
+    require('child_process').execFileSync('psql', [process.argv[3] || 'postgres://postgres@127.0.0.1:5433/letbet', '-Atc', `UPDATE users SET role='admin' WHERE id='${ad.user.id}'`]);
+    await fetch(URL + 'api/admin/settings/withdrawals', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + ad.token }, body: JSON.stringify({ value: { suspended: false, requireDeposits: false, message: '' } }) });
+  }
   // a second player to receive a transfer
   const friend = rnd();
   const o = await api('/auth/otp', { country: 'NG', phone: friend, purpose: 'register' });

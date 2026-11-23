@@ -57,8 +57,9 @@ r.post('/place', requireUser, async (req, res, next) => {
   const p = z.object({
     type: z.enum(['single', 'multiple']),
     selections: z.array(selSchema).min(1).max(30),
-    stake: z.number().positive().optional(),           // multiple: one stake
-    stakes: z.array(z.number().positive()).optional(),  // singles: one per selection
+    // whole cents: the ticket keeps exactly what the balance paid (no half-cent rounding gap)
+    stake: z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100).optional(),            // multiple: one stake
+    stakes: z.array(z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100)).optional(),  // singles: one per selection
     acceptChanges: z.boolean().default(true),
   }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid', details: p.error.flatten().fieldErrors });

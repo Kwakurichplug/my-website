@@ -433,7 +433,7 @@ r.get('/payment-settings', async (_req, res, next) => {
   try {
     let api = { provider: 'paystack', enabled: paystack.enabled(), test: paystack.testMode(), webhook: `${(process.env.SITE_URL || '').replace(/\/$/, '')}/api/payments/paystack/webhook` };
     if (api.enabled) api = { ...api, balance: await paystack.balance().catch(e => ({ error: e.message })) };
-    res.json({ settings: await payConfig(), api });
+    res.json({ settings: await payConfig(), api, withdrawals: (await getSetting('withdrawals')) || { suspended: false, requireDeposits: true, newMembersOpen: true, message: '' } });
   } catch (e) { next(e); }
 });
 r.put('/payment-settings', async (req, res, next) => {
@@ -498,6 +498,7 @@ const LADDER = z.object({ enabled: z.boolean(), requireId: z.boolean(),
   times: z.number().min(1).max(50), min_odds: z.number().min(1.01).max(10), days: z.number().int().min(1).max(90) });
 r.put('/settings/:key', async (req, res, next) => {
   if (req.params.key === 'deposit_bonuses' && !LADDER.safeParse(req.body.value).success) return res.status(400).json({ error: 'invalid' });
+  if (req.params.key === 'withdrawals' && !z.object({ suspended: z.boolean(), requireDeposits: z.boolean(), newMembersOpen: z.boolean().default(true), message: z.string().trim().max(200).default('') }).safeParse(req.body.value).success) return res.status(400).json({ error: 'invalid' });
   try { await setSetting(req.params.key, req.body.value); res.json({ ok: true, value: await getSetting(req.params.key) }); } catch (e) { next(e); }
 });
 

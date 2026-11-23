@@ -309,7 +309,13 @@ The old login/register/deposit modals are gone – `openModal('loginModal' | 're
   reference `LB` + account ID in the narration note); a manual transfer asks for the sender's name and the button reads
   "I have sent ₦5,000.00" → "Deposit being checked" sheet; Ghana's API MoMo shows "Approve on your phone" (polls
   `GET /api/wallet/payments/:id` every 3 s) or the OTP sheet; a country with nothing open shows `.wx-closed` (no fake
-  method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason). Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
+  method). The verify-ID page shows `.kyc-st` banners for an ID check waiting or rejected (with the reason).
+  **When withdrawals are closed** (`withdrawBlock` from `GET /api/wallet/options`, `withdrawBlockHTML()`), the withdraw
+  page shows a card instead of the form: `.wx-unlock` "Complete your 3 deposits to unlock withdrawals" (`.wx-steps`
+  1 · 2 · 3 with ✓ Done / Being checked / % and cap, then *Make deposit N now* or *Verify my ID*), or `.wx-paused`
+  "Withdrawals are paused for now" with the admin's message; on *To a Friend* it reads "sending money". Before a new
+  member's first deposit the deposit page shows `.wl-note.wx-rule` – "Good to know before you deposit" – when the
+  server says `withdrawRuleAhead`. Bottom sheets (`.wl-sheet`, `.wl-res`, `.wl-dl`) are shared. Dark mode is hand-tuned in app.css
   (`.wx` is in `gen-dark.py`'s SKIP). The old tab layout and its CSS were removed.
 - **Deposit bonuses 1 · 2 · 3** (`account.js` `ladderHTML()`, `.wx-ladder` / `.wx-steps`): the deposit page lists the three
   steps from `opt.data.ladder` (done / bonus active with % played through / next / later / locked behind *Verify your ID*);

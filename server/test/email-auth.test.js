@@ -100,6 +100,13 @@ test('an email-only player can deposit and play', async () => {
 });
 
 test('send money to a friend by email; deposits keep their method details', async () => {
+  // sending money follows the withdrawal rules (once a player has deposited: after Deposit 1, 2, 3 – settings
+  // 'withdrawals'): a helper admin opens them for every player during this test, then puts them back
+  const adm = await emailUser(mail('adm')); await db.query(`UPDATE users SET role='admin' WHERE id=$1`, [adm.user.id]);
+  const setW = v => fetch(API + '/admin/settings/withdrawals', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + adm.token }, body: JSON.stringify({ value: v }) });
+  const before = (await db.query(`SELECT value FROM settings WHERE key='withdrawals'`)).rows[0];
+  assert.equal((await setW({ suspended: false, requireDeposits: false, newMembersOpen: true, message: '' })).status, 200);
+  try {
   const a = await emailUser(mail('h')), bEmail = mail('i'), b = await emailUser(bEmail), gh = mail('j'); await emailUser(gh, 'GH');
   await api('/wallet/deposit', { amount: 3000, method: 'mobile_money', details: { phone: '241234567', network: 'mtn' } }, a.token);
   const { rows } = await db.query(`SELECT details FROM payments WHERE user_id=$1 AND kind='deposit'`, [a.user.id]);
@@ -110,4 +117,5 @@ test('send money to a friend by email; deposits keep their method details', asyn
   await fails(api('/wallet/transfer', { email: a.user.email, amount: 100 }, a.token), 'self_transfer');
   await fails(api('/wallet/transfer', { email: gh, amount: 100 }, a.token), 'no_account');   // other country = other currency
   await fails(api('/wallet/transfer', { email: mail('nobody2'), amount: 100 }, a.token), 'no_account');
+  } finally { await setW(before ? before.value : { suspended: false, requireDeposits: true, newMembersOpen: true, message: '' }); }
 });

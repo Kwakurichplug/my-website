@@ -151,6 +151,7 @@
       const b = ps.settings.NG.bank, m = ps.settings.GH.momo; state.api = ps.api;
       if (!(b.bank && b.number && b.name)) setup.push(['Nigerian players cannot deposit yet', 'Add the bank account players pay into.', '#/paysettings']);
       if (!ps.api.enabled && !(m.number && m.name)) setup.push(['Ghana deposits are closed', 'Connect the payment API (PAYSTACK_SECRET_KEY) or add a MoMo number.', '#/paysettings']);
+      if (ps.withdrawals && ps.withdrawals.suspended) setup.unshift(['Withdrawals are suspended', 'Players cannot request withdrawals or send money to a friend. You can still pay or reject the ones waiting.', '#/paysettings']);
     }
     const today = days[days.length - 1] || {};
     const ggr = (o.staked_today || 0) - (o.paid_today || 0) + (o.game_staked_today || 0) - (o.game_paid_today || 0);
@@ -779,7 +780,7 @@
 
   /* ---------- Payment settings ---------- */
   PAGES.paysettings = async main => {
-    const { settings: st, api } = await API.admin.paymentSettings();
+    const { settings: st, api, withdrawals: wd } = await API.admin.paymentSettings();
     state.api = api;
     const ng = st.NG, gh = st.GH, b = ng.bank, m = gh.momo;
     const f = (name, label, val, attrs = '') => `<label class="field"><span>${label}</span><input name="${name}" value="${esc(val ?? '')}" ${attrs}></label>`;
@@ -813,6 +814,20 @@
         </div></div>
       </form>
       <div class="set-foot sticky"><p class="form-err" id="psErr" hidden></p><span class="saved" hidden>Saved</span><button class="btn primary" id="psSave">Save payment settings</button></div>`;
+    // withdrawals (and sending money to a friend): suspended for everyone, and only after Deposit 1, 2, 3 – saved on its own
+    const W = wd || { suspended: false, requireDeposits: true, newMembersOpen: true, message: '' };
+    $('#main .page-head').insertAdjacentHTML('afterend', `<div class="card set-card wd-card" data-set="withdrawals"><div class="card-b"><h4>Withdrawals</h4>
+      <div class="banner ${W.suspended ? 'warn' : 'ok'}" id="wdState">${W.suspended ? '<b>Suspended</b> – no player can request a withdrawal or send money to a friend.' : W.requireDeposits !== false ? `<b>Open</b> – for players who have made Deposit 1, 2 and 3${W.newMembersOpen !== false ? ', and for new members who have not deposited yet' : ''}.` : '<b>Open</b> – for every player.'}</div>
+      <label class="chk"><input type="checkbox" id="wdSusp" ${W.suspended ? 'checked' : ''}> Suspend all withdrawals <span class="muted">(you can still pay or reject the ones already waiting)</span></label>
+      <label class="chk"><input type="checkbox" id="wdDeps" ${W.requireDeposits !== false ? 'checked' : ''}> Only after Deposit 1, 2 and 3 are all done <span class="muted">(with Deposit bonuses 1 · 2 · 3 on)</span></label>
+      <label class="chk"><input type="checkbox" id="wdNew" ${W.newMembersOpen !== false ? 'checked' : ''}> New members can withdraw before their first deposit <span class="muted">(the rule starts with their first deposit – the deposit page tells them)</span></label>
+      <label class="field"><span>Message to players while suspended (optional)</span><input id="wdMsg" maxlength="200" value="${esc(W.message || '')}" placeholder="e.g. Withdrawals reopen on Monday"></label>
+      <div class="set-foot"><span class="saved" hidden>Saved</span><button class="btn primary" id="wdSave">Save withdrawals</button></div></div></div>`);
+    $('#wdSave').onclick = async () => {
+      const v = { suspended: $('#wdSusp').checked, requireDeposits: $('#wdDeps').checked, newMembersOpen: $('#wdNew').checked, message: $('#wdMsg').value.trim() };
+      try { $('#wdSave').disabled = true; await API.admin.setSetting('withdrawals', v); toast(v.suspended ? 'Withdrawals suspended' : 'Withdrawals saved', 'ok'); render(true); }
+      catch (e) { toast(errMsg(e), 'err'); } finally { $('#wdSave').disabled = false; }
+    };
     $('#psSave').onclick = async () => {
       const v = { NG: { bank: {} }, GH: { momo: {} } };
       $$('#paySet [name]').forEach(i => { const path = i.name.split('.'); let o = v; for (let k = 0; k < path.length - 1; k++) o = o[path[k]] = o[path[k]] || {}; o[path[path.length - 1]] = i.type === 'number' ? +i.value : i.value.trim(); });

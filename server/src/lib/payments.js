@@ -8,7 +8,45 @@
 //             admin pays (manually, or for Ghana through the API) or rejects (the money goes back).
 // PAYMENTS_MODE=demo credits deposits instantly for automated tests; it is ignored when NODE_ENV=production.
 import { getSetting, setSetting } from './settings.js';
+import { q } from '../db/pool.js';
 import * as paystack from '../payments/paystack.js';
+import { ladderOf } from './bonus.js';
+
+/** Can this player take money out (withdraw, or send it to another player)? null = yes, else why not:
+ *  withdrawals_suspended – the admin paused all withdrawals (settings 'withdrawals'.suspended – an emergency switch);
+ *  deposits_first        – Deposit 1, 2, 3 are not all done yet (with the ladder on and requireDeposits). A new member who
+ *                          has not deposited yet is not held by it (newMembersOpen): the rule starts with the first
+ *                          deposit, and the deposit page says so before they pay. `lad` may be passed in when the caller
+ *                          already has the player's ladder. */
+export async function withdrawBlock(user, lad) { return (await withdrawCheck(user, lad)).block; }
+
+/** The same decision with its reason: `block` (null = open) and `newMember` – open only because no deposit of theirs
+ *  has been credited yet (the deposit page then tells them the rule starts with their first deposit). Before money
+ *  moves, the route confirms that with stillNewMember() inside its transaction. */
+export async function withdrawCheck(user, lad) {
+  const w = (await getSetting('withdrawals')) || {};
+  if (w.suspended) return { block: { error: 'withdrawals_suspended', message: w.message || null }, newMember: false };
+  if (w.requireDeposits !== false) {
+    const L = lad === undefined ? await ladderOf(user) : lad;
+    if (L && L.left > 0) {
+      if (w.newMembersOpen !== false && !(await hasDeposited(user.id))) return { block: null, newMember: true };
+      return { block: { error: 'deposits_first', left: L.left, next: L.next, done: L.done, unlocked: L.unlocked }, newMember: false };
+    }
+  }
+  return { block: null, newMember: false };
+}
+/** Has the player ever had a deposit credited? (before that, a new member's withdrawals are open) – `c`: a transaction */
+export async function hasDeposited(userId, c) {
+  const sql = `SELECT EXISTS (SELECT 1 FROM payments WHERE user_id=$1 AND kind='deposit' AND status='success') AS d`;
+  return (await (c ? c.query(sql, [userId]) : q(sql, [userId]))).rows[0].d;
+}
+/** Inside the transaction that takes the money out, for a player let through as a new member: lock their balance row
+ *  first, then check again. Every deposit is credited through that row (wallet.move), so one credited at this very
+ *  moment is either already visible here (→ the 1·2·3 rule applies) or not yet in the balance being debited. */
+export async function stillNewMember(c, userId) {
+  await c.query('SELECT 1 FROM users WHERE id=$1 FOR UPDATE', [userId]);
+  return !(await hasDeposited(userId, c));
+}
 
 export const demoMode = () => process.env.PAYMENTS_MODE === 'demo' && process.env.NODE_ENV !== 'production';
 

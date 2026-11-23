@@ -612,6 +612,8 @@
   const firstDeposit = () => live() ? wl.hasDeposit === false : !app().state.tx.some(t => t.type === 'Deposit' && t.status !== 'failed');
   /* ----- Deposit 1, 2, 3 (live, settings deposit_bonuses): a bonus on each of the first three deposits after the ID check ----- */
   const ladder = () => (live() && opt.data && opt.data.ladder) || null;
+  // the server's withdrawal rule for this player right now: held until Deposit 1, 2, 3 are done (wording follows it)
+  const heldByRule = () => !!(live() && opt.data && opt.data.withdrawBlock && opt.data.withdrawBlock.error === 'deposits_first');
   const nth = n => ['first', 'second', 'third'][n - 1];
   function ladderHTML() {
     const L = ladder(), a = app(); if (!L || !L.steps.length) return '';
@@ -621,10 +623,10 @@
       ${!L.unlocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="deposit">${ICON.shield}<span><b>Verify your ID to unlock your deposit bonuses</b>It takes 2 minutes. Then each of your next 3 deposits earns a bonus.</span>${ICON.chev}</a>` : ''}
       <ol class="wx-steps">${L.steps.map(s => { const [lab, cls] = ST[s.status] || ['', '']; return `<li class="${s.done ? 'done ' : ''}${s.status}"><span class="wx-step-n">${s.done ? ICON.check : s.n}</span>
         <span class="wx-step-m"><b>Deposit ${s.n} · ${s.pct}% bonus${s.done ? ' <i class="wx-done">✓ Done</i>' : ''}</b><small>${s.done
-          ? `${s.deposit != null ? a.money(s.deposit) + (s.depositAt ? ' on ' + day(s.depositAt) : '') + ' · ' : ''}bonus ${a.money(s.bonus)}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}`
+          ? `${s.deposit != null ? a.money(s.deposit) + (s.depositAt ? ' on ' + day(s.depositAt) : '') + ' · ' : ''}${s.bonus != null ? `bonus ${a.money(s.bonus)}` : 'no bonus on this step'}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}`
           : s.status === 'checking' ? `${a.money(s.deposit)} sent – we credit it as soon as it arrives` : `Up to ${a.whole(s.max)} on your ${nth(s.n)} deposit`}</small></span>
         ${lab ? `<em class="wx-st ${cls}">${lab}</em>` : ''}</li>`; }).join('')}</ol>
-      <p class="wx-note">${ICON.shield}<span>Bonus money is released into your balance once you have staked ${L.times}× the bonus on multiples with every selection at ${L.min_odds}+ odds, within ${L.days} days.</span></p></section>`;
+      <p class="wx-note">${ICON.shield}<span>${heldByRule() ? 'Withdrawals open once all three deposits are done. ' : ''}Bonus money is released into your balance once you have staked ${L.times}× the bonus on multiples with every selection at ${L.min_odds}+ odds, within ${L.days} days.</span></p></section>`;
   }
 
   /* ----- the sticky "next deposit" bar: once the ID is approved, until Deposit 1, 2 and 3 are all done ----- */
@@ -650,6 +652,23 @@
     lb.at = Date.now(); lb.busy = true;
     try { const o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); lb.data = o.ladder || null; } catch {} finally { lb.busy = false; }
     renderLadderBar();
+  }
+
+  /* ----- withdrawals closed (server: withdrawBlock): paused for everyone, or Deposit 1, 2, 3 not all done ----- */
+  function withdrawBlockHTML(B, tab, k, why) {
+    const a = app(), L = ladder(), friend = tab === 'friend';
+    const idText = k === 'pending' ? 'Your ID check is in progress – once it is approved, make Deposit 1, 2 and 3. Each one earns a bonus.'
+      : k === 'rejected' ? `Your ID check was not approved${why ? ' (' + a.esc(why) + ')' : ''} – send it again, then make Deposit 1, 2 and 3.`
+      : 'Verify your ID first – then make Deposit 1, 2 and 3. Each one earns a bonus.';
+    if (B.error === 'withdrawals_suspended') return `<section class="wx-card wx-closed wx-paused">${ICON.clock}<b>${friend ? 'Sending money is' : 'Withdrawals are'} paused for now</b>
+      <span>${B.message ? a.esc(B.message) + ' ' : ''}Your balance is safe and you can keep playing. We will let you know as soon as ${friend ? 'it opens' : 'withdrawals open'} again.</span></section>`;
+    const steps = (L && L.steps) || [];
+    return `<section class="wx-card wx-unlock"><div class="wx-unlock-h">${ICON.lock}<div><b>Complete your 3 deposits to unlock ${friend ? 'sending money' : 'withdrawals'}</b>
+      <span>${B.unlocked === false ? idText : `${B.done} of 3 done – ${B.left} to go. Each deposit earns a bonus.`}</span></div></div>
+      ${steps.length ? `<ol class="wx-steps">${steps.map(s => `<li class="${s.done ? 'done ' : ''}${s.status}"><span class="wx-step-n">${s.done ? ICON.check : s.n}</span>
+        <span class="wx-step-m"><b>Deposit ${s.n}${s.done ? ' <i class="wx-done">✓ Done</i>' : ''}</b><small>${s.done ? (s.deposit != null ? a.money(s.deposit) : 'Done') : s.status === 'checking' ? 'Being checked' : `${s.pct}% bonus · up to ${a.whole(s.max)}`}</small></span></li>`).join('')}</ol>` : ''}
+      ${B.unlocked === false ? (k === 'pending' ? '' : `<a class="au-btn wx-cta" href="#/acct/verify" data-after-verify="deposit">${k === 'rejected' ? 'Send my ID again' : 'Verify my ID'}</a>`) : B.next ? `<a class="au-btn wx-cta" href="#/deposit">Make deposit ${B.next} now</a>` : ''}
+      <p class="wx-note">${ICON.shield}<span>Withdrawals open once all three deposits are done. Your balance is safe until then – you can keep playing with it.</span></p></section>`;
   }
   // the bonus this deposit earns (next step of the ladder), for the amount hint
   function ladderBonus(v) {
@@ -845,7 +864,7 @@
       const s = sheet(`<div class="nt">
         <div class="nt-ico ok">${ICON.check}</div>
         <h3>Your ID is approved</h3>
-        <p class="wl-p">${steps.length ? 'Your deposit bonuses are open. Each of your next deposits earns a bonus:' : 'You can now withdraw your winnings.'}</p>
+        <p class="wl-p">${steps.length ? `Your deposit bonuses are open. Each of your next 3 deposits earns a bonus${o.withdrawRuleAhead ? ' – from your first deposit, withdrawals open once all three are done' : o.withdrawBlock && o.withdrawBlock.error === 'deposits_first' ? ' – and withdrawals open once all three are done' : ''}:` : 'You can now withdraw your winnings.'}</p>
         ${steps.length ? `<ol class="nt-ladder">${steps.map(x => `<li class="${x.status}"><span>${x.n}</span><b>Deposit ${x.n}</b><em>${x.bonus != null ? 'Done' : `${x.pct}% bonus · up to ${a.whole(x.max)}`}</em></li>`).join('')}</ol>
           <p class="wx-note">${ICON.shield}<span>Bonus money is released once you have staked ${L.times}× the bonus on multiples at ${L.min_odds}+ odds, within ${L.days} days.</span></p>` : ''}
         <div class="wl-sheet-btns col">${steps.length && L.next ? `<a class="au-btn" href="#/deposit" data-nt-dep>Make deposit ${L.next} now</a>` : '<a class="au-btn" href="#/withdraw">Go to my wallet</a>'}<button class="au-btn ghost" data-close-sheet>Later</button></div>
@@ -936,6 +955,7 @@
       <div class="wx">
         ${heroHTML('dep')}
         ${ladder() ? ladderHTML() : firstDeposit() ? bonusHTML() : ''}
+        ${live() && opt.data && opt.data.withdrawRuleAhead ? `<div class="wl-note wx-rule">${ICON.shield}<span><b>Good to know before you deposit:</b> you can withdraw now, but once you make your first deposit, withdrawals open again after Deposit 1, 2 and 3 are all done.</span></div>` : ''}
         ${lim ? `<div class="wl-note">${ICON.shield}<span>Your ${lim.period.toLowerCase()} deposit limit is <b>${a.whole(lim.amt)}</b>${lim.left != null ? ` – <b>${a.whole(lim.left)}</b> left` : ''}. <a href="#/acct/limits">Change</a></span></div>` : ''}
         <form class="wx-form" id="depForm" novalidate>
           <section class="wx-card">
@@ -1073,14 +1093,15 @@
     wl.wd = tab;
     loadOptions();
     loadRecent('wd');
-    const k = kyc(u), friend = tab === 'friend';
+    const k = kyc(u), friend = tab === 'friend', blocked = (live() && opt.data && opt.data.withdrawBlock) || null;
     el.innerHTML = `${pageHead('Withdraw', { help: true })}
       <div class="wx">
         ${heroHTML('wd')}
-        ${k === 'none' && !friend ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
-        ${k === 'pending' && !friend ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
-        ${k === 'rejected' && !friend ? `<a class="wl-verify bad" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Your ID check was not approved</b>${a.esc(u.limits?.kyc?.reason || 'Please check your details')} – tap to submit it again.</span>${ICON.chev}</a>` : ''}
-        <form class="wx-form" id="wdForm" novalidate>
+        ${k === 'none' && !friend && !blocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
+        ${k === 'pending' && !friend && !blocked ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
+        ${k === 'rejected' && !friend && !blocked ? `<a class="wl-verify bad" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Your ID check was not approved</b>${a.esc(u.limits?.kyc?.reason || 'Please check your details')} – tap to submit it again.</span>${ICON.chev}</a>` : ''}
+        ${blocked ? withdrawBlockHTML(blocked, tab, k, u.limits?.kyc?.reason) : ''}
+        <form class="wx-form" id="wdForm" novalidate ${blocked ? 'hidden' : ''}>
           <section class="wx-card">
             <h2 class="wx-h">${friend ? 'Send to' : 'Withdraw to'}</h2>
             ${methodsHTML(p.wd, tab, 'Withdraw to')}

@@ -29,14 +29,17 @@ export async function creditDeposit(c, user, amount, paymentId, meta = {}) {
   if (R.ladder) {
     const { rows: [u] } = await c.query('SELECT country, verified FROM users WHERE id=$1', [user.id]);
     if (R.ladder.requireId === false || u.verified) {
-      // the steps used so far; an old first-deposit welcome bonus counts as Deposit 1 (never a 4th bonus)
-      const { rows: [g] } = await c.query(`SELECT (count(*) FILTER (WHERE kind = ANY($2::text[])) + least(1, count(*) FILTER (WHERE kind = 'welcome')))::int AS n
-        FROM bonuses WHERE user_id=$1`, [user.id, LADDER_KINDS]);
-      const step = (R.ladder[u.country] || [])[g.n];
-      const bonus = step ? r2(Math.min(Number(step.max), Number(amount) * Number(step.pct) / 100)) : 0;
-      if (bonus > 0 && R.times > 0 && R.days > 0) {
-        await c.query(`INSERT INTO bonuses (user_id, kind, amount, required, expires_at, payment_id) VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6)
-          ON CONFLICT (user_id, kind) DO NOTHING`, [user.id, LADDER_KINDS[g.n], bonus, r2(bonus * R.times), R.days, paymentId]);
+      // steps used: Deposit 1, 2, 3 already made; an old first-deposit welcome bonus counts as Deposit 1 (never a 4th)
+      const { rows: [g] } = await c.query(`SELECT (SELECT count(*)::int FROM deposit_steps WHERE user_id=$1) AS n,
+          EXISTS (SELECT 1 FROM bonuses WHERE user_id=$1 AND kind='welcome') AND NOT EXISTS (SELECT 1 FROM deposit_steps WHERE user_id=$1 AND step=1) AS w`, [user.id]);
+      const used = g.n + (g.w ? 1 : 0), step = (R.ladder[u.country] || [])[used];
+      if (step && used < 3) {
+        await c.query(`INSERT INTO deposit_steps (user_id, step, payment_id, amount) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [user.id, used + 1, paymentId, Number(amount)]);
+        const bonus = r2(Math.min(Number(step.max), Number(amount) * Number(step.pct) / 100));
+        if (bonus > 0 && R.times > 0 && R.days > 0) {
+          await c.query(`INSERT INTO bonuses (user_id, kind, amount, required, expires_at, payment_id) VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6)
+            ON CONFLICT (user_id, kind) DO NOTHING`, [user.id, LADDER_KINDS[used], bonus, r2(bonus * R.times), R.days, paymentId]);
+        }
       }
     }
     return balance;
@@ -76,25 +79,30 @@ export async function addTurnover(c, bet, legs) {
  *  Used by the player's pages (ladderOf) and the admin's tracker (GET /api/admin/ladder). */
 export function buildLadder(R, user, rows, pending) {
   if (!R.ladder) return null;
-  const got = Object.fromEntries(rows.map(b => [b.kind, b]));
-  // an old welcome bonus stands in for Deposit 1 (the ladder then continues with deposit2, deposit3)
-  if (got.welcome && !got.deposit1) got.deposit1 = got.welcome;
+  const byStep = {}; let welcome = null;
+  for (const r of rows) { if (r.step === 0) welcome = r; else byStep[r.step] = r; }
+  // an old welcome bonus stands in for Deposit 1 (the ladder then continues with Deposit 2, 3)
+  if (welcome && !byStep[1]) byStep[1] = welcome;
   const unlocked = R.ladder.requireId === false || !!user.verified;
   let next = null, done = 0;
   const steps = (R.ladder[user.country] || []).slice(0, 3).map((s, i) => {
-    const b = got[LADDER_KINDS[i]];
-    if (b) done++;
-    const status = b ? b.status : !unlocked ? 'locked' : next == null ? (next = i + 1, pending ? 'checking' : 'next') : 'later';
+    const d = byStep[i + 1];
+    if (d) done++;
+    const status = d ? (d.status || 'nobonus') : !unlocked ? 'locked' : next == null ? (next = i + 1, pending ? 'checking' : 'next') : 'later';
     const wait = status === 'checking' ? pending : null;
-    return { n: i + 1, pct: Number(s.pct), max: Number(s.max), status, done: !!b, bonus: b ? Number(b.amount) : null,
-      deposit: b ? (b.deposit != null ? Number(b.deposit) : null) : wait ? Number(wait.amount) : null,
-      depositAt: b ? (b.deposit_at || b.created_at) : wait ? wait.created_at : null,
-      wagered: b ? Number(b.wagered) : null, required: b ? Number(b.required) : null, releasedAt: b ? b.released_at || null : null };
+    return { n: i + 1, pct: Number(s.pct), max: Number(s.max), status, done: !!d, bonus: d && d.amount != null ? Number(d.amount) : null,
+      deposit: d ? (d.deposit != null ? Number(d.deposit) : null) : wait ? Number(wait.amount) : null,
+      depositAt: d ? d.deposit_at : wait ? wait.created_at : null,
+      wagered: d && d.wagered != null ? Number(d.wagered) : null, required: d && d.required != null ? Number(d.required) : null, releasedAt: d ? d.released_at || null : null };
   });
   return { requireId: R.ladder.requireId !== false, unlocked, next, done, left: steps.length - done, steps, times: R.times, min_odds: R.min_odds, days: R.days };
 }
-export const LADDER_ROWS_SQL = `SELECT b.user_id, b.kind, b.amount, b.required, b.wagered, b.status, b.created_at, b.released_at, p.amount AS deposit, p.updated_at AS deposit_at
-  FROM bonuses b LEFT JOIN payments p ON p.id = b.payment_id WHERE b.user_id = ANY($1::uuid[]) AND (b.kind = ANY($2::text[]) OR b.kind = 'welcome')`;
+// each step made (with its bonus, if one was paid), plus an old welcome bonus as step 0
+export const LADDER_ROWS_SQL = `SELECT s.user_id, s.step, s.amount AS deposit, s.created_at AS deposit_at, b.amount, b.required, b.wagered, b.status, b.released_at
+    FROM deposit_steps s LEFT JOIN bonuses b ON b.user_id = s.user_id AND b.kind = 'deposit' || s.step WHERE s.user_id = ANY($1::uuid[])
+  UNION ALL
+  SELECT b.user_id, 0 AS step, NULL, b.created_at, b.amount, b.required, b.wagered, b.status, b.released_at FROM bonuses b
+    WHERE b.user_id = ANY($1::uuid[]) AND b.kind = 'welcome' AND $2::text[] IS NOT NULL`;
 export const PENDING_SQL = `SELECT DISTINCT ON (user_id) user_id, amount, created_at FROM payments
   WHERE user_id = ANY($1::uuid[]) AND kind='deposit' AND status='pending' ORDER BY user_id, created_at`;
 

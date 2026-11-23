@@ -400,3 +400,7 @@ dd.lad{display:flex;flex-wrap:wrap;gap:4px}
 .lad-prog i.on{background:var(--g)}
 .lad-prog i.chk{background:var(--amber)}
 .nav-badge.info{background:var(--blue)}
+/* withdrawals switch on Payment settings */
+.wd-card{margin-bottom:16px}
+.wd-card .chk{display:flex;margin:8px 0}
+.wd-card .banner{margin-bottom:6px}

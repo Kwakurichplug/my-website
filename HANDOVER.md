@@ -193,8 +193,19 @@ Earn reward per country (₦1,000 / GH₵10).
     cannot confirm API deposits by hand. Without the key: a manual MoMo wallet if the admin set one, else closed.
   - **Withdrawals**: Nigeria to a bank account, Ghana to Mobile Money; the balance is held when requested; the admin
     marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
-    transfer fails), or rejects (refunded at once). ID check: players can request while it is waiting; the admin
-    approves or rejects it with a reason the player sees.
+    transfer fails), or rejects (refunded at once). ID check: the admin approves or rejects it with a reason the
+    player sees.
+  - **When withdrawals open** (settings `withdrawals {suspended, requireDeposits, newMembersOpen, message}`, validated;
+    portal *Payment settings → Withdrawals*; `withdrawBlock()` in `lib/payments.js`, enforced by
+    `POST /api/wallet/withdraw` **and** `POST /api/wallet/transfer` – 403 `deposits_first` / `withdrawals_suspended`):
+    once a player has a credited deposit, withdrawals and sending to a friend open only when their ID is approved and
+    Deposit 1, 2, 3 are done (steps recorded in `deposit_steps`, so a 0% step still counts). New members with no
+    credited deposit can withdraw (`newMembersOpen`, default on); the deposit page tells them before they pay
+    (`withdrawRuleAhead`). *Suspend all* is an emergency switch (default off) with an optional message to players.
+    The withdraw page shows the locked card (1 · 2 · 3 ✓ and *Make deposit N now*) or the paused card instead of the form.
+  - **Money-leak fixes**: `move()` rounds halves symmetrically to whole kobo / pesewas; stakes (sports and virtuals)
+    and friend transfers are rounded once at the boundary (max 100,000,000), so a ticket keeps exactly what the balance
+    paid and both sides of a transfer match the ledger.
   - **Transfer screenshots + references (no leaks)**: the deposit page asks for a screenshot of the transfer on manual
     deposits (shrunk to a JPEG in the browser, `POST /api/wallet/payments/:id/proof`, table `payment_proofs`, type
     checked by the file's bytes, only the owner, only while being checked; *Add screenshot* later from Recent deposits).

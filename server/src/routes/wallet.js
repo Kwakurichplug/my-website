@@ -7,7 +7,7 @@ import { move, debit } from '../lib/wallet.js';
 import { creditDeposit, bonusesOf, ladderOf } from '../lib/bonus.js';
 import { getSetting } from '../lib/settings.js';
 import { sendEmail } from '../emails/index.js';
-import { options, demoMode, methodName, referenceOf, NETWORKS } from '../lib/payments.js';
+import { options, demoMode, methodName, referenceOf, NETWORKS, withdrawBlock, withdrawCheck, stillNewMember } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
 import { creditPaystack, failPaystack, checkPaystack } from '../payments/flows.js';
 
@@ -20,7 +20,13 @@ const fail = (res, status, error, extra) => res.status(status).json({ error, ...
 const phone9 = z.string().transform(s => s.replace(/\D/g, '').replace(/^233/, '').replace(/^0/, '')).refine(s => s.length === 9, 'bad_phone');
 
 // what this player can use to pay in and out right now (country, limits, bank / MoMo details, their reference)
-r.get('/options', async (req, res, next) => { try { res.json({ ...(await options(req.user)), ladder: await ladderOf(req.user) }); } catch (e) { next(e); } });
+r.get('/options', async (req, res, next) => {
+  try {
+    const lad = await ladderOf(req.user);
+    const chk = await withdrawCheck(req.user, lad);
+    res.json({ ...(await options(req.user)), ladder: lad, withdrawBlock: chk.block, withdrawRuleAhead: chk.newMember });
+  } catch (e) { next(e); }
+});
 
 r.get('/', (req, res) => res.json({ balance: Number(req.user.balance), currency: req.user.country === 'GH' ? 'GHS' : 'NGN' }));
 
@@ -153,6 +159,8 @@ r.post('/withdraw', async (req, res, next) => {
   if (!req.user.verified && (process.env.REQUIRE_KYC || 'false') === 'true') return res.status(403).json({ error: 'kyc_required' });
   let details;
   try {
+    const chk = await withdrawCheck(req.user);
+    if (chk.block) return res.status(403).json(chk.block);
     const opt = await options(req.user);
     if (!opt.withdraw.some(x => x.method === method) && !demoMode()) return res.status(400).json({ error: 'method_closed' });
     if (amount < opt.limits.minWithdraw) return res.status(400).json({ error: 'below_minimum', min: opt.limits.minWithdraw });
@@ -169,10 +177,13 @@ r.post('/withdraw', async (req, res, next) => {
     }
     // Funds leave the balance now; admin approves or rejects (rejection refunds).
     const out = await tx(async c => {
+      // a new member's first deposit credited a moment ago starts the 1·2·3 rule – decided again under the balance lock
+      if (chk.newMember && !(await stillNewMember(c, req.user.id))) return { again: true };
       const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, status, details) VALUES ($1,'withdrawal',$2,$3,'manual','pending',$4) RETURNING id`, [req.user.id, amount, method, details]);
       const balance = await debit(c, req.user.id, 'withdrawal', amount, rows[0].id, { method });
       return { paymentId: rows[0].id, balance, status: 'pending' };
     });
+    if (out.again) { const b = await withdrawBlock(req.user); return res.status(b ? 403 : 409).json(b || { error: 'try_again' }); }
     res.json(out);
     sendEmail('withdrawalRequested', req.user, { amount, method: methodName(method), paymentId: out.paymentId, account: details.account, when: new Date() });
   } catch (e) { next(e); }
@@ -184,13 +195,15 @@ r.post('/transfer', async (req, res, next) => {
   const p = z.object({
     phone: z.string().transform(s => s.replace(/\D/g, '').replace(/^(234|233)/, '').replace(/^0/, '')).refine(s => s.length >= 9 && s.length <= 10, 'bad_phone').optional(),
     email: z.string().trim().toLowerCase().pipe(z.email().max(120)).optional(),
-    amount: z.number().positive(),
+    amount: z.number().positive().max(1e8).transform(v => Math.round(v * 100) / 100),   // whole cents: both sides move the same
     note: z.string().max(40).optional(),
   }).refine(d => !!d.phone !== !!d.email).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   const { phone, email, amount, note } = p.data;
   if (amount < MIN[req.user.country]) return res.status(400).json({ error: 'below_minimum', min: MIN[req.user.country] });
   try {
+    const chk = await withdrawCheck(req.user);   // sending money out follows the withdrawal rules
+    if (chk.block) return res.status(403).json(chk.block);
     const { rows } = email
       ? await q('SELECT id, phone, email FROM users WHERE country=$1 AND lower(email)=$2 AND status=$3', [req.user.country, email, 'active'])
       : await q('SELECT id, phone, email FROM users WHERE country=$1 AND phone=$2 AND status=$3', [req.user.country, phone, 'active']);
@@ -199,10 +212,12 @@ r.post('/transfer', async (req, res, next) => {
     const ref = 'TF' + Date.now().toString(36).toUpperCase();
     const to = phone || email, from = req.user.phone || req.user.email;
     const balance = await tx(async c => {
+      if (chk.newMember && !(await stillNewMember(c, req.user.id))) return null;   // as for withdrawals
       const b = await debit(c, req.user.id, 'transfer_out', amount, ref, { to, note });
       await move(c, rows[0].id, 'transfer_in', amount, ref, { from, note });
       return b;
     });
+    if (balance === null) { const b = await withdrawBlock(req.user); return res.status(b ? 403 : 409).json(b || { error: 'try_again' }); }
     res.json({ ok: true, ref, balance });
   } catch (e) { next(e); }
 });
