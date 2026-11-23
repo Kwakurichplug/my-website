@@ -11,7 +11,7 @@ import { feedStatus } from '../feeds/index.js';
 import { settleRound } from '../games/jackpot.js';
 import * as crash from '../games/crash.js';
 import { creditDeposit } from '../lib/bonus.js';
-import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS } from '../lib/payments.js';
+import { config as payConfig, saveConfig as savePayConfig, methodName, NETWORKS, referenceOf } from '../lib/payments.js';
 import * as paystack from '../payments/paystack.js';
 import { BASES, period as agentPeriod, pay as payAgent } from '../lib/agents.js';
 
@@ -235,6 +235,37 @@ r.post('/users/:id/adjust', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Support: add a deposit for a player who messaged support (their money arrived but no request shows, or the app could
+// not complete it). credit=true → credited now as a real deposit (creditDeposit: welcome bonus on the first one, receipt
+// email); otherwise it waits in Payments → Pending like the player's own "I have sent it". A bank / MoMo transfer
+// reference can be credited only once (unique index payments_transfer_ref_key).
+r.post('/users/:id/deposits', async (req, res, next) => {
+  const p = z.object({ amount: z.number().positive().max(1e8), method: z.enum(['bank_transfer', 'mobile_money']).optional(),
+    sender: z.string().trim().max(80).optional(), reference: z.string().trim().max(80).optional(), note: z.string().trim().max(200).optional(),
+    credit: z.boolean().default(false) }).safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'invalid' });
+  const d = p.data, amount = Math.round(d.amount * 100) / 100, now = new Date().toISOString();
+  try {
+    const out = await tx(async c => {
+      const u = (await c.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
+      if (!u) throw Object.assign(new Error('not_found'), { status: 404 });
+      const method = d.method || (u.country === 'GH' ? 'mobile_money' : 'bank_transfer');
+      const details = { source: 'support', addedBy: req.user.id, addedAt: now, ...(d.sender ? { sender: d.sender } : {}),
+        ...(d.reference ? { transferRef: d.reference } : {}), ...(d.note ? { note: d.note } : {}), ...(d.credit ? { by: req.user.id, at: now } : {}) };
+      const { rows } = await c.query(`INSERT INTO payments (user_id, kind, amount, method, provider, provider_ref, status, details) VALUES ($1,'deposit',$2,$3,'manual',$4,$5,$6) RETURNING id`,
+        [u.id, amount, method, referenceOf(u), d.credit ? 'success' : 'pending', details]);
+      const balance = d.credit ? await creditDeposit(c, u, amount, rows[0].id, { method }) : Number(u.balance);
+      return { u, id: rows[0].id, method, balance };
+    });
+    res.status(201).json({ paymentId: out.id, status: d.credit ? 'success' : 'pending', balance: out.balance });
+    if (d.credit) sendEmail('depositSuccess', out.u, { amount, method: methodName(out.method), paymentId: out.id, balance: out.balance, when: new Date() });
+    else sendEmail('depositReceived', out.u, { amount, method: methodName(out.method), paymentId: out.id, reference: referenceOf(out.u), when: new Date() });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'duplicate_reference' });
+    next(e);
+  }
+});
+
 r.get('/payments', async (req, res, next) => {
   const st = req.query.status || 'pending', kind = ['deposit', 'withdrawal'].includes(req.query.kind) ? req.query.kind : null;
   try {
@@ -263,7 +294,7 @@ r.post('/payments/:id/:action', async (req, res, next) => {
       const ok = action === 'approve';
       // a deposit is credited with what actually arrived (the admin may correct the amount the player typed)
       const amount = p.kind === 'deposit' && ok && b.data.amount ? Math.round(b.data.amount * 100) / 100 : Number(p.amount);
-      const note = { by: req.user.id, at: new Date().toISOString(), ...(b.data.reason ? { reason: b.data.reason } : {}), ...(b.data.reference ? { payoutRef: b.data.reference } : {}), ...(b.data.note ? { note: b.data.note } : {}), ...(amount !== Number(p.amount) ? { claimed: Number(p.amount) } : {}) };
+      const note = { by: req.user.id, at: new Date().toISOString(), ...(b.data.reason ? { reason: b.data.reason } : {}), ...(b.data.reference ? (p.kind === 'deposit' ? { transferRef: b.data.reference } : { payoutRef: b.data.reference }) : {}), ...(b.data.note ? { note: b.data.note } : {}), ...(amount !== Number(p.amount) ? { claimed: Number(p.amount) } : {}) };
       await c.query(`UPDATE payments SET status=$2, amount=$4, updated_at=now(), details = details || $3::jsonb WHERE id=$1`, [p.id, ok ? 'success' : 'rejected', JSON.stringify(note), amount]);
       p.amount = amount;
       if (p.kind === 'withdrawal' && !ok) await move(c, p.user_id, 'refund', Number(p.amount), p.id, { reason: 'withdrawal_rejected' });
@@ -274,7 +305,7 @@ r.post('/payments/:id/:action', async (req, res, next) => {
       else sendEmail(ok ? 'depositSuccess' : 'depositFailed', u, { amount: Number(p.amount), method: p.method, paymentId: p.id, balance: Number(u.balance), when: new Date(), reason: req.body?.reason, manual: p.provider === 'manual' });
     });
     res.json({ ok: true });
-  } catch (e) { next(e); }
+  } catch (e) { if (e.code === '23505') return res.status(409).json({ error: 'duplicate_reference' }); next(e); }
 });
 
 // Ghana: pay a withdrawal to Mobile Money through the payment API (the webhook marks it paid, or refunds it)

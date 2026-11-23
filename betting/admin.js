@@ -54,7 +54,7 @@
   const P_EV = { live: ['live', 'Live'], scheduled: ['info', 'Upcoming'], finished: ['', 'Finished'], cancelled: ['bad', 'Cancelled'] };
   const P_USER = { active: ['ok', 'Active'], suspended: ['bad', 'Suspended'], self_excluded: ['warn', 'Self-excluded'] };
   const P_GAME = { open: ['info', 'Open'], won: ['ok', 'Won'], lost: ['', 'Lost'], cashed: ['ok', 'Cashed'], void: ['warn', 'Void'] };
-  const ERR = { not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
+  const ERR = { duplicate_reference: 'This transfer reference was already used for a deposit – check the player’s payments.', not_agent: 'This player is not an agent.', admin_only: 'This account is not an administrator.', bad_login: 'Wrong phone/email or password.', suspended: 'This account is suspended.', not_pending: 'This payment was already handled.', not_open: 'This bet is no longer open.', invalid: 'Some values are not valid.', invalid_email: 'Enter a valid email address.', too_many_attempts: 'Too many attempts – wait a few minutes.', offline: 'The API is unreachable.' };
   Object.assign(ERR, { not_pending: 'Someone already handled this one – the list is refreshed.', reason_required: 'Write the reason the player will see.',
     api_payment: 'Paid through the payment API – it is settled automatically.', api_not_configured: 'The payment API is not connected yet.', already_sent: 'This payout was already sent.',
     payout_failed: 'The payment API refused the payout.', momo_details: 'This withdrawal has no valid MoMo number.', min_over_max: 'A minimum is higher than its maximum.', invalid: 'Some fields are not valid.' });
@@ -222,7 +222,8 @@
       <div class="d-actions">${pill(u.status, P_USER)} ${u.verified ? pill('ok', { ok: ['ok', 'KYC verified'] }) : pill('no', { no: ['warn', 'KYC pending'] })} ${u.role === 'admin' ? pill('a', { a: ['gold', 'Administrator'] }) : ''} ${u.status === 'self_excluded' && lim.selfExclude ? pill('x', { x: ['warn', 'Self-excluded until ' + when(lim.selfExclude)] }) : ''}</div>
       <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
       <div class="d-actions">
-        <button class="btn sm primary" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
+        <button class="btn sm primary" data-add-dep="${u.id}">Add deposit</button>
+        <button class="btn sm" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
         ${u.verified ? `<button class="btn sm" data-kyc="reject" data-id="${u.id}">Revoke ID check</button>` : kyc.status === 'pending' ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : ''}
         ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
@@ -232,7 +233,7 @@
       <div class="d-tabs"><button class="on" data-dtab="bets">Bets</button><button data-dtab="pay">Payments</button><button data-dtab="tx">Ledger</button><button data-dtab="games">Games</button></div>
       <div id="dtab">${tab('bets')}</div>`;
     $$('#drawerBody [data-dtab]').forEach(b => b.onclick = () => { $$('#drawerBody [data-dtab]').forEach(x => x.classList.toggle('on', x === b)); $('#dtab').innerHTML = tab(b.dataset.dtab); });
-    state.drawer = { type: 'user', id }; state.drawerUser = u;
+    state.drawer = { type: 'user', id }; state.drawerUser = u; state.drawerPays = d.payments;
   }
 
   /* ---------- Agents: players who bring in players and earn the commission you set ---------- */
@@ -341,6 +342,37 @@
     state.drawer = { type: 'agent', id };
   }
 
+  /* ---------- Support: add a deposit for a player whose deposit is not showing ---------- */
+  function addDepositModal(id) {
+    const u = state.drawerUser && state.drawerUser.id === id ? state.drawerUser : null;
+    if (!u) return toast('Open the player first', 'err');
+    const cc = u.country, momo = cc === 'GH', pend = (state.drawerPays || []).filter(p => p.kind === 'deposit' && p.status === 'pending');
+    openModal(`<h3>Add a deposit for this player</h3>
+      <p class="sub">For a player who messaged support because their deposit is not showing. Find the ${momo ? 'MoMo payment' : 'transfer'} in your ${momo ? 'MoMo' : 'bank'} app first – credit it only once you can see the money.</p>
+      ${pend.length ? `<div class="banner warn dep-pend"><b>This player already sent ${pend.length === 1 ? 'a deposit request' : pend.length + ' deposit requests'} – confirm ${pend.length === 1 ? 'it' : 'the right one'} instead of adding another:</b>${pend.map(p => `<div>${money(p.amount, cc)}${p.details && p.details.sender ? ' from ' + esc(p.details.sender) : ''} · ${ago(p.created_at)}<button class="btn xs primary" data-pay="approve" data-id="${p.id}">Confirm this one</button></div>`).join('')}</div>` : ''}
+      <dl class="kv"><dt>Player</dt><dd>${esc(u.full_name || 'No name yet')} · ID ${u.uid} · reference <span class="mono">LB${String(u.uid).padStart(6, '0')}</span></dd><dt>Method</dt><dd>${momo ? 'Mobile money' : 'Bank transfer'}</dd></dl>
+      <label class="field"><span>Amount that arrived (${SYM[cc]})</span><input id="dAmt" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
+      <label class="field"><span>Paid by (name on the ${momo ? 'MoMo wallet' : 'sending account'})</span><input id="dSender" maxlength="80" value="${esc(u.full_name || '')}"></label>
+      <label class="field"><span>Transfer reference from your ${momo ? 'MoMo' : 'bank'} app (recommended – a reference can be credited only once)</span><input id="dRef" maxlength="80" placeholder="${momo ? 'e.g. MoMo transaction ID' : 'e.g. session ID or reference'}"></label>
+      <label class="field"><span>Note (optional)</span><input id="dNote" maxlength="200" placeholder="e.g. Player messaged support on WhatsApp"></label>
+      <p class="form-err" id="dErr" hidden></p>
+      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn" id="dPend">Add to pending</button><button class="btn primary" id="mGo">Credit now</button></div>`);
+    const upd = () => { const v = +$('#dAmt').value; $('#mGo').textContent = v > 0 ? 'Credit ' + money(v, cc) + ' now' : 'Credit now'; };
+    $('#dAmt').oninput = upd; upd(); $('#dAmt').focus();
+    const send = async credit => {
+      const v = Math.round(+$('#dAmt').value * 100) / 100; if (!(v > 0)) return $('#dAmt').focus();
+      const body = { amount: v, credit }, sender = $('#dSender').value.trim(), ref = $('#dRef').value.trim(), note = $('#dNote').value.trim();
+      if (sender) body.sender = sender; if (ref) body.reference = ref; if (note) body.note = note;
+      $('#mGo').disabled = $('#dPend').disabled = true; $('#dErr').hidden = true;
+      try {
+        await API.admin.addDeposit(id, body); closeModal();
+        toast(credit ? `Deposit of ${money(v, cc)} credited – the player gets a receipt` : 'Added to Payments → Pending', 'ok');
+        chips(); if (['payments', 'overview', 'players'].includes(state.page)) render(true); openUser(id);
+      } catch (e) { $('#dErr').textContent = errMsg(e); $('#dErr').hidden = false; $('#mGo').disabled = $('#dPend').disabled = false; }
+    };
+    $('#mGo').onclick = () => send(true); $('#dPend').onclick = () => send(false);
+  }
+
   /* ---------- Payments ---------- */
   PAGES.payments = async main => {
     const [status = 'pending', kind = ''] = (state.arg || '').split(':');
@@ -363,6 +395,8 @@
       if (d.phone) out.push(esc((NET[d.network] || d.network || 'MoMo') + ' · 0' + d.phone));
       if (p.provider_ref) out.push('Ref <span class="mono">' + esc(p.provider_ref) + '</span>');
       if (d.claimed) out.push('player said ' + money(d.claimed, p.country));
+      if (d.transferRef) out.push('Transfer <span class="mono">' + esc(d.transferRef) + '</span>');
+      if (d.source === 'support') out.push('<span class="pill info">Added by support</span>');
     } else {
       if (d.account) out.push('<span class="mono">' + esc(d.account) + '</span>');
       else { if (d.bank) out.push(esc(d.bank)); if (d.acct) out.push('<span class="mono">' + esc(d.acct) + '</span>'); if (d.name) out.push(esc(d.name)); }
@@ -385,6 +419,7 @@
       <p class="sub">${approve ? (dep ? 'Only confirm once you can see the money in the account. The player is credited at once (welcome bonus included) and gets a receipt by email.' : 'Only mark it paid after the money has left your account. The player gets an email.') : (dep ? 'The player is told by email with your reason.' : 'The player is told by email and the money goes back to their balance at once.')}</p>
       ${p.id ? `<dl class="kv"><dt>Player</dt><dd>${esc(p.full_name || phoneFmt(cc, p.phone))} · ID ${p.uid}</dd><dt>${dep ? 'Amount sent' : 'Amount'}</dt><dd><b>${money(p.amount, cc)}</b></dd><dt>${dep ? 'Details' : 'Pay to'}</dt><dd>${payDetails(p)}</dd></dl>` : ''}
       ${approve && dep ? `<label class="field"><span>Amount that arrived (${SYM[cc] || ''})</span><input id="mAmt" type="number" step="0.01" min="0.01" value="${p.amount || ''}"></label>` : ''}
+      ${approve && dep ? '<label class="field"><span>Transfer reference from your bank or MoMo app (optional – a reference can be credited only once)</span><input id="mRef"></label>' : ''}
       ${approve && !dep ? '<label class="field"><span>Payout reference (optional)</span><input id="mRef" placeholder="Bank or MoMo transaction ID"></label>' : ''}
       ${approve ? '<label class="field"><span>Note (optional)</span><input id="mNote"></label>' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason"></label>`}
       <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : 'danger solid'}" id="mGo">${approve ? (dep ? 'Credit the player' : 'Mark paid') : 'Reject'}</button></div>`);
@@ -394,7 +429,7 @@
       const body = {};
       if (approve) {
         if (dep) { const v = +$('#mAmt').value; if (!(v > 0)) return $('#mAmt').focus(); if (Math.abs(v - Number(p.amount)) > 0.001) body.amount = v; }
-        else { const r = $('#mRef').value.trim(); if (r) body.reference = r; }
+        { const r = $('#mRef').value.trim(); if (r) body.reference = r; }
         const n = $('#mNote').value.trim(); if (n) body.note = n;
       } else { const r = $('#mReason').value.trim(); if (!r) return $('#mReason').focus(); body.reason = r; }
       try { $('#mGo').disabled = true; await API.admin.payment(id, action, body); closeModal(); toast(approve ? (dep ? 'Deposit confirmed – player credited' : 'Withdrawal marked as paid') : 'Payment rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
@@ -829,11 +864,12 @@
       const t = e.target;
       if (t.closest('[data-close-modal]')) return closeModal();
       if (t.closest('[data-close-drawer]') || (t.id === 'drawer')) return closeDrawer();
-      const b = t.closest('[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
+      const b = t.closest('[data-add-dep],[data-agent],[data-agent-edit],[data-agent-pay],[data-agent-new],[data-pay],[data-payout],[data-kyc],[data-user],[data-user-uid],[data-bet],[data-event],[data-void],[data-adjust],[data-user-set],[data-result],[data-cancel],[data-suspend-all],[data-mk-susp],[data-price]');
       if (!b) return;
       if (t.closest('a[href]') && !b.dataset.user) return;
       e.preventDefault(); e.stopPropagation();
       const d = b.dataset;
+      if (d.addDep) return addDepositModal(d.addDep);
       if (d.agentPay) return agentPayModal(d.agentPay).catch(err => toast(errMsg(err), 'err'));
       if (d.agentEdit) return agentModal(d.agentEdit).catch(err => toast(errMsg(err), 'err'));
       if (d.agentNew) return agentModal(null).catch(err => toast(errMsg(err), 'err'));

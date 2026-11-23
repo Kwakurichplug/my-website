@@ -114,6 +114,19 @@ async function player(cc, name) {
   await A.click(`#main [data-user="${ng.user.id}"]`); await A.waitForTimeout(1500);
   ok(/Deposit reference/.test(await A.textContent('#drawerBody')), 'player drawer shows the deposit reference and ID check');
   await A.screenshot({ path: OUT + '/adm-8-player.png' });
+  // support: the player says their deposit is not showing – add it from their profile
+  const before = (await api('/wallet', null, ng.token)).balance;
+  await A.click('#drawerBody [data-add-dep]'); await A.waitForTimeout(500);
+  await A.fill('#dAmt', '1000'); await A.fill('#dRef', 'NIP-SUPPORT-1'); await A.fill('#dNote', 'Player messaged support'); await A.waitForTimeout(200);
+  ok(/Credit ₦1,000\.00 now/.test(await A.textContent('#mGo')), 'support: Add deposit on the player profile names the amount');
+  await A.screenshot({ path: OUT + '/adm-8b-add-deposit.png' });
+  await A.click('#mGo'); await A.waitForTimeout(1800);
+  ok((await api('/wallet', null, ng.token)).balance === before + 1000, 'support deposit credited to the player');
+  ok(/Added by support/.test(await A.textContent('#drawerBody')) || /NIP-SUPPORT-1/.test(sql(`SELECT details->>'transferRef' FROM payments WHERE user_id='${ng.user.id}' AND details->>'source'='support'`)), 'recorded as added by support with its transfer reference');
+  await A.click('#drawerBody [data-add-dep]'); await A.waitForTimeout(500);
+  await A.fill('#dAmt', '1000'); await A.fill('#dRef', 'nip-support-1'); await A.click('#mGo'); await A.waitForTimeout(1200);
+  ok(/already used/.test(await A.textContent('#dErr')), 'the same transfer reference is refused (no double credit)');
+  await A.click('#modalBody [data-close-modal]'); await A.waitForTimeout(300);
   // phone-sized portal
   await A.setViewportSize({ width: 390, height: 844 }); await A.goto(BASE + 'admin.html#/payments'); await A.waitForTimeout(1500);
   await A.screenshot({ path: OUT + '/adm-9-phone.png' });

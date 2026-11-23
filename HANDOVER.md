@@ -193,6 +193,10 @@ Earn reward per country (₦1,000 / GH₵10).
     marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
     transfer fails), or rejects (refunded at once). ID check: players can request while it is waiting; the admin
     approves or rejects it with a reason the player sees.
+  - **Support adds a deposit** (portal: player profile → *Add deposit*, `POST /api/admin/users/:id/deposits`): for a
+    player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
+    MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited
+    once only – unique index `payments_transfer_ref_key`; a rejected deposit frees it.
   - **Clean start**: deposit requests left `pending` by the old demo flow are cancelled on boot (new status
     `cancelled`), so no player sees a deposit stuck "pending".
 - **Deposit & withdraw pages** to a professional standard: balance card, method tiles (NG: Bank Transfer · GH: Mobile

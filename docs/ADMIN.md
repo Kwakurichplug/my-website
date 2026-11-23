@@ -32,6 +32,20 @@ deposit" email.
 
 A player can have at most 3 deposits waiting at a time.
 
+**A deposit that did not go through – the player messaged support.** Open the player (Players → search their phone,
+ID or email) and press **Add deposit** on their profile. If they already tapped "I have sent it", the dialog shows that
+request first – confirm that one instead of adding another. Otherwise find the money in your bank / MoMo app, enter the
+**amount that arrived**, who paid it and the **transfer reference** from your app (recommended), and press:
+- **Credit ₦X now** – the player is credited at once as a real deposit (welcome bonus on their first deposit) and gets
+  a receipt by email; or
+- **Add to pending** – it waits in Payments → Pending (for example for a second person to check), and the player gets a
+  "we are checking your deposit" email.
+
+A transfer reference can be credited **only once** – on any player, by any admin, also when confirming a player's own
+request (the Confirm dialog has the same field). Using it again is refused ("already used"), so nobody gets paid twice;
+a rejected deposit frees its reference again. Support deposits are marked "Added by support" in Payments and written
+to the audit log.
+
 **Ghana – Mobile Money through Paystack (automatic).** With `PAYSTACK_SECRET_KEY` set, the player enters their MoMo
 number, approves the prompt on their phone (or types the code Paystack sends), and the deposit is credited by itself
 when Paystack confirms – through the webhook, or when the player's screen checks the status. These deposits cannot be
@@ -97,7 +111,7 @@ GH₵10–GH₵20,000 withdrawals; payouts "within 24 hours". Every save is writ
 | **Overview** | Nigeria (₦) or Ghana (GH₵) at the tap of a switch: today's deposits, sports stakes, game turnover, gross gaming revenue, open liability, player balances; 14-day charts; set-up warnings (deposits closed, payment API missing); the queue of payments and ID checks waiting; matches in play | Confirm / reject straight from the queue; open a live event |
 | **Trading desk** | Every event with status, market count, suspended count, open legs and exposure | Suspend / reopen one market or all, change a price, enter a result (with half-time score), cancel an event (refunds every open bet) |
 | **Bets** | Tickets with player, stake, odds, potential, status; search by ticket, phone or player ID | Open a ticket (legs, results), void an open ticket (refunds the stake) |
-| **Players** | Accounts with status, ID check, role, balance; search by phone, ID, name or email | Player drawer: deposit reference, ID details, balance adjustment (ledger entry with a reason), suspend / reactivate, make / remove admin; tabs for bets, payments, ledger, games |
+| **Players** | Accounts with status, ID check, role, balance; search by phone, ID, name or email | Player drawer: **Add deposit** (support), deposit reference, ID details, balance adjustment (ledger entry with a reason), suspend / reactivate, make / remove admin, make agent; tabs for bets, payments, ledger, games |
 | **Payments** | Deposits and withdrawals by status (pending, done, rejected, failed, cancelled) and kind, with the sender name, reference and payout details | Confirm / Mark paid / Send via Paystack / Reject, as above |
 | **Agents** | Agents with their commission (rate and basis), players, unpaid period, commission due, paid so far | Add / edit / remove / restore an agent, pay commission, open an agent's players |
 | **ID checks** | Players waiting for an ID check, with the details they sent | Approve, or reject with a reason |
@@ -115,7 +129,8 @@ player search, a link to the site and a refresh button. The Overview refreshes i
 ## Server side
 
 - `server/src/routes/admin.js` – every route needs `role=admin`: `GET /overview?cc=`, `GET /series?days=&cc=`,
-  `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /users/:id/adjust`, `GET /payments?status=&kind=`,
+  `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /users/:id/adjust`,
+  `POST /users/:id/deposits {amount, sender?, reference?, note?, credit}` (support adds a deposit), `GET /payments?status=&kind=`,
   `POST /payments/:id/approve|reject` (body: `amount` = what arrived for a deposit, `reference` for a paid withdrawal,
   `reason` required to reject, `note`), `POST /payments/:id/payout` (Ghana, through Paystack), `GET /kyc`,
   `POST /users/:id/kyc {approve, reason}`, `GET|PUT /payment-settings`, `GET /bets`, `GET /bets/:id`,

@@ -374,3 +374,6 @@ CREATE TABLE IF NOT EXISTS agent_payouts (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS agent_payouts_agent ON agent_payouts (agent_id, created_at DESC);
+-- a bank / MoMo transfer reference entered by an admin can be credited once (a rejected deposit frees it again)
+CREATE UNIQUE INDEX IF NOT EXISTS payments_transfer_ref_key ON payments (lower(details->>'transferRef'))
+  WHERE kind = 'deposit' AND status IN ('pending','success') AND details ? 'transferRef';

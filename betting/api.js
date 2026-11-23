@@ -120,6 +120,7 @@
       kycDecide: (id, approve, reason) => post(`/admin/users/${id}/kyc`, { approve, ...(reason ? { reason } : {}) }),
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
+      addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),   // support: { amount, sender?, reference?, note?, credit }
       agents: () => get('/admin/agents'),                                   // { agents, bases }
       agent: id => get('/admin/agents/' + id),                              // { agent, period, payouts, bases }
       saveAgent: (id, body) => put('/admin/agents/' + id, body),            // { rate, basis, active, note }

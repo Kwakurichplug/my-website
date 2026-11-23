@@ -191,3 +191,38 @@ test('admin pages are admin-only', { skip }, async () => {
   const ov = await api('/admin/overview', null, ADMIN);
   assert.ok('pending_deposits' in ov && 'pending_kyc' in ov && 'pending_withdrawals' in ov);
 });
+
+test('support: an admin adds a deposit from the player’s profile – credited now or left pending; a transfer reference is credited once', { skip }, async () => {
+  const p = await player('NG', { name: 'Ngozi Support' });
+  // credited now: a real deposit (ledger "deposit", welcome bonus on the first one), marked as added by support
+  let r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 7500, sender: 'NGOZI A.', reference: 'NIP-7788', note: 'Messaged support on WhatsApp', credit: true }, ADMIN);
+  assert.equal(r.status, 'success'); assert.ok(r.paymentId);
+  assert.equal(await bal(p.token), 7500);
+  const row = await payment(r.paymentId);
+  assert.equal(row.status, 'success'); assert.equal(row.provider, 'manual'); assert.equal(row.details.source, 'support'); assert.equal(row.details.transferRef, 'NIP-7788');
+  assert.equal((await db.query(`SELECT count(*)::int AS n FROM transactions WHERE user_id=$1 AND type='deposit'`, [p.user.id])).rows[0].n, 1);
+  assert.equal((await db.query(`SELECT count(*)::int AS n FROM bonuses WHERE user_id=$1 AND kind='welcome'`, [p.user.id])).rows[0].n, 1, 'welcome bonus on the first deposit');
+  // the same transfer (any letter case) cannot be credited again – also not on another player
+  r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 7500, reference: 'nip-7788', credit: true }, ADMIN);
+  assert.equal(r.status, 409); assert.equal(r.error, 'duplicate_reference');
+  const q2 = await player('NG');
+  assert.equal((await api(`/admin/users/${q2.user.id}/deposits`, { amount: 100, reference: 'NIP-7788', credit: false }, ADMIN)).error, 'duplicate_reference');
+  assert.equal(await bal(p.token), 7500, 'nothing credited twice');
+  // left pending: shows in the queue like the player's own request; confirming it with a reference blocks that reference too
+  r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, sender: 'NGOZI A.', credit: false }, ADMIN);
+  assert.equal(r.status, 'pending'); assert.equal(await bal(p.token), 7500);
+  const queue = (await api('/admin/payments?status=pending&kind=deposit', null, ADMIN)).payments;
+  assert.ok(queue.some(x => x.id === r.paymentId && x.details.source === 'support'));
+  assert.equal((await api(`/admin/payments/${r.paymentId}/approve`, { reference: 'NIP-9900' }, ADMIN)).ok, true);
+  assert.equal(await bal(p.token), 9500);
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 2000, reference: 'NIP-9900', credit: true }, ADMIN)).error, 'duplicate_reference');
+  // a rejected deposit frees its reference again
+  r = await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111', credit: false }, ADMIN);
+  await api(`/admin/payments/${r.paymentId}/reject`, { reason: 'No transfer received' }, ADMIN);
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 500, reference: 'NIP-1111', credit: true }, ADMIN)).status, 'success');
+  assert.equal(await bal(p.token), 10000);
+  // admin-only, validated
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 100, credit: true }, p.token)).status, 403);
+  assert.equal((await api(`/admin/users/${p.user.id}/deposits`, { amount: 0, credit: true }, ADMIN)).status, 400);
+  assert.equal((await api('/admin/users/00000000-0000-0000-0000-000000000000/deposits', { amount: 100, credit: true }, ADMIN)).status, 404);
+});
