@@ -72,13 +72,3 @@ test('a second deposit adds to the lock; a transfer to a friend takes the lock w
   assert.equal((await withdraw(b.token, 1500)).error, 'play_through', 'no way round it through a friend');
 });
 
-test('the admin can ask for the ID again, with a reason, also after approving it', async () => {
-  const admin = await newUser(0, true), p = await newUser(0);
-  await db.query(`UPDATE users SET verified=true, limits = limits || '{"kyc":{"status":"verified"}}'::jsonb WHERE id=$1`, [p.user.id]);
-  assert.equal((await api(`/admin/users/${p.user.id}/kyc`, { approve: false, resubmit: true }, admin.token)).error, 'invalid', 'a reason is required');
-  const r = await api(`/admin/users/${p.user.id}/kyc`, { approve: false, resubmit: true, reason: 'This is not your ID – please upload your own ID' }, admin.token);
-  assert.equal(r.status, 'resubmit');
-  const u = await me(p.token);
-  assert.equal(u.verified, false); assert.equal(u.limits.kyc.status, 'resubmit'); assert.match(u.limits.kyc.reason, /not your ID/); assert.ok(u.limits.kyc.requestedAt);
-  assert.equal((await api(`/admin/users/${p.user.id}/kyc`, { approve: false, resubmit: true, reason: 'x' }, p.token)).http, 403, 'admins only');
-});

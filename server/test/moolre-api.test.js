@@ -199,7 +199,7 @@ test('withdrawal review: nothing is sent without it; the MoMo name, shared numbe
   assert.equal(c.player.kyc, 'none'); assert.equal(c.money.deposits, 100); assert.equal(c.money.ledgerOk, true);
   assert.equal(c.number.depositsFromIt, 1); assert.deepEqual(c.number.otherAccounts, []);
   assert.equal(c.bad, 0, JSON.stringify(c.flags));
-  assert.ok(c.flags.some(f => /ID not verified/.test(f.text)) && c.flags.some(f => /Staked only/.test(f.text)), 'warnings shown');
+  assert.ok(!c.flags.some(f => /ID/.test(f.text)) && c.flags.some(f => /Staked only/.test(f.text)), 'warnings shown');
   assert.equal((await api(`/admin/payments/${w.paymentId}/payout`, { reviewed: true }, ADMIN)).ok, true);
   assert.equal((await payment(w.paymentId)).details.review.reviewed, true, 'the review is recorded');
 

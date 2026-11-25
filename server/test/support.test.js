@@ -102,7 +102,7 @@ test('withdraw and bonus answers follow the same rules as the withdraw and depos
     await put('withdrawals', open);
     await put('deposit_bonuses', { ...RULES.deposit_bonuses, enabled: true, requireId: true });
     const p = await player('Esi Rules');
-    assert.match(await said(p, 'my bonus'), /Verify your ID.*Deposit 1, 2 and 3/);
+    assert.match(await said(p, 'my bonus'), /Deposit 1 earns a \d+% bonus/);
     assert.match(await said(p, 'I want to withdraw'), /not made a withdrawal yet.*Me > Withdraw/, 'a new member can withdraw before a first deposit');
     // after a first deposit the 3-deposit rule applies, exactly as on the withdraw page
     const d = await api('/wallet/deposit', { amount: 25, method: 'mobile_money', details: { phone: p.phone, network: 'mtn' } }, p.token);
@@ -110,7 +110,7 @@ test('withdraw and bonus answers follow the same rules as the withdraw and depos
     await fetch(`${MOCK}/__approve/${ref}`, { method: 'POST' });
     for (let i = 0; i < 40; i++) { if ((await db.query('SELECT status FROM payments WHERE id=$1', [d.paymentId])).rows[0].status === 'success') break; await sleep(200); }
     assert.equal((await api('/wallet/options', null, p.token)).withdrawBlock.error, 'deposits_first');
-    assert.match(await said(p, 'I want to withdraw'), /ID is approved.*Deposit 1, 2 and 3/);
+    assert.match(await said(p, 'I want to withdraw'), /Deposit 1, 2 and 3 are done – 1 of 3/);
     // paused for everyone, with the admin's own words
     await put('withdrawals', { ...open, suspended: true, message: 'Bank maintenance until 6pm.' });
     assert.match(await said(p, 'I want to withdraw'), /paused for now – Bank maintenance until 6pm\. Your balance is safe/);

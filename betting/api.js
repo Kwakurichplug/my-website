@@ -63,7 +63,6 @@
       me: () => get('/auth/me').then(r => r.user),
       logout: () => setToken(null),
       password: (current, password) => post('/auth/password', { current, password }),
-      verify: d => post('/auth/verify', d, { timeout: 90000 }),   // carries two ID photos
       email: email => post('/auth/email', { email }),   // sends a code to the new address
       emailConfirm: (email, code) => post('/auth/email/confirm', { email, code }).then(r => r.user),
       limits: d => post('/auth/limits', d),
@@ -144,10 +143,6 @@
       payment: (id, action, body) => post(`/admin/payments/${id}/${action}`, typeof body === 'string' ? { reason: body } : (body || {})),
       payout: (id, d) => post(`/admin/payments/${id}/payout`, d || {}),   // Ghana MoMo payout through the payment API: { reviewed: true, override? }
       paymentChecks: (id, refresh) => get(`/admin/payments/${id}/checks${refresh ? '?refresh=1' : ''}`),   // account checks before paying a withdrawal
-      kyc: () => get('/admin/kyc').then(r => r.users),
-      kycDecide: (id, approve, reason, resubmit) => post(`/admin/users/${id}/kyc`, { approve, ...(resubmit ? { resubmit: true } : {}), ...(reason ? { reason } : {}) }),
-      // the ID photo as an object URL (admin-only, sent with the token)
-      kycPhoto: async (id, side) => { const r = await fetch(BASE + `/api/admin/users/${id}/kyc-photo/${side}`, { headers: { authorization: 'Bearer ' + token } }); if (!r.ok) return null; return URL.createObjectURL(await r.blob()); },
       paymentSettings: () => get('/admin/payment-settings'),
       savePaymentSettings: v => put('/admin/payment-settings', v),
       addDeposit: (id, body) => post(`/admin/users/${id}/deposits`, body),

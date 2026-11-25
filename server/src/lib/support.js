@@ -151,14 +151,12 @@ async function answer(user, intent, t) {
         : { text: `Your withdrawal of ${m(w.amount)} (${ago(w.created_at)}) is with our team for the usual account check and is paid as soon as it is approved – normally within a few hours. If it is urgent, tap Talk to a person.` };
       const chk = await withdrawCheck(user).catch(() => ({ block: null })), B = chk.block;
       if (B && B.error === 'withdrawals_suspended') return { text: `Withdrawals are paused for now${B.message ? ' – ' + B.message.trim().replace(/[.!\s]+$/, '') : ''}. Your balance is safe and you can keep playing; we will let you know as soon as they open again.` };
-      if (B && B.error === 'deposits_first') return { text: B.unlocked === false
-        ? 'Withdrawals open once your ID is approved and you have made Deposit 1, 2 and 3 – each one earns a bonus. Start with Me > Verify ID.'
-        : `Withdrawals open once Deposit 1, 2 and 3 are done – ${B.done} of 3 so far. Me > Deposit shows Deposit ${B.next} and the bonus it earns.` };
+      if (B && B.error === 'deposits_first') return { text: `Withdrawals open once Deposit 1, 2 and 3 are done – ${B.done} of 3 so far. Me > Deposit shows Deposit ${B.next} and the bonus it earns.` };
       const { rows: [pt] } = await q('SELECT balance, playthrough_left FROM users WHERE id=$1', [user.id]);
       const left = user.is_agent ? 0 : Number(pt.playthrough_left || 0), free = Math.max(0, Number(pt.balance) - left);
       const how = `Me > Withdraw: choose ${cc === 'GH' ? 'Mobile Money' : 'your bank'}, enter the amount and confirm.` +
         (left > 0 ? ` You can withdraw up to ${m(free)} now – ${m(left)} of your deposits still needs to be staked once (winnings are always free).` : '');
-      if (!w) return { text: `You have not made a withdrawal yet. ${how}${user.is_agent ? ' As an agent you do not need ID verification and your withdrawals are sent automatically.' : ''}` };
+      if (!w) return { text: `You have not made a withdrawal yet. ${how}${user.is_agent ? ' As an agent your withdrawals are sent automatically.' : ''}` };
       if (w.status === 'success') return { text: `Your last withdrawal of ${m(w.amount)} was paid (${ago(w.created_at)}). ${how}` };
       if (w.status === 'rejected' || w.status === 'failed') return { text: `Your withdrawal of ${m(w.amount)} (${ago(w.created_at)}) was not paid${w.reason ? ': ' + w.reason : ''}. The money went back to your balance, so you can withdraw again.` };
       return { text: how };
@@ -170,7 +168,7 @@ async function answer(user, intent, t) {
         // nothing running: what the next deposit earns, from the same settings the deposit page shows (never a fixed figure)
         const R = await bonusRules().catch(() => ({})), L = R.ladder ? await ladderOf(user).catch(() => null) : null;
         const s = L && L.next ? L.steps[L.next - 1] : null, wb = !R.ladder && R.welcome && R.welcome[cc];
-        const offer = L ? (!L.unlocked ? 'Verify your ID (Me > Verify ID), then Deposit 1, 2 and 3 each earn a bonus. ' : s ? `Your Deposit ${s.n} earns a ${s.pct}% bonus, up to ${m(s.max)} – Me > Deposit. ` : '')
+        const offer = L ? (s ? `Your Deposit ${s.n} earns a ${s.pct}% bonus, up to ${m(s.max)} – Me > Deposit. ` : '')
           : wb && wb.pct ? `New players get a ${wb.pct}% welcome bonus on their first deposit, up to ${m(wb.max)}. ` : '';
         return { text: `You have no active bonus. ${offer}Promo codes go in Me > Promo code.` };
       }
@@ -186,14 +184,7 @@ async function answer(user, intent, t) {
       return { text: parts.join(' ') };
     }
     case 'promo': return { text: 'Promo codes: Me > Promo code, type the code and tap Redeem. Each code works once per player, and some need a deposit first.' };
-    case 'verify': {
-      if (user.is_agent) return { text: 'Agent accounts do not need ID verification – you can withdraw straight away.' };
-      if (user.verified) return { text: 'Your account is verified – nothing else is needed.' };
-      const k = user.limits && user.limits.kyc;
-      if (k && k.status === 'pending') return { text: 'We are checking your ID – usually within 24 hours. You will see it on Me > Verify ID.' };
-      if (k && k.status === 'rejected') return { text: `Your last ID check was not approved${k.reason ? ': ' + k.reason : ''}. Send it again in Me > Verify ID with clear photos of the front and back.` };
-      return { text: `Verify your ID in Me > Verify ID: your details as on your ${cc === 'GH' ? 'Ghana Card' : 'ID'} and a photo of the front and the back (all four corners, no glare). It takes about 2 minutes and our team checks it, usually within 24 hours.` };
-    }
+    case 'verify': return { text: 'No ID verification is needed on LetBetAfrika – you can deposit, play and withdraw straight away.' };
     case 'password': return { text: 'Forgot your password? On the login screen tap "Forgot password", enter your number or email, and set a new password with the 6-digit code we send you. If the code does not arrive, wait a minute and tap Resend.' };
     case 'agent': {
       if (user.is_agent) return { text: 'Your agent link and earnings are in Me > Agent Dashboard. Players who sign up with your link are yours; request a payout there when an earning is ready.' };

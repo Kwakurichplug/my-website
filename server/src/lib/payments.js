@@ -27,7 +27,7 @@ export async function withdrawBlock(user, lad) { return (await withdrawCheck(use
 export async function withdrawCheck(user, lad) {
   const w = (await getSetting('withdrawals')) || {};
   if (w.suspended) return { block: { error: 'withdrawals_suspended', message: w.message || null }, newMember: false };
-  // agents withdraw their earnings without the Deposit 1, 2, 3 rule (as without play-through or an ID check, Nov 22 rules)
+  // agents withdraw their earnings without the Deposit 1, 2, 3 rule (as without play-through, Nov 22 rules)
   if (user.is_agent) return { block: null, newMember: false };
   if (w.requireDeposits !== false) {
     const L = lad === undefined ? await ladderOf(user) : lad;

@@ -118,7 +118,7 @@
     } catch {}
     try {
       const o = await API.admin.overview(); const n = (o.pending_withdrawals || 0) + (o.pending_deposits || 0); const b = $('#navPending'); b.hidden = !n; b.textContent = n;
-      const k = $('#navKyc'); k.hidden = !o.pending_kyc; k.textContent = o.pending_kyc || ''; state.pending = o;
+      state.pending = o;
     } catch {}
     try {
       const L = await API.admin.ladder(); const nl = $('#navLadder'); if (nl) { const n = (L.counts && L.counts.left) || 0; nl.hidden = !n; nl.textContent = n; nl.title = n + ' players with deposit bonuses left'; }
@@ -201,7 +201,6 @@
             ${pend.length ? pend.slice(0, 7).map(p => `<div class="q-item"><div class="who"><b>${p.kind === 'withdrawal' ? 'Withdrawal' : 'Deposit'} · ${esc(mName(p))}</b><small>${esc(p.full_name || phoneFmt(p.country, p.phone))} · ID ${p.uid} · ${ago(p.created_at)}</small></div><span class="amt">${money(p.amount, p.country)}</span>
               ${payActs(p)}</div>`).join('')
               : '<div class="empty"><b>Queue is clear</b>No pending deposits or withdrawals.</div>'}
-            ${(state.pending || o).pending_kyc ? `<div class="q-item"><div class="who"><b>${int((state.pending || o).pending_kyc)} ID check${(state.pending || o).pending_kyc === 1 ? '' : 's'} waiting</b><small>Approve or reject from ID checks</small></div><a class="btn xs" href="#/kyc">Open</a></div>` : ''}
           </div>
         </div>
       </div>
@@ -227,9 +226,9 @@
     main.innerHTML = `
       <div class="page-head"><div><h2>Players</h2><p>${q ? `Results for “${esc(q)}”` : 'Most recent 100 accounts. Search by phone, ID, name or email.'}</p></div>
         <div class="page-actions"><form class="search" id="pq"><i>${IC.search}</i><input placeholder="Search players" value="${esc(q)}"></form></div></div>
-      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Player</th><th>Contact</th><th>Status</th><th>KYC</th><th>Role</th><th class="r">Balance</th><th>Joined</th><th></th></tr></thead><tbody>
+      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Player</th><th>Contact</th><th>Status</th><th>Role</th><th class="r">Balance</th><th>Joined</th><th></th></tr></thead><tbody>
         ${users.map(u => `<tr class="click" data-user="${u.id}"><td><div class="who"><b>${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid}</small></div></td><td><div class="who">${flag(u.country)}${esc(phoneFmt(u.country, u.phone))}<small>${esc(u.email || '')}</small></div></td>
-          <td>${pill(u.status, P_USER)}</td><td>${u.verified ? pill('ok', { ok: ['ok', 'Verified'] }) : pill('no', { no: ['warn', 'Not verified'] })}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : '<span class="muted">Player</span>'}</td>
+          <td>${pill(u.status, P_USER)}</td><td>${u.role === 'admin' ? pill('a', { a: ['gold', 'Admin'] }) : '<span class="muted">Player</span>'}</td>
           <td class="r amt">${money(u.balance, u.country)}</td><td class="muted">${when(u.created_at)}</td><td><div class="acts"><button class="btn xs" data-user="${u.id}">Open</button></div></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>No players found</b>Try another phone number or ID.</div></td></tr>'}
       </tbody></table></div></div>`;
     $('#pq').onsubmit = e => { e.preventDefault(); location.hash = '#/players/' + encodeURIComponent($('#pq input').value.trim()); };
@@ -254,13 +253,12 @@
     keepPays(d.payments.map(p => ({ ...p, user_id: u.id, country: cc, uid: u.uid, full_name: u.full_name, phone: u.phone, verified: u.verified, kyc: kyc.status })));
     $('#drawerBody').innerHTML = `
       <div class="d-head"><span class="avatar">${initials(u)}</span><div><h3>${esc(u.full_name || 'No name yet')}</h3><p>ID ${u.uid} · ${flag(cc)}${esc(phoneFmt(cc, u.phone))}${u.email ? ' · ' + esc(u.email) : ''}</p></div></div>
-      <div class="d-actions">${pill(u.status, P_USER)} ${u.verified ? pill('ok', { ok: ['ok', 'KYC verified'] }) : pill('no', { no: ['warn', 'KYC pending'] })} ${u.role === 'admin' ? pill('a', { a: ['gold', 'Administrator'] }) : ''} ${u.status === 'self_excluded' && lim.selfExclude ? pill('x', { x: ['warn', 'Self-excluded until ' + when(lim.selfExclude)] }) : ''}</div>
+      <div class="d-actions">${pill(u.status, P_USER)} ${u.role === 'admin' ? pill('a', { a: ['gold', 'Administrator'] }) : ''} ${u.status === 'self_excluded' && lim.selfExclude ? pill('x', { x: ['warn', 'Self-excluded until ' + when(lim.selfExclude)] }) : ''}</div>
       <div class="stat-row"><div class="stat"><small>Balance</small><b>${money(u.balance, cc)}</b></div><div class="stat"><small>Deposited</small><b>${money(d.totals.deposited, cc)}</b></div><div class="stat"><small>Withdrawn</small><b>${money(d.totals.withdrawn, cc)}</b></div><div class="stat"><small>Staked / won</small><b>${compact(d.totals.staked, cc)} / ${compact(d.totals.won, cc)}</b></div></div>
       <div class="d-actions">
         <button class="btn sm primary" data-add-dep="${u.id}">Add deposit</button>
         <button class="btn sm" data-req-dep="${u.id}">Request deposit</button>
         <button class="btn sm primary" data-adjust="${u.id}" data-cc="${cc}">Adjust balance</button>
-        ${u.is_agent ? '' : kyc.status === 'pending' && !u.verified ? `<button class="btn sm primary" data-kyc="approve" data-id="${u.id}">Approve ID</button><button class="btn sm danger" data-kyc="reject" data-id="${u.id}">Reject ID</button>` : `<button class="btn sm" data-kyc="resubmit" data-id="${u.id}">${kyc.status === 'resubmit' ? 'Ask for ID again (sent)' : 'Ask for ID again'}</button>`}
         ${u.status === 'suspended' ? `<button class="btn sm" data-user-set="${u.id}" data-field="status" data-value="active">Reactivate</button>` : `<button class="btn sm danger" data-user-set="${u.id}" data-field="status" data-value="suspended">Suspend</button>`}
         ${u.role === 'admin' ? (u.id !== state.me.id ? `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="user">Remove admin</button>` : '') : `<button class="btn sm" data-user-set="${u.id}" data-field="role" data-value="admin">Make admin</button>`}
         ${u.is_agent ? `<button class="btn sm" data-agent-set="${u.id}" data-v="false">Stop agent</button>` : `<button class="btn sm" data-agent-set="${u.id}" data-v="true">Make agent</button>`}
@@ -407,7 +405,6 @@
     } else {
       if (d.account) out.push('<span class="mono">' + esc(d.account) + '</span>');
       else { if (d.bank) out.push(esc(d.bank)); if (d.acct) out.push('<span class="mono">' + esc(d.acct) + '</span>'); if (d.name) out.push(esc(d.name)); }
-      if (p.status === 'pending') out.push(p.verified ? '<span class="pill ok">ID verified</span>' : p.kyc === 'pending' ? '<span class="pill warn">ID check waiting</span>' : '<span class="pill bad">ID not verified</span>');
       if (d.payoutRef) out.push('Paid ref <span class="mono">' + esc(d.payoutRef) + '</span>');
     }
     if (d.reason && p.status !== 'success') out.push('<span class="muted">' + esc(d.reason) + '</span>');
@@ -455,7 +452,7 @@
         <dt>Pay to</dt><dd><span class="mono">${esc(payTo)}</span>${p.details.name ? ` · name given: ${esc(p.details.name)}` : ''}</dd>
         ${c.momo ? `<dt>MoMo name</dt><dd>${momo} <button class="btn xs" id="rvRefresh">Check again</button></dd>` : ''}
         <dt>Player</dt><dd>${esc(pl.name || '–')} · ID ${pl.uid} · ${esc(pl.phone ? phoneFmt(cc, pl.phone) : pl.email || '')} · joined ${when(pl.createdAt)}</dd>
-        <dt>ID check</dt><dd>${pill(pl.kyc, KYC_PILL)} · account ${esc(String(pl.status).replace('_', ' '))}</dd>
+        <dt>Account</dt><dd>${esc(String(pl.status).replace('_', ' '))}</dd>
         <dt>Deposits</dt><dd>${money(m.deposits, cc)} <span class="muted">(${m.depositCount})</span>${m.lastDepositAt ? ` · last ${ago(m.lastDepositAt)}` : ''}</dd>
         <dt>Withdrawn</dt><dd>${money(m.withdrawn, cc)} <span class="muted">(${m.withdrawCount} paid)</span>${m.pendingCount ? ` · <b>${m.pendingCount} more waiting</b> (${money(m.pending, cc)})` : ''}</dd>
         <dt>Staked</dt><dd>${money(m.staked, cc)} in total · ${money(m.stakedSinceDeposit, cc)} since the last deposit</dd>
@@ -892,7 +889,7 @@
     const L = s.deposit_bonuses || { enabled: false, requireId: true, NG: [{}, {}, {}], GH: [{}, {}, {}], times: 5, min_odds: 1.5, days: 14 };
     const ladderCard = () => `<div class="card set-card wide" data-set="deposit_bonuses"><div class="card-b"><h4>Deposit bonuses 1 · 2 · 3</h4>
       <div class="desc">A bonus on each of the first three deposits a player makes once their ID is approved (it replaces the welcome bonus while it is on). Bonus money stays locked until the player has staked it the number of times below on multiples, within the days below – it can never be withdrawn before that.</div>
-      <div class="lad-flags"><label class="chk"><input type="checkbox" id="ladOn" ${L.enabled ? 'checked' : ''}> On</label><label class="chk"><input type="checkbox" id="ladId" ${L.requireId !== false ? 'checked' : ''}> Only after the ID is approved</label></div>
+      <div class="lad-flags"><label class="chk"><input type="checkbox" id="ladOn" ${L.enabled ? 'checked' : ''}> On</label></div>
       <div class="lad-grid"><span></span><span>${flag('NG')}Bonus %</span><span>Max ₦</span><span>${flag('GH')}Bonus %</span><span>Max GH₵</span>
         ${[0, 1, 2].map(i => `<label>Deposit ${i + 1}</label>${['NG', 'GH'].map(cc => `<input type="number" min="0" max="500" step="1" data-lad="${cc}.${i}.pct" value="${esc((L[cc] && L[cc][i] || {}).pct ?? '')}"><input type="number" min="0" step="any" data-lad="${cc}.${i}.max" value="${esc((L[cc] && L[cc][i] || {}).max ?? '')}">`).join('')}`).join('')}</div>
       <div class="set-row one"><label>Stake the bonus this many times</label><input type="number" min="1" max="50" step="1" id="ladTimes" value="${esc(L.times ?? 5)}"></div>
@@ -931,7 +928,7 @@
     const rawShow = () => { $('#rawVal').value = JSON.stringify(s[$('#rawKey').value], null, 2); }; rawShow(); $('#rawKey').onchange = rawShow;
     $('#rawSave').onclick = async () => { try { const v = JSON.parse($('#rawVal').value); await API.admin.setSetting($('#rawKey').value, v); s[$('#rawKey').value] = v; toast('Saved', 'ok'); } catch (e) { toast(e instanceof SyntaxError ? 'That is not valid JSON' : errMsg(e), 'err'); } };
     $('#ladSave').onclick = async () => {
-      const card = $('[data-set="deposit_bonuses"]'), v = { enabled: $('#ladOn').checked, requireId: $('#ladId').checked, NG: [{}, {}, {}], GH: [{}, {}, {}], times: +$('#ladTimes').value, min_odds: +$('#ladOdds').value, days: +$('#ladDays').value };
+      const card = $('[data-set="deposit_bonuses"]'), v = { enabled: $('#ladOn').checked, requireId: false, NG: [{}, {}, {}], GH: [{}, {}, {}], times: +$('#ladTimes').value, min_odds: +$('#ladOdds').value, days: +$('#ladDays').value };
       $$('[data-lad]', card).forEach(i => { const [cc, k, f] = i.dataset.lad.split('.'); v[cc][+k][f] = +i.value || 0; });
       try { $('#ladSave').disabled = true; await API.admin.setSetting('deposit_bonuses', v); s.deposit_bonuses = v; const ok = card.querySelector('.saved'); ok.hidden = false; setTimeout(() => ok.hidden = true, 2500); toast('Deposit bonuses saved', 'ok'); }
       catch (e) { toast(e.message === 'invalid' ? 'Check the numbers: % 0–500, a maximum for every deposit, times 1–50, odds 1.01–10, days 1–90' : errMsg(e), 'err'); }
@@ -948,51 +945,6 @@
       try { b.disabled = true; await API.admin.setSetting(key, value); s[key] = value; const ok = card.querySelector('.saved'); ok.hidden = false; setTimeout(() => ok.hidden = true, 2500); toast('Settings saved', 'ok'); } catch (e) { toast(errMsg(e), 'err'); } finally { b.disabled = false; }
     });
   };
-
-  /* ---------- ID checks ---------- */
-  PAGES.kyc = async main => {
-    const users = await API.admin.kyc();
-    main.innerHTML = `
-      <div class="page-head"><div><h2>ID checks</h2><p>Players who sent their ID details. Approve when they match the account; reject with a reason the player will see – they can send them again.</p></div></div>
-      <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Sent</th><th>Player</th><th>ID photos</th><th>Name on ID</th><th>Date of birth</th><th>ID</th><th></th></tr></thead><tbody>
-        ${users.map(u => { const k = u.kyc || {}; state.kycRows = state.kycRows || new Map(); state.kycRows.set(String(u.id), u); return `<tr><td class="muted">${when(k.submittedAt)}<div class="small">${ago(k.submittedAt)}</div></td>
-          <td><div class="who"><b class="lnk" data-user="${u.id}">${esc(u.full_name || 'No name yet')}</b><small>ID ${u.uid} · ${flag(u.country)}${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')}</small></div></td>
-          <td>${(k.photos || []).length ? `<button class="kyc-thumbs" data-kycview="${u.id}">${(k.photos || []).map(s => `<img data-kycimg="${u.id}|${s}" alt="${s}">`).join('')}<span>Open</span></button>` : '<span class="muted small">No photos (sent before photos were required)</span>'}</td>
-          <td>${esc(k.fullName || '')}</td><td>${esc(k.dob || '')}</td><td>${esc(k.idType || '')}<div class="mono small">${esc(k.idNumber || '')}</div></td>
-          <td><div class="acts"><button class="btn xs primary" data-kyc="approve" data-id="${u.id}">Approve</button><button class="btn xs danger" data-kyc="reject" data-id="${u.id}">Reject</button></div></td></tr>`; }).join('')
-          || '<tr><td colspan="7"><div class="empty"><b>No ID checks waiting</b>New submissions appear here.</div></td></tr>'}
-      </tbody></table></div></div>`;
-    // thumbnails (fetched with the admin's token; ID photos are never public)
-    $$('[data-kycimg]', main).forEach(async img => { const [id, side] = img.dataset.kycimg.split('|'); const url = await API.admin.kycPhoto(id, side).catch(() => null); if (url) img.src = url; else img.remove(); });
-    if (!main._kycView) { main._kycView = true; main.addEventListener('click', e => { const v = e.target.closest('[data-kycview]'); if (v) kycView(v.dataset.kycview); }); }
-  };
-  // full-size ID photos next to the details, with Approve / Reject
-  async function kycView(id) {
-    const u = (state.kycRows && state.kycRows.get(String(id))) || {}, k = u.kyc || {};
-    openModal(`<h3>ID check · ${esc(u.full_name || k.fullName || 'Player')}</h3>
-      <p class="sub">Compare the photos with the details and the account. Approve if they match; reject with a reason the player sees (they can send it again).</p>
-      <div class="kyc-big">${(k.photos || ['front', 'back']).map(s => `<figure><figcaption>${s === 'front' ? 'Front' : 'Back'}</figcaption><a target="_blank" rel="noopener" data-kycfull="${s}"><img data-kycbig="${s}" alt="${s} of the ID"></a></figure>`).join('')}</div>
-      <dl class="kv"><dt>Account</dt><dd>${esc(u.full_name || '–')} · ID ${u.uid} · ${esc(u.phone ? phoneFmt(u.country, u.phone) : u.email || '')}</dd><dt>Name on ID</dt><dd><b>${esc(k.fullName || '')}</b></dd><dt>Date of birth</dt><dd>${esc(k.dob || '')}</dd><dt>Document</dt><dd>${esc(k.idType || '')} · <span class="mono">${esc(k.idNumber || '')}</span></dd><dt>Sent</dt><dd>${when(k.submittedAt)}</dd></dl>
-      <div class="m-actions"><button class="btn" data-close-modal>Close</button><button class="btn danger solid" id="kvReject">Reject…</button><button class="btn primary" id="kvApprove">Approve</button></div>`);
-    $$('#modalBody [data-kycbig]').forEach(async img => { const url = await API.admin.kycPhoto(id, img.dataset.kycbig).catch(() => null); if (url) { img.src = url; img.closest('a').href = url; } else img.closest('figure').innerHTML += '<p class="muted small">Not sent</p>'; });
-    $('#kvApprove').onclick = () => { closeModal(); kycAction(id, 'approve'); };
-    $('#kvReject').onclick = () => { closeModal(); kycAction(id, 'reject'); };
-  }
-  function kycAction(id, action) {
-    const approve = action === 'approve', again = action === 'resubmit';
-    const quick = ['The photos are not clear – please retake them', 'This is not your ID – please upload your own ID', 'The name does not match your account', 'The ID number is not valid', 'The date of birth does not match', 'The back of the ID is missing', 'Please send the front and the back of the same ID', 'The ID has expired'];
-    const title = approve ? 'Approve this ID?' : again ? 'Ask for the ID again?' : 'Reject this ID?';
-    const sub = approve ? 'The player is told by email and can withdraw.' : again ? 'The player is asked in the app and by email to send their ID again, with your reason. Their ID check is open again until they do.' : 'The player is told by email with your reason and can send their details again.';
-    openModal(`<h3>${title}</h3><p class="sub">${sub}</p>
-      ${approve ? '' : `<div class="quick">${quick.map(x => `<button type="button" class="btn xs" data-quick="${esc(x)}">${esc(x)}</button>`).join('')}</div><label class="field"><span>Reason shown to the player</span><input id="mReason" maxlength="200"></label>`}
-      <div class="m-actions"><button class="btn" data-close-modal>Cancel</button><button class="btn ${approve ? 'primary' : again ? 'primary' : 'danger solid'}" id="mGo">${approve ? 'Approve' : again ? 'Ask for ID again' : 'Reject'}</button></div>`);
-    $$('#modalBody [data-quick]').forEach(b => b.onclick = () => { $('#mReason').value = b.dataset.quick; });
-    $('#mGo').onclick = async () => {
-      const reason = approve ? '' : $('#mReason').value.trim(); if (!approve && !reason) return $('#mReason').focus();
-      try { $('#mGo').disabled = true; await API.admin.kycDecide(id, approve, reason || undefined, again); closeModal(); toast(approve ? 'ID approved' : again ? 'The player was asked to send the ID again' : 'ID rejected', 'ok'); chips(); render(true); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); }
-      catch (e) { toast(errMsg(e), 'err'); $('#mGo').disabled = false; }
-    };
-  }
 
   /* ---------- Sub-agents ---------- */
   const P_AGP = { pending: ['warn', 'Waiting'], paid: ['ok', 'Paid'], rejected: ['bad', 'Rejected'] };
@@ -1059,7 +1011,7 @@
         </div>
         <div class="sup-ctx">
           <div class="sup-kpis"><div><small>Balance</small><b>${money(P.balance, cc)}</b></div><div><small>Deposited</small><b>${money(P.deposited, cc)}</b></div><div><small>Withdrawn</small><b>${money(P.withdrawn, cc)}</b></div><div><small>Open bets</small><b>${int(P.openBets)}</b></div></div>
-          <dl class="kv small"><dt>Account</dt><dd>${P.status === 'active' ? 'Active' : esc(P.status)}${P.isAgent ? ' · <b>Agent</b>' : ''}</dd><dt>ID check</dt><dd>${P.isAgent ? 'Not needed (agent)' : P.verified ? 'Verified' : P.kyc ? esc(P.kyc) : 'Not submitted'}</dd><dt>Joined</dt><dd>${when(P.joined)}</dd></dl>
+          <dl class="kv small"><dt>Account</dt><dd>${P.status === 'active' ? 'Active' : esc(P.status)}${P.isAgent ? ' · <b>Agent</b>' : ''}</dd><dt>Joined</dt><dd>${when(P.joined)}</dd></dl>
           <h4 class="sup-h">Payments</h4><div class="tbl-wrap"><table class="tbl"><tbody>${chat.payments.map(payRow).join('') || '<tr><td><span class="muted">No payments yet</span></td></tr>'}</tbody></table></div>
           <h4 class="sup-h">Recent bets</h4><div class="tbl-wrap"><table class="tbl"><tbody>${chat.bets.map(b => `<tr class="click" data-bet="${esc(b.id)}"><td class="mono small">${esc(b.id)}</td><td class="r">${money(b.stake, cc)}</td><td>${esc(b.status)}</td><td class="r">${b.paid != null ? money(b.paid, cc) : '–'}</td></tr>`).join('') || '<tr><td><span class="muted">No bets yet</span></td></tr>'}</tbody></table></div>
         </div>
@@ -1518,7 +1470,6 @@
       if (d.agentSet) { const on = d.v === 'true'; if (!on && !confirm('Stop this agent? Their players stay linked to them, but new sign-ups and new first deposits no longer earn them anything.')) return;
         API.admin.setAgent(d.agentSet, on).then(r => { toast(on ? `Agent created · code ${r.code}` : 'Agent stopped', 'ok'); if (state.drawer && state.drawer.type === 'user') openUser(state.drawer.id); render(true); }).catch(err => toast(errMsg(err), 'err')); return; }
       if (d.agpay) return agentPayoutAction(d.agpay, d.act);
-      if (d.kyc) return kycAction(d.id, d.kyc);
       if (d.user) return openUser(d.user);
       if (d.userUid) { location.hash = '#/players/' + d.userUid; return; }
       if (d.bet) return openBet(d.bet).catch(err => toast(errMsg(err), 'err'));

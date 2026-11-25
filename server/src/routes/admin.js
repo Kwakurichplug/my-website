@@ -307,7 +307,7 @@ r.get('/overview', async (req, res, next) => {
       q(`SELECT count(*) FILTER (WHERE status='live')::int AS live, count(*) FILTER (WHERE status='scheduled')::int AS upcoming FROM events`),
       q(`SELECT coalesce(sum(g.stake) FILTER (WHERE g.created_at > now() - interval '1 day'),0)::float AS game_staked_today, coalesce(sum(g.payout) FILTER (WHERE g.created_at > now() - interval '1 day'),0)::float AS game_paid_today,
           count(*) FILTER (WHERE g.created_at > now() - interval '1 day')::int AS plays_today FROM game_bets g JOIN users u ON u.id=g.user_id WHERE g.status <> 'void' ${U}`),
-      q(`SELECT count(*) FILTER (WHERE NOT u.verified AND u.role='user')::int AS unverified, count(*) FILTER (WHERE u.limits->'kyc'->>'status' = 'pending' AND NOT u.verified)::int AS pending_kyc FROM users u WHERE true ${U}`),
+      Promise.resolve({ rows: [{}] }),   // ID checks removed
     ]);
     res.json({ cc, ...u.rows[0], ...b.rows[0], ...p.rows[0], ...t.rows[0], ...g.rows[0], ...k.rows[0] });
   } catch (e) { next(e); }
@@ -329,7 +329,6 @@ r.patch('/users/:id', async (req, res, next) => {
     if (!sets.length) return res.json({ ok: true });
     await q(`UPDATE users SET ${sets.join(',')} WHERE id=$1`, [req.params.id, ...Object.values(p.data)]);
     res.json({ ok: true });
-    if (p.data.verified != null) { const u = (await q('SELECT * FROM users WHERE id=$1', [req.params.id])).rows[0]; sendEmail(p.data.verified ? 'kycVerified' : 'kycRejected', u, { reason: req.body?.reason }); }
   } catch (e) { next(e); }
 });
 
@@ -417,7 +416,7 @@ r.get('/ladder', async (req, res, next) => {
   try {
     const R = await bonusRules();
     if (!R.ladder) return res.json({ enabled: false, players: [], counts: {} });
-    const params = [], where = [`u.role <> 'admin'`, R.ladder.requireId === false ? 'true' : 'u.verified'];
+    const params = [], where = [`u.role <> 'admin'`, 'true'];
     if (cc) { params.push(cc); where.push(`u.country = $${params.length}`); }
     if (s) { params.push('%' + s + '%'); where.push(`(u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length} OR u.uid::text LIKE $${params.length} OR u.full_name ILIKE $${params.length})`); }
     const { rows: users } = await q(`SELECT u.id, u.uid, u.full_name, u.phone, u.email, u.country, u.verified, u.balance, u.limits->'kyc'->>'decidedAt' AS verified_at
@@ -605,40 +604,6 @@ r.post('/payments/:id/check', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ID checks waiting for a decision
-r.get('/kyc', async (_req, res, next) => {
-  try {
-    const { rows } = await q(`SELECT id, uid, country, phone, email, full_name, verified, limits->'kyc' AS kyc, created_at FROM users
-      WHERE limits->'kyc'->>'status' = 'pending' AND NOT verified ORDER BY limits->'kyc'->>'submittedAt' LIMIT 200`);
-    res.json({ users: rows });
-  } catch (e) { next(e); }
-});
-// the player's ID photos (only admins can see them; never cached)
-r.get('/users/:id/kyc-photo/:side', async (req, res, next) => {
-  try {
-    if (!['front', 'back'].includes(req.params.side)) return res.status(404).end();
-    const { rows } = await q('SELECT mime, data FROM kyc_documents WHERE user_id=$1 AND side=$2 ORDER BY id DESC LIMIT 1', [req.params.id, req.params.side]);
-    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
-    res.set('cache-control', 'private, no-store').type(rows[0].mime).send(rows[0].data);
-  } catch (e) { next(e); }
-});
-// approve | reject (the player can send it again) | resubmit: ask for the ID again with a reason, at any time – also
-// after it was approved (a wrong or unclear ID found later). The player is told in the app and by email.
-r.post('/users/:id/kyc', async (req, res, next) => {
-  const p = z.object({ approve: z.boolean(), resubmit: z.boolean().optional(), reason: z.string().trim().max(200).optional() }).safeParse(req.body);
-  if (!p.success || (!p.data.approve && !(p.data.reason || '').length)) return res.status(400).json({ error: 'invalid' });
-  try {
-    const st = p.data.approve ? 'verified' : p.data.resubmit ? 'resubmit' : 'rejected', now = new Date().toISOString();
-    const { rows } = await q(`UPDATE users SET verified=$2, limits = jsonb_set(coalesce(limits,'{}'::jsonb), '{kyc}', coalesce(limits->'kyc','{}'::jsonb) || $3::jsonb) WHERE id=$1 RETURNING *`,
-      [req.params.id, p.data.approve, JSON.stringify({ status: st, decidedAt: now, by: req.user.id, ...(st === 'resubmit' ? { requestedAt: now } : {}), ...(p.data.reason ? { reason: p.data.reason } : {}) })]);
-    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
-    await q(`UPDATE notices SET done_at=now() WHERE user_id=$1 AND kind IN ('kyc_approved','kyc_rejected') AND done_at IS NULL`, [rows[0].id]);
-    await notify(DB, rows[0].id, p.data.approve ? 'kyc_approved' : 'kyc_rejected', p.data.approve ? {} : { reason: p.data.reason }, req.user.id);
-    res.json({ ok: true, status: st });
-    sendEmail(p.data.approve ? 'kycVerified' : st === 'resubmit' ? 'kycResubmit' : 'kycRejected', rows[0], { reason: p.data.reason });
-  } catch (e) { next(e); }
-});
-
 // Payment details players see (Nigeria bank account, Ghana MoMo number, limits) + payment API status
 const money = z.number().min(1).max(1e8);
 const paySchema = z.object({
@@ -723,7 +688,7 @@ r.post('/events/:id/result', async (req, res, next) => {
 r.get('/settings', async (_req, res, next) => {
   try { const { rows } = await q('SELECT key, value FROM settings'); res.json(Object.fromEntries(rows.map(x => [x.key, x.value]))); } catch (e) { next(e); }
 });
-const LADDER = z.object({ enabled: z.boolean(), requireId: z.boolean(),
+const LADDER = z.object({ enabled: z.boolean(), requireId: z.boolean().optional(),   // requireId: no longer used (no ID check)
   NG: z.array(z.object({ pct: z.number().min(0).max(500), max: z.number().min(0).max(1e7) })).length(3),
   GH: z.array(z.object({ pct: z.number().min(0).max(500), max: z.number().min(0).max(1e5) })).length(3),
   times: z.number().min(1).max(50), min_odds: z.number().min(1.01).max(10), days: z.number().int().min(1).max(90) });

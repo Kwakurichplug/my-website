@@ -105,7 +105,6 @@ export async function checks(id, { refresh = false } = {}) {
     else if (name.status === 'error' || name.status === 'unavailable') flag('warn', 'Could not look up the MoMo name: ' + (name.reason || 'unknown'));
   }
   if (shared.length) flag('bad', `This number is also used by ${shared.length === 10 ? '10+' : shared.length} other account${shared.length === 1 ? '' : 's'} (ID ${shared.join(', ')})`);
-  if (kyc !== 'verified') flag((process.env.REQUIRE_KYC || 'false') === 'true' ? 'bad' : 'warn', kyc === 'pending' ? 'ID check is waiting for a decision' : kyc === 'rejected' ? 'ID check was rejected' : 'ID not verified');
   if (!dep.n) flag('warn', 'Never deposited – the money came only from bonuses, referrals or transfers');
   else if (since.s < Math.min(Number(p.amount), dep.s) * 0.5) flag('warn', `Staked only ${money(since.s)} since the last deposit – money in and straight out`);
   if (phone && !fromNumber.n && p.method === 'mobile_money') flag('warn', 'The player never deposited from this number');

@@ -31,8 +31,8 @@ export async function creditDeposit(c, user, amount, paymentId, meta = {}) {
   if (first) await onFirstDeposit(c, user.id, amount, paymentId);   // the player's agent earns their share (lib/agents.js)
   const R = await bonusRules();
   if (R.ladder) {
-    const { rows: [u] } = await c.query('SELECT country, verified FROM users WHERE id=$1', [user.id]);
-    if (R.ladder.requireId === false || u.verified) {
+    const { rows: [u] } = await c.query('SELECT country FROM users WHERE id=$1', [user.id]);
+    {   // no ID check: every player's Deposit 1, 2, 3 earn their bonus straight away
       // steps used: Deposit 1, 2, 3 already made; an old first-deposit welcome bonus counts as Deposit 1 (never a 4th)
       const { rows: [g] } = await c.query(`SELECT (SELECT count(*)::int FROM deposit_steps WHERE user_id=$1) AS n,
           EXISTS (SELECT 1 FROM bonuses WHERE user_id=$1 AND kind='welcome') AND NOT EXISTS (SELECT 1 FROM deposit_steps WHERE user_id=$1 AND step=1) AS w`, [user.id]);
@@ -79,7 +79,7 @@ export async function addTurnover(c, bet, legs) {
 
 /** Deposit 1, 2, 3 for one player, from their bonus rows and a deposit still being checked (if any). Each step:
  *  done (✓ deposit made, with the amount and date) and its bonus status (active / released / expired), or
- *  checking (their deposit is waiting for the admin), next, later, or locked (ID not approved yet).
+ *  checking (their deposit is waiting for the admin), next or later.
  *  Used by the player's pages (ladderOf) and the admin's tracker (GET /api/admin/ladder). */
 export function buildLadder(R, user, rows, pending) {
   if (!R.ladder) return null;
@@ -87,7 +87,7 @@ export function buildLadder(R, user, rows, pending) {
   for (const r of rows) { if (r.step === 0) welcome = r; else byStep[r.step] = r; }
   // an old welcome bonus stands in for Deposit 1 (the ladder then continues with Deposit 2, 3)
   if (welcome && !byStep[1]) byStep[1] = welcome;
-  const unlocked = R.ladder.requireId === false || !!user.verified;
+  const unlocked = true;   // no ID check: Deposit 1, 2, 3 are open from sign-up
   let next = null, done = 0;
   const steps = (R.ladder[user.country] || []).slice(0, 3).map((s, i) => {
     const d = byStep[i + 1];
@@ -99,7 +99,7 @@ export function buildLadder(R, user, rows, pending) {
       depositAt: d ? d.deposit_at : wait ? wait.created_at : null,
       wagered: d && d.wagered != null ? Number(d.wagered) : null, required: d && d.required != null ? Number(d.required) : null, releasedAt: d ? d.released_at || null : null };
   });
-  return { requireId: R.ladder.requireId !== false, unlocked, next, done, left: steps.length - done, steps, times: R.times, min_odds: R.min_odds, days: R.days };
+  return { requireId: false, unlocked, next, done, left: steps.length - done, steps, times: R.times, min_odds: R.min_odds, days: R.days };
 }
 // each step made (with its bonus, if one was paid), plus an old welcome bonus as step 0
 export const LADDER_ROWS_SQL = `SELECT s.user_id, s.step, s.amount AS deposit, s.created_at AS deposit_at, b.amount, b.required, b.wagered, b.status, b.released_at

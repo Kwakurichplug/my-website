@@ -908,13 +908,12 @@
   function renderMe() {
     const u = state.user;
     const ag = $('#meAgentItem'); if (ag) ag.hidden = !(u && u.isAgent);
-    const vi = $('#meVerifyItem'); if (vi) vi.hidden = !!(u && u.isAgent);   // agents need no ID check
     $('#meName').textContent = u ? (u.phone ? C.dial + ' ' + u.phone : u.email || 'ID ' + u.uid) : 'Login to View';
     $('#meUserLink').dataset.open = u ? '' : 'loginModal';
     $('#meSub').textContent = u ? `ID ${u.uid || '—'}` : '';
     $('#meBal').textContent = u ? money(u.balance) : `${C.cur} --`;
     $('#meLoyal').textContent = u ? 'Member · Bronze' : 'Log in to join';
-    $('#meVer').textContent = u ? (u.verified ? 'Verified' : 'Not verified') : '';
+    { const mv = $('#meVer'); if (mv) mv.textContent = ''; }
     const open = state.bets.filter(b => b.status === 'open').length;
     $('#meOpenCnt').textContent = u && open ? open : '';
     $('#meMsgDot').hidden = !u;
@@ -1265,7 +1264,7 @@
   function renderGames() { window.Games && Games.renderLobby(C.name); }
 
   /* ---------------- Account sub-pages ---------------- */
-  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', agent: 'Agent Dashboard', messages: 'Messages', verify: 'Verify ID', security: 'Email & Password', limits: 'Responsible Gambling', help: 'Help & Support' };
+  const ACCT = { bets: 'Bet History', how: 'How to Play', tx: 'Transaction Records', bonus: 'Bonuses', refer: 'Refer & Earn', agent: 'Agent Dashboard', messages: 'Messages', security: 'Email & Password', limits: 'Responsible Gambling', help: 'Help & Support' };
   function renderAcct(sec) {
     if (!ACCT[sec]) return go('me');
     // live: bonus progress and referral stats come from the server
@@ -1315,13 +1314,13 @@
         const L = B && B.ladder;
         if (L && L.steps && L.steps.length) welcome = L.steps.map(s => {
           const b = B.bonuses.find(x => x.kind === 'deposit' + s.n), pct = b && b.required ? Math.min(100, b.wagered / b.required * 100) : 0;
-          const tag = b ? (b.status === 'active' ? ['open', 'LOCKED'] : b.status === 'released' ? ['won', 'RELEASED'] : ['lost', b.status.toUpperCase()]) : s.status === 'next' ? ['won', 'NEXT'] : s.status === 'locked' ? ['lost', 'VERIFY ID'] : ['lost', 'LATER'];
+          const tag = b ? (b.status === 'active' ? ['open', 'LOCKED'] : b.status === 'released' ? ['won', 'RELEASED'] : ['lost', b.status.toUpperCase()]) : s.status === 'next' ? ['won', 'NEXT'] : ['lost', 'LATER'];
           const info = b ? (b.status === 'active' ? `Stake ${money(Math.max(0, b.required - b.wagered))} more on multiples (every selection ${(+L.min_odds).toFixed(2)} or more) by ${new Date(b.expiresAt).toLocaleDateString()} to unlock it.` : b.status === 'released' ? `Unlocked and added to your balance on ${new Date(b.releasedAt).toLocaleDateString()}.` : 'Ended before the stake target was reached.')
-            : s.status === 'locked' ? `Verify your ID to unlock it. Then your ${['first', 'second', 'third'][s.n - 1]} deposit earns ${s.pct}% as a bonus, up to ${whole(s.max)}.` : `Your ${['first', 'second', 'third'][s.n - 1]} deposit after your ID check earns ${s.pct}% as a bonus, up to ${whole(s.max)}. Unlock it by staking ${L.times}× the bonus on multiples (every selection ${(+L.min_odds).toFixed(2)}+) within ${L.days} days.`;
+            : `Your ${['first', 'second', 'third'][s.n - 1]} deposit earns ${s.pct}% as a bonus, up to ${whole(s.max)}. Unlock it by staking ${L.times}× the bonus on multiples (every selection ${(+L.min_odds).toFixed(2)}+) within ${L.days} days.`;
           return `<div class="bonus wb"><div><b>Deposit ${s.n} · ${s.pct}% bonus${b ? ' · ' + money(b.amount) : ''}</b><small>${info}</small>
             ${b && b.status === 'active' ? `<div class="wb-bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><small>${money(b.wagered)} of ${money(b.required)} staked</small>` : ''}</div>
             <span class="status ${tag[0]}">${tag[1]}</span></div>`;
-        }).join('') + (L.unlocked ? '' : '<a class="btn btn-accent block mt" href="#/acct/verify">Verify my ID</a>');
+        }).join('');
         // promo-code bonuses (Me → Bonuses → Promo code)
         const promos = (B ? B.bonuses : []).filter(x => String(x.kind).startsWith('promo:')).map(pb => {
           const code = esc(pb.kind.slice(6)), pct = pb.required ? Math.min(100, pb.wagered / pb.required * 100) : 100, left = Math.max(0, pb.required - pb.wagered);
@@ -1371,22 +1370,9 @@
         </div>`;
       },
       messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
-          ['Welcome to LetBetAfrika', `Your account is ready. Verify your ID and get a bonus on each of your first 3 deposits.`],
+          ['Welcome to LetBetAfrika', `Your account is ready. Get a bonus on each of your first 3 deposits.`],
           ['Acca Win Boost is on', 'Add 3 or more pre-match selections at odds 1.20+ to a multiple and get up to 200% extra winnings.'],
           ['Play responsibly', 'Set deposit limits, reminders or a break any time under Responsible Gambling.']].map(([t, b], i) => `<div class="msg ${i ? '' : 'unread'}"><b>${t}</b><p>${b}</p><small>${at}</small></div>`).join('')}</div>`; },
-      verify: () => u.isAgent ? '<div class="empty"><b>No ID check needed</b><br>Agent accounts withdraw without ID verification.</div>' : u.verified ? `<div class="empty"><b>Your account is verified</b><br>${esc(u.fullName || '')}</div>` : `<form class="card-pad form" data-acform="verify">
-          ${u.limits?.kyc?.status === 'pending' ? `<div class="kyc-st pend"><b>We are checking your ID</b><span>Usually within 24 hours – we will let you know. You can send corrected details below.</span></div>`
-            : u.limits?.kyc?.status === 'resubmit' ? `<div class="kyc-st bad"><b>Please send your ID again</b><span>${esc(u.limits.kyc.reason || 'We need a clear photo of your own ID')}. Fill in your details and upload new photos below.</span></div>`
-            : u.limits?.kyc?.status === 'rejected' ? `<div class="kyc-st bad"><b>Your ID check was not approved</b><span>${esc(u.limits.kyc.reason || 'Please check your details')}. Correct them and submit again.</span></div>` : ''}
-          <p class="muted">Verify your identity to withdraw winnings.</p>
-          <label>Full name<input name="name" required placeholder="As shown on your ID"></label>
-          <label>Date of birth<input name="dob" type="date" required></label>
-          <label>ID type<select name="idt">${(CC === 'GH' ? ['Ghana Card', 'Passport', "Driver's Licence", "Voter's ID"] : ['NIN', 'BVN', 'International Passport', "Driver's Licence", "Voter's Card"]).map(x => `<option>${x}</option>`).join('')}</select></label>
-          <label>ID number<input name="idn" required></label>
-          <div class="kyc-ph"><p class="kyc-tip">Take clear photos of your ID: all four corners in the picture, no glare, text readable.</p>
-            ${['front', 'back'].map(s => `<label class="kyc-shot" data-kycside="${s}"><input type="file" accept="image/*" name="ph_${s}" hidden><span class="kyc-prev"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg></span><b>${s === 'front' ? 'Front of ID' : 'Back of ID'}</b><small>${s === 'back' ? 'Not needed for a passport' : 'Tap to take a photo'}</small></label>`).join('')}</div>
-          <p class="muted">${u.email ? `We'll email the result to <b>${esc(u.email)}</b>.` : `Add your email under <a href="#/acct/security">Email &amp; Password</a> to get the result by email.`}</p>
-          <button class="btn btn-accent block">Submit for verification</button></form>`,
       // email: a code goes to the new address first (state.emailStep holds the address waiting for its code)
       security: () => { const st = state.emailStep, viaEmail = u.email && !u.phone;
         return `<form class="card-pad form" data-acform="email">
@@ -1416,7 +1402,7 @@
         </form>`; },
       help: () => `<div class="card-pad"><h4 class="sh">Frequently asked questions</h4>${[
           ['How do I deposit?', 'Tap Deposit, choose an amount and pay by card, bank transfer, USSD or mobile money.'],
-          ['How long do withdrawals take?', 'Most withdrawals are paid within minutes once your account is verified.'],
+          ['How long do withdrawals take?', 'Most withdrawals are paid within minutes.'],
           ['What is a booking code?', 'A code that loads a saved betslip. Share yours from the betslip or load one from the menu.'],
           ['How does Cashout work?', 'Open bets show a cashout value that follows the live odds. Tap it to settle early.'],
           ['Why was my selection suspended?', 'Markets pause during key moments such as goals. Remove the selection or wait for it to reopen.']]
@@ -1442,24 +1428,6 @@
       renderAcct._bonus = 0; renderAcct('bonus');
     } catch (x) { toast(PROMO_ERR[x.message] || apiErr(x, 'Could not apply the code'), 'err'); btn.disabled = false; }
   });
-  // ID photos: shrink in the phone (longest side 1600 px, JPEG ~85%) – clear to read, quick to upload
-  function shrinkPhoto(file) {
-    return new Promise((resolve, reject) => {
-      const img = new Image(), url = URL.createObjectURL(file);
-      img.onload = () => { URL.revokeObjectURL(url); const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.85)); };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad_photo')); };
-      img.src = url;
-    });
-  }
-  document.addEventListener('change', async e => {
-    const inp = e.target.closest('.kyc-shot input[type=file]'); if (!inp || !inp.files || !inp.files[0]) return;
-    const box = inp.closest('.kyc-shot'), f = inp.closest('form'), side = box.dataset.kycside;
-    try {
-      const data = await shrinkPhoto(inp.files[0]);
-      (f._photos ||= {})[side] = data;
-      box.classList.add('done'); box.querySelector('.kyc-prev').innerHTML = `<img src="${data}" alt="">`; box.querySelector('small').textContent = 'Tap to retake';
-    } catch { toast('That photo could not be read – try again'); }
-  });
   document.addEventListener('submit', async e => {
     const f = e.target.closest('[data-acform]'); if (!f) return;
     e.preventDefault();
@@ -1476,13 +1444,6 @@
           state.user = mapUser(await API.auth.emailConfirm(state.emailStep, f.code.value.trim()));
           state.emailStep = null; toast('Email verified and saved'); return renderAcct('security');
         }
-        if (k === 'verify') {
-          const ph = f._photos || {}, passport = /passport/i.test(f.idt.value);
-          if (!ph.front) return toast('Add a photo of the front of your ID');
-          if (!ph.back && !passport) return toast('Add a photo of the back of your ID');
-          const btn = f.querySelector('button.btn'); if (btn) { btn.disabled = true; btn.textContent = 'Uploading your ID…'; }
-          try { await API.auth.verify({ fullName: f.name.value, dob: f.dob.value, idType: f.idt.value, idNumber: f.idn.value, front: ph.front, ...(ph.back ? { back: ph.back } : {}) }); }
-          finally { if (btn) { btn.disabled = false; btn.textContent = 'Submit for verification'; } } toast(u && u.email ? 'Documents submitted – we will email you when verified' : 'Documents submitted – we will let you know when verified'); if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; await liveUser(); return go(r); } }
         if (k === 'security') { if (window.Account) return Account.changePassword(f); if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); await API.auth.password(f.cur.value, f.pw1.value); toast('Password updated'); f.reset(); }
         if (k === 'limits') { await API.auth.limits({ period: f.period.value, amount: +f.amt.value || 0, reminder: f.rem.value }); toast('Limits saved'); }
         await liveUser(); renderMe();
@@ -1494,11 +1455,6 @@
       if (!state.emailStep) { state.emailStep = f.email.value.trim().toLowerCase(); state.emailCode = String(Math.floor(100000 + Math.random() * 900000)); renderAcct('security'); return toast(`Demo email to ${state.emailStep}: your LetBetAfrika code is ${state.emailCode}`); }
       if (f.code.value.trim() !== state.emailCode) return toast('That code is wrong or has expired', 'err');
       u.email = state.emailStep; state.emailStep = null; saveUser(); toast('Email verified and saved'); return renderAcct('security');
-    }
-    if (k === 'verify') {
-      u.verified = true; u.fullName = f.name.value.trim(); saveUser(); toast('Documents submitted – account verified');
-      if (state.afterVerify) { const r = state.afterVerify; state.afterVerify = null; return go(r); }
-      renderAcct('verify');
     }
     if (k === 'security') { if (window.Account) return Account.changePassword(f); if (f.pw1.value !== f.pw2.value) return toast('New passwords do not match', 'err'); toast('Password updated'); f.reset(); }
     if (k === 'limits') { if (!u) return openModal('loginModal'); u.limits = { period: f.period.value, amt: +f.amt.value || 0, rem: f.rem.value }; saveUser(); toast('Limits saved'); }
@@ -1512,7 +1468,7 @@
   const SERVER_LEAGUES = {};
   const METHOD_KEY = { 'Card': 'card', 'Bank Transfer': 'bank_transfer', 'USSD': 'ussd', 'Mobile Money': 'mobile_money' };
   const mapUser = u => ({ phone: u.phone, balance: u.balance, uid: u.uid, verified: u.verified, fullName: u.fullName, email: u.email, role: u.role, limits: u.limits || {}, country: u.country, createdAt: u.createdAt ? new Date(u.createdAt).getTime() : null, refCode: u.refCode, isAgent: !!u.isAgent, playLeft: Number(u.playLeft || 0) });
-  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ withdrawals_suspended: 'Withdrawals are paused for now – your balance is safe', deposits_first: 'Complete Deposit 1, 2 and 3 to unlock withdrawals', bad_login: 'Wrong number or password', txid_required: 'Enter the transaction ID from the payment SMS', play_through: e.detail ? `Stake ${money(e.detail.left)} more before withdrawing this – you can withdraw ${money(e.detail.withdrawable)} now` : 'Stake your deposit on bets before withdrawing it', inplay_max_stake: `In-play limit on this match: ${e.detail && e.detail.left != null ? whole(e.detail.left) + ' left' : 'reached'}`, phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', kyc_required: 'Verify your ID to withdraw', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
+  const apiErr = (e, fallback) => e.offline ? 'Cannot reach the server – check your connection' : ({ withdrawals_suspended: 'Withdrawals are paused for now – your balance is safe', deposits_first: 'Complete Deposit 1, 2 and 3 to unlock withdrawals', bad_login: 'Wrong number or password', txid_required: 'Enter the transaction ID from the payment SMS', play_through: e.detail ? `Stake ${money(e.detail.left)} more before withdrawing this – you can withdraw ${money(e.detail.withdrawable)} now` : 'Stake your deposit on bets before withdrawing it', inplay_max_stake: `In-play limit on this match: ${e.detail && e.detail.left != null ? whole(e.detail.left) + ' left' : 'reached'}`, phone_taken: 'This number already has an account', bad_code: 'That code is wrong or expired', too_many_codes: 'Too many codes – wait 10 minutes', insufficient_funds: 'Insufficient balance – please deposit', odds_changed: 'Odds changed – check your slip and try again', selection_unavailable: 'A selection is no longer available', one_pick_per_match: 'One pick per match in a multiple', min_stake: 'Stake is below the minimum', login_required: 'Please log in', suspended: 'This account is suspended', self_excluded: 'Your account is on a break', below_minimum: 'Amount is below the minimum', deposit_limit: 'This would pass your deposit limit', no_account: 'No account is registered with that number', self_transfer: 'You can\u2019t send money to yourself', bad_password: 'Current password is not correct', invalid: 'Please check the details and try again', max_stake: `Maximum stake is ${e.detail && e.detail.max != null ? whole(e.detail.max) : 'reached'}`, bad_choice: 'Make your pick first', deal_expired: 'That card expired – here is a new one', already_played: 'That card was already played', betting_closed: 'Betting for this round has closed', already_in_round: 'You already have a bet in this round', no_open_bet: 'You have no bet in this round', crashed: 'Too late – the rocket crashed', cannot_cancel: 'Too late to cancel – the round has started', not_started: 'The round has not started yet', round_closed: 'This jackpot round has closed – a new one is open', round_changed: 'The jackpot games changed – please pick again', too_many_lines: 'Too many lines – cover fewer outcomes', unknown_game: 'This game is not available', too_many_requests: 'Too many plays at once – slow down a little', invalid_email: 'Please enter a valid email address', too_many_attempts: 'Too many attempts – please wait 15 minutes and try again', email_taken: 'This email is already used by another account', email_unavailable: 'Email codes are not available right now – please try again shortly', email_failed: 'We could not send the email – please try again in a moment', sms_unavailable: 'Text-message codes are not available right now – use your email instead', sms_failed: 'We could not send the text message – please try again' }[e.message] || fallback || 'Something went wrong');
 
   function leagueIdx(l, sport) {
     if (SERVER_LEAGUES[l.id] != null) return SERVER_LEAGUES[l.id];

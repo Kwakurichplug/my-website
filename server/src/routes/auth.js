@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { q, tx } from '../db/pool.js';
 import { hash, verifyHash, sign, requireUser, publicUser } from '../lib/auth.js';
 import { issueOtp, checkOtp, issueEmailOtp, checkEmailOtp, smsReady, emailReady } from '../lib/otp.js';
-import { sendEmail, notifyAdmins } from '../emails/index.js';
+import { sendEmail } from '../emails/index.js';
 import { agentForCode } from '../lib/agents.js';
 
 // Accounts sign up with a mobile number OR an email address (both verified by a 6-digit code) and log in with
@@ -182,35 +182,6 @@ r.post('/email/confirm', requireUser, guard(10), async (req, res, next) => {
   }
 });
 
-// ID verification: the player's details + photos of the FRONT and BACK of the ID (back not needed for a passport).
-// An admin compares them with the account (admin portal → ID checks) and approves or rejects with a reason.
-const PHOTO = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
-const photo = (dataUrl, side) => {
-  const m = PHOTO.exec(String(dataUrl || '')); if (!m) return null;
-  const data = Buffer.from(m[2], 'base64');
-  if (data.length < 2000 || data.length > 1800000) throw Object.assign(new Error('bad_photo'), { status: 400, side });
-  return { side, mime: m[1], data };
-};
-r.post('/verify', requireUser, async (req, res, next) => {
-  const p = z.object({ fullName: z.string().trim().min(3).max(80), dob: z.string().max(20), idType: z.string().max(40), idNumber: z.string().trim().min(5).max(30),
-    front: z.string().max(2600000), back: z.string().max(2600000).optional() }).safeParse(req.body);
-  if (!p.success) return bad(res, p.error);
-  const { front, back, ...kyc } = p.data;
-  try {
-    const docs = [photo(front, 'front'), back ? photo(back, 'back') : null].filter(Boolean);
-    if (!docs.find(d => d.side === 'front')) return res.status(400).json({ error: 'photo_front' });
-    if (!/passport/i.test(kyc.idType) && !docs.find(d => d.side === 'back')) return res.status(400).json({ error: 'photo_back' });
-    await tx(async c => {
-      await c.query('DELETE FROM kyc_documents WHERE user_id=$1', [req.user.id]);
-      for (const d of docs) await c.query('INSERT INTO kyc_documents (user_id, side, mime, data) VALUES ($1,$2,$3,$4)', [req.user.id, d.side, d.mime, d.data]);
-      await c.query(`UPDATE users SET full_name=$2, limits = limits || jsonb_build_object('kyc', $3::jsonb) WHERE id=$1`,
-        [req.user.id, kyc.fullName, JSON.stringify({ ...kyc, photos: docs.map(d => d.side), submittedAt: new Date().toISOString(), status: 'pending' })]);
-    });
-    res.json({ ok: true, status: 'pending' });
-    sendEmail('kycSubmitted', { ...req.user, full_name: kyc.fullName });
-    notifyAdmins('kyc', { id: req.user.id, amount: 0, method: kyc.idType }, { ...req.user, full_name: kyc.fullName }, { account: kyc.idType }).catch(() => {});
-  } catch (e) { if (e.status) return res.status(e.status).json({ error: e.message, side: e.side }); next(e); }
-});
 
 r.post('/limits', requireUser, async (req, res, next) => {
   const p = z.object({ period: z.enum(['Daily', 'Weekly', 'Monthly']).optional(), amount: z.number().min(0).optional(), reminder: z.string().optional(), selfExclude: z.string().optional() }).safeParse(req.body);

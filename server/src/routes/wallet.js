@@ -180,8 +180,6 @@ r.post('/withdraw', async (req, res, next) => {
   const p = z.object({ amount: z.number().positive().max(1e8), method: z.enum(METHODS).default('bank_transfer'), details: z.record(z.string(), z.any()).default({}) }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'invalid' });
   const { method } = p.data, amount = Math.round(p.data.amount * 100) / 100;
-  // agents withdraw without an ID check (the owner's rule; their commission is approved by an admin before it is paid in)
-  if (!req.user.verified && !req.user.is_agent && (process.env.REQUIRE_KYC || 'false') === 'true') return res.status(403).json({ error: 'kyc_required' });
   let details;
   try {
     const chk = await withdrawCheck(req.user);

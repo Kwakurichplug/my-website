@@ -305,10 +305,9 @@
         <div class="au-tick">${ICON.check}</div>
         <h2>Welcome to LetBetAfrika!</h2>
         <p>Your account <b>${reg.via === 'email' ? a.esc(reg.email) : fmtPhone(reg.phone)}</b> is ready.</p>
-        <div class="au-bonus big">${ICON.gift}<span><b>Get bonuses on your first 3 deposits</b>Verify your ID – it takes 2 minutes – then each of your first 3 deposits earns a bonus.</span></div>
+        <div class="au-bonus big">${ICON.gift}<span><b>Get bonuses on your first 3 deposits</b>Each of your first 3 deposits earns a bonus – start now.</span></div>
         <a class="au-btn" href="#/deposit" data-reg-reset>Deposit Now</a>
         <a class="au-btn ghost" href="#/${a.esc(reg.next || 'home')}" data-reg-reset>Start Betting</a>
-        <a class="au-link center" href="#/acct/verify" data-reg-reset>Verify your ID now for faster withdrawals ${ICON.chev}</a>
       </div>`;
     $$('[data-reg-reset]', el).forEach(x => x.addEventListener('click', () => { Object.assign(reg, { step: 1, phone: '', email: '', refCode: '', agree: false }); }));
     if (window.Motion && Motion.confetti) Motion.confetti();
@@ -603,7 +602,7 @@
       if (v && v < min) { msg = `Minimum is ${a.whole(min)}`; cls = 'bad'; }
       else if (v > max) { msg = `Maximum is ${a.whole(max)}`; cls = 'bad'; }
       else if (!dep && v > user().balance) { msg = 'That is more than your balance'; cls = 'bad'; }
-      else if (dep && v && ladder()) { const lb = ladderBonus(v); if (lb && lb.locked) { msg = 'Verify your ID to get a bonus on this deposit'; cls = ''; } else if (lb && lb.amount > 0) { msg = `+${a.whole(lb.amount)} bonus with this deposit (Deposit ${lb.n})`; cls = 'good'; } }
+      else if (dep && v && ladder()) { const lb = ladderBonus(v); if (lb && lb.amount > 0) { msg = `+${a.whole(lb.amount)} bonus with this deposit (Deposit ${lb.n})`; cls = 'good'; } }
       else if (dep && v && firstDeposit()) { msg = `+${a.whole(Math.min(v * 2, a.C.bonusMax))} welcome bonus with this deposit`; cls = 'good'; }
       hint.textContent = msg; hint.className = 'wx-hint ' + cls;
       $$('[data-set]', form).forEach(b => b.classList.toggle('on', +b.dataset.set === v));
@@ -630,8 +629,7 @@
     const L = ladder(), a = app(); if (!L || !L.steps.length) return '';
     const ST = { released: ['Bonus released', 'ok'], active: ['Bonus locked', 'pend'], expired: ['Bonus expired', 'bad'], forfeited: ['Bonus ended', 'bad'], checking: ['Being checked', 'pend'], next: ['Next', 'next'], later: ['', ''], locked: ['', ''] };
     const day = d => new Date(d).toLocaleDateString(a.C.locale, { day: 'numeric', month: 'short' });
-    return `<section class="wx-card wx-ladder"><div class="wx-ladder-h"><h2 class="wx-h">${ICON.gift}Deposit bonuses</h2>${L.unlocked ? `<em class="wx-st ${L.left ? 'next' : 'ok'}">${L.done} of ${L.steps.length} done</em>` : '<em class="wx-st pend">ID check needed</em>'}</div>
-      ${!L.unlocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="deposit">${ICON.shield}<span><b>Verify your ID to unlock your deposit bonuses</b>It takes 2 minutes. Then each of your next 3 deposits earns a bonus.</span>${ICON.chev}</a>` : ''}
+    return `<section class="wx-card wx-ladder"><div class="wx-ladder-h"><h2 class="wx-h">${ICON.gift}Deposit bonuses</h2><em class="wx-st ${L.left ? 'next' : 'ok'}">${L.done} of ${L.steps.length} done</em></div>
       <ol class="wx-steps">${L.steps.map(s => { const [lab, cls] = ST[s.status] || ['', '']; return `<li class="${s.done ? 'done ' : ''}${s.status}"><span class="wx-step-n">${s.done ? ICON.check : s.n}</span>
         <span class="wx-step-m"><b>Deposit ${s.n} · ${s.pct}% bonus${s.done ? ' <i class="wx-done">✓ Done</i>' : ''}</b><small>${s.done
           ? `${s.deposit != null ? a.money(s.deposit) + (s.depositAt ? ' on ' + day(s.depositAt) : '') + ' · ' : ''}${s.bonus != null ? `bonus ${a.money(s.bonus)}` : 'no bonus on this step'}${s.status === 'active' && s.required ? ` · ${Math.min(100, Math.floor(100 * s.wagered / s.required))}% played through` : ''}`
@@ -640,13 +638,13 @@
       <p class="wx-note">${ICON.shield}<span>${heldByRule() ? 'Withdrawals open once all three deposits are done. ' : ''}Bonus money is released into your balance once you have staked ${L.times}× the bonus on multiples with every selection at ${L.min_odds}+ odds, within ${L.days} days.</span></p></section>`;
   }
 
-  /* ----- the sticky "next deposit" bar: once the ID is approved, until Deposit 1, 2 and 3 are all done ----- */
+  /* ----- the sticky "next deposit" bar: from sign-up, until Deposit 1, 2 and 3 are all done ----- */
   const lb = { at: 0, busy: false, data: undefined };
   const LB_ROUTES = ['home', 'live', 'sports', 'list', 'league', 'match', 'me', 'acct', 'promos', 'results', 'jackpot', 'games', 'virtuals'];
   function renderLadderBar() {
     const el = $('#ladBar'); if (!el) return;
     const a = app(), L = live() && user() ? lb.data : null;
-    const s = L && L.unlocked && L.next ? L.steps.find(x => x.n === L.next) : null;
+    const s = L && L.next ? L.steps.find(x => x.n === L.next) : null;
     const show = !!s && LB_ROUTES.includes(a.state.route);
     el.hidden = !show; document.body.classList.toggle('has-ladbar', show);
     if (!show) return;
@@ -659,32 +657,28 @@
     const u = user();
     if (!live() || !u) { lb.data = undefined; return renderLadderBar(); }
     renderLadderBar();
-    if (lb.busy || (!force && (Date.now() - lb.at < 60000 || kyc(u) !== 'ok'))) return;
+    if (lb.busy || (!force && Date.now() - lb.at < 60000)) return;
     lb.at = Date.now(); lb.busy = true;
     try { const o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); lb.data = o.ladder || null; } catch {} finally { lb.busy = false; }
     renderLadderBar();
   }
 
   /* ----- withdrawals closed (server: withdrawBlock): paused for everyone, or Deposit 1, 2, 3 not all done ----- */
-  function withdrawBlockHTML(B, tab, k, why) {
+  function withdrawBlockHTML(B, tab) {
     const a = app(), L = ladder(), friend = tab === 'friend';
-    const idText = k === 'pending' ? 'Your ID check is in progress – once it is approved, make Deposit 1, 2 and 3. Each one earns a bonus.'
-      : k === 'rejected' ? `Your ID check was not approved${why ? ' (' + a.esc(why) + ')' : ''} – send it again, then make Deposit 1, 2 and 3.`
-      : 'Verify your ID first – then make Deposit 1, 2 and 3. Each one earns a bonus.';
     if (B.error === 'withdrawals_suspended') return `<section class="wx-card wx-closed wx-paused">${ICON.clock}<b>${friend ? 'Sending money is' : 'Withdrawals are'} paused for now</b>
       <span>${B.message ? a.esc(B.message) + ' ' : ''}Your balance is safe and you can keep playing. We will let you know as soon as ${friend ? 'it opens' : 'withdrawals open'} again.</span></section>`;
     const steps = (L && L.steps) || [];
     return `<section class="wx-card wx-unlock"><div class="wx-unlock-h">${ICON.lock}<div><b>Complete your 3 deposits to unlock ${friend ? 'sending money' : 'withdrawals'}</b>
-      <span>${B.unlocked === false ? idText : `${B.done} of 3 done – ${B.left} to go. Each deposit earns a bonus.`}</span></div></div>
+      <span>${B.done} of 3 done – ${B.left} to go. Each deposit earns a bonus.</span></div></div>
       ${steps.length ? `<ol class="wx-steps">${steps.map(s => `<li class="${s.done ? 'done ' : ''}${s.status}"><span class="wx-step-n">${s.done ? ICON.check : s.n}</span>
         <span class="wx-step-m"><b>Deposit ${s.n}${s.done ? ' <i class="wx-done">✓ Done</i>' : ''}</b><small>${s.done ? (s.deposit != null ? a.money(s.deposit) : 'Done') : s.status === 'checking' ? 'Being checked' : `${s.pct}% bonus · up to ${a.whole(s.max)}`}</small></span></li>`).join('')}</ol>` : ''}
-      ${B.unlocked === false ? (k === 'pending' ? '' : `<a class="au-btn wx-cta" href="#/acct/verify" data-after-verify="deposit">${k === 'rejected' ? 'Send my ID again' : 'Verify my ID'}</a>`) : B.next ? `<a class="au-btn wx-cta" href="#/deposit">Make deposit ${B.next} now</a>` : ''}
+      ${B.next ? `<a class="au-btn wx-cta" href="#/deposit">Make deposit ${B.next} now</a>` : ''}
       <p class="wx-note">${ICON.shield}<span>Withdrawals open once all three deposits are done. Your balance is safe until then – you can keep playing with it.</span></p></section>`;
   }
   // the bonus this deposit earns (next step of the ladder), for the amount hint
   function ladderBonus(v) {
     const L = ladder(); if (!L) return null;
-    if (!L.unlocked) return { locked: true };
     const s = L.steps.find(x => x.status === 'next' || x.status === 'checking'); if (!s) return null;
     return { n: s.n, amount: Math.min(s.max, v * s.pct / 100) };
   }
@@ -871,26 +865,7 @@
       $('[data-nt-later]', s).onclick = () => { try { sessionStorage.setItem('lba_nt_later', JSON.stringify([...ntLater(), n.id])); } catch {} closeSheet(); };
       return;
     }
-    if (n.kind === 'kyc_approved') {
-      let o = null; try { o = await API.wallet.options(); opt.data = o; opt.at = Date.now(); } catch {}
-      const L = o && o.ladder, steps = (L && L.steps) || [];
-      if (o) { lb.data = L || null; lb.at = Date.now(); renderLadderBar(); }
-      API.auth.closeNotice(n.id).catch(() => {});
-      const s = sheet(`<div class="nt">
-        <div class="nt-ico ok">${ICON.check}</div>
-        <h3>Your ID is approved</h3>
-        <p class="wl-p">${steps.length ? `Your deposit bonuses are open. Each of your next 3 deposits earns a bonus${o.withdrawRuleAhead ? ' – from your first deposit, withdrawals open once all three are done' : o.withdrawBlock && o.withdrawBlock.error === 'deposits_first' ? ' – and withdrawals open once all three are done' : ''}:` : 'You can now withdraw your winnings.'}</p>
-        ${steps.length ? `<ol class="nt-ladder">${steps.map(x => `<li class="${x.status}"><span>${x.n}</span><b>Deposit ${x.n}</b><em>${x.bonus != null ? 'Done' : `${x.pct}% bonus · up to ${a.whole(x.max)}`}</em></li>`).join('')}</ol>
-          <p class="wx-note">${ICON.shield}<span>Bonus money is released once you have staked ${L.times}× the bonus on multiples at ${L.min_odds}+ odds, within ${L.days} days.</span></p>` : ''}
-        <div class="wl-sheet-btns col">${steps.length && L.next ? `<a class="au-btn" href="#/deposit" data-nt-dep>Make deposit ${L.next} now</a>` : '<a class="au-btn" href="#/withdraw">Go to my wallet</a>'}<button class="au-btn ghost" data-close-sheet>Later</button></div>
-      </div>`);
-      $$('[data-close-sheet]', s).forEach(b => b.onclick = () => { closeSheet(); setTimeout(() => checkNotices(true), 350); });
-      $$('a', s).forEach(x => x.addEventListener('click', closeSheet));
-      return;
-    }
     const R = {
-      kyc_rejected: { ok: 'fail', title: 'Your ID check was not approved', primary: ['Send it again', '#/acct/verify'],
-        note: `${d.reason ? '<b>Reason:</b> ' + esc(d.reason) + '<br>' : ''}Please check your details and send them again – it takes 2 minutes.`, rows: [] },
       deposit_credited: { ok: 'ok', title: d.support ? 'Your deposit was added' : 'Deposit confirmed', primary: ['Start betting', '#/home'],
         note: `${d.support ? 'Our support team added your deposit' : 'We confirmed your deposit'}${d.method ? ' (' + esc(d.method) + ')' : ''}. It is in your balance – you are ready to bet.`,
         rows: [['Balance now', `<b>${a.money(user().balance)}</b>`]] },
@@ -1113,24 +1088,10 @@
       <div class="wl-sheet-btns col"><a class="au-btn" href="#/home" data-pt-ok>Bet now</a><button class="au-btn ghost" data-pt-ok>I understand</button></div></div>`);
     $$('[data-pt-ok]', s).forEach(b => b.addEventListener('click', () => { wl.busy = false; ptSeen(u, u.playLeft || left); closeSheet(); }));
   }
-  /** The admin asked for the ID again: tell the player once per request (it stays on the Withdraw and Verify pages). */
-  function kycAsk(u) {
-    const k = u.limits?.kyc; if (!k || k.status !== 'resubmit' || u.verified || document.querySelector('#wlSheet.open')) return false;
-    const key = 'lba_kyc_ask_' + u.uid; let seen = ''; try { seen = localStorage.getItem(key) || ''; } catch {}
-    if (seen === String(k.requestedAt || k.decidedAt || '1')) return false;
-    const a = app(), s = sheet(`<div class="wl-res pend"><div class="au-tick pend">${ICON.shield}</div><h3>Please send your ID again</h3>
-      <p class="wl-p">${a.esc(k.reason || 'We need a clear photo of the front and the back of your own ID.')}</p>
-      <p class="wl-p">It takes 2 minutes. Your withdrawals are paid once your ID is approved.</p>
-      <div class="wl-sheet-btns col"><a class="au-btn" href="#/acct/verify">Send my ID</a><button class="au-btn ghost" data-close-sheet>Later</button></div></div>`);
-    const done = () => { try { localStorage.setItem(key, String(k.requestedAt || k.decidedAt || '1')); } catch {} closeSheet(); };
-    $$('[data-close-sheet], a', s).forEach(b => b.addEventListener('click', done));
-    return true;
-  }
   /** After the account refreshes: a lock that grew since this device last showed it (a deposit confirmed by an
    *  admin later, or made on another device) gets the pop-up once. */
   function playCheck() {
     const u = user(); if (!live() || !u || u.isAgent) return;
-    if (kycAsk(u)) return;
     const v = Number(u.playLeft) || 0, o = ptSeen(u);
     if (v > (Number(o.seen) || 0) + 0.009 && !document.querySelector('#wlSheet.open')) { lockSheet({ left: v, later: true }); return; }
     if (v !== Number(o.seen)) ptSeen(u, v);   // went down (bets) – remember, so the next deposit pops up again
@@ -1181,9 +1142,6 @@
      WITHDRAW
      ========================================================= */
   // live: the server holds payouts for admin approval; demo: they pay out after a few seconds
-  // agents withdraw without an ID check
-  const kyc = u => u && u.isAgent ? 'ok' : live() ? (u.verified ? 'ok' : u.limits?.kyc?.status === 'pending' ? 'pending' : ['rejected', 'resubmit'].includes(u.limits?.kyc?.status) ? 'rejected' : 'none') : (u.verified ? 'ok' : 'none');
-  const canWithdraw = () => ['ok', 'pending'].includes(kyc(user()));
   const wdEta = () => (live() ? (opt.data && opt.data.withdraw[0] && opt.data.withdraw[0].eta) || 'within 24 hours' : 'Within minutes');
   function renderWithdraw(tab) {
     const a = app(), p = P(), el = root('withdraw'), u = user();
@@ -1193,15 +1151,12 @@
     wl.wd = tab;
     loadOptions();
     loadRecent('wd');
-    const k = kyc(u), friend = tab === 'friend', blocked = (live() && opt.data && opt.data.withdrawBlock) || null;
+    const friend = tab === 'friend', blocked = (live() && opt.data && opt.data.withdrawBlock) || null;
     el.innerHTML = `${pageHead('Withdraw', { help: true })}
       <div class="wx">
         ${heroHTML('wd')}
-        ${k === 'none' && !friend && !blocked ? `<a class="wl-verify" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>Verify your ID to withdraw</b>It takes 2 minutes. We need it by law before paying out winnings.</span>${ICON.chev}</a>` : ''}
-        ${k === 'pending' && !friend && !blocked ? `<div class="wl-note">${ICON.clock}<span><b>ID check in progress.</b> You can request a withdrawal now – it is paid as soon as your ID is approved.</span></div>` : ''}
-        ${k === 'rejected' && !friend && !blocked ? `<a class="wl-verify bad" href="#/acct/verify" data-after-verify="withdraw/${tab}">${ICON.shield}<span><b>${u.limits?.kyc?.status === 'resubmit' ? 'Please send your ID again' : 'Your ID check was not approved'}</b>${a.esc(u.limits?.kyc?.reason || 'Please check your details')} – tap to submit it again.</span>${ICON.chev}</a>` : ''}
         ${friend || blocked ? '' : lockHTML(u)}
-        ${blocked ? withdrawBlockHTML(blocked, tab, k, u.limits?.kyc?.reason) : ''}
+        ${blocked ? withdrawBlockHTML(blocked, tab) : ''}
         <form class="wx-form" id="wdForm" novalidate ${blocked ? 'hidden' : ''}>
           <section class="wx-card">
             <h2 class="wx-h">${friend ? 'Send to' : 'Withdraw to'}</h2>
@@ -1215,7 +1170,6 @@
         </form>
         ${friend ? '' : recentHTML('wd')}
       </div>`;
-    $$('[data-after-verify]', el).forEach(x => x.addEventListener('click', () => { a.state.afterVerify = x.dataset.afterVerify; }));
     bindMethods(el, 'withdraw', 'wd');
     ({ bank: wdBank, momo: wdMomo, friend: wdFriend })[tab](el);
   }
@@ -1243,7 +1197,7 @@
     saveUser(); refresh(); rerender();
     const sent = auto === 'sent' || auto === 'paid';
     resultSheet({ ok: 'pending', title: sent ? 'Withdrawal sent' : 'Withdrawal submitted', amount,
-      rows: [['To', to], ['Reference', r], ['Status', `<em class="wx-st pend">${auto === 'paid' ? 'Paid' : sent ? 'Sent to your wallet' : 'Processing'}</em>`], ['Usually arrives', sent ? 'In a few minutes' : kyc(u) === 'pending' ? 'After your ID is approved' : wdEta()]],
+      rows: [['To', to], ['Reference', r], ['Status', `<em class="wx-st pend">${auto === 'paid' ? 'Paid' : sent ? 'Sent to your wallet' : 'Processing'}</em>`], ['Usually arrives', sent ? 'In a few minutes' : wdEta()]],
       primary: ['View transactions', '#/acct/tx'], secondary: 'Done' });
   }
   function settleWithdrawal(r) {
@@ -1271,7 +1225,7 @@
   function wdBank(el) {
     const a = app(), f = $('#wdForm', el), btn = $('#wdBtn', el);
     let amt = null;
-    const sync = wdButton(btn, () => amt, () => (!canWithdraw() ? 'Verify your ID to withdraw' : !f.querySelector('input[name=bank]:checked') ? 'Add a bank account' : ''), 'Withdraw');
+    const sync = wdButton(btn, () => amt, () => (!f.querySelector('input[name=bank]:checked') ? 'Add a bank account' : ''), 'Withdraw');
     amt = bindAmount(f, 'wd', sync);
     f.addEventListener('change', sync); sync();
     $('#addBank', el).onclick = bankSheet;
@@ -1280,7 +1234,6 @@
     }));
     f.addEventListener('submit', e => {
       e.preventDefault(); if (btn.disabled) return;
-      if (!canWithdraw()) return a.toast('Please verify your ID first', 'err');
       const i = +f.querySelector('input[name=bank]:checked').value, b = prefs.get().banks[i]; prefs.set({ wdBank: i });
       payout({ amount: amt.get(), method: `${b.bank} ••${b.acct.slice(-4)}`, apiMethod: 'bank_transfer',
         details: { account: `${b.bank} · ${b.acct} · ${b.name}`, bank: b.bank, acct: b.acct, name: b.name },
@@ -1297,7 +1250,7 @@
         <label class="wx-l">Bank<select name="bank"><option value="">Select your bank</option>${p.banks.map(b => `<option>${b}</option>`).join('')}</select></label>
         <label class="wx-l">Account number<input name="acct" inputmode="numeric" maxlength="${maxL}" placeholder="${minL === maxL ? minL + '-digit account number' : 'Account number'}"></label>
         <label class="wx-l">Account name<input name="name" maxlength="80" autocomplete="name" value="${a.esc(u.fullName || '')}" placeholder="As shown on your bank account"></label>
-        <p class="wx-note">${ICON.shield}<span>The account must be in your own name – the same name as on your verified ID.</span></p>
+        <p class="wx-note">${ICON.shield}<span>The account must be in your own name – the same name as on your account.</span></p>
         <div class="wl-sheet-btns"><button type="button" class="au-btn ghost" data-no>Cancel</button><button class="au-btn" id="bankSave" disabled>Save account</button></div>
       </form>`);
     const f = $('#bankForm', s), save = $('#bankSave', s);
@@ -1318,7 +1271,7 @@
   function wdMomo(el) {
     const u = user(), f = $('#wdForm', el), btn = $('#wdBtn', el);
     let amt = null, mm = () => '';
-    const sync = wdButton(btn, () => amt, () => (!canWithdraw() ? 'Verify your ID to withdraw' : !mm() ? 'Enter your mobile money number' : ''), 'Withdraw');
+    const sync = wdButton(btn, () => amt, () => (!mm() ? 'Enter your mobile money number' : ''), 'Withdraw');
     mm = bindMomo(f, u, sync);
     amt = bindAmount(f, 'wd', sync);
     f.addEventListener('change', sync); sync();

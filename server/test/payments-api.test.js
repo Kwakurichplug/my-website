@@ -119,21 +119,10 @@ test('withdrawals: held at request, paid by the admin or refunded on rejection',
   await ledgerOk(p.user.id);
 });
 
-test('ID checks: rejected with a reason (player sees it), resubmitted, approved', { skip }, async () => {
+test('No ID check: /auth/verify and the admin ID routes are gone', { skip }, async () => {
   const p = await player('NG');
-  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901', front: ID_PHOTO, back: ID_PHOTO }, p.token);
-  assert.ok((await api('/admin/kyc', null, ADMIN)).users.some(u => u.id === p.user.id));
-  assert.equal((await api(`/admin/users/${p.user.id}/kyc`, { approve: false }, ADMIN)).error, 'invalid', 'a rejection needs a reason');
-  await api(`/admin/users/${p.user.id}/kyc`, { approve: false, reason: 'Photo unreadable' }, ADMIN);
-  let me = (await api('/auth/me', null, p.token));
-  me = me.user || me;
-  assert.equal(me.verified, false); assert.equal(me.limits.kyc.status, 'rejected'); assert.equal(me.limits.kyc.reason, 'Photo unreadable');
-  await api('/auth/verify', { fullName: 'Ada Test', dob: '1990-01-01', idType: 'NIN', idNumber: '12345678901', front: ID_PHOTO, back: ID_PHOTO }, p.token);
-  await api(`/admin/users/${p.user.id}/kyc`, { approve: true }, ADMIN);
-  me = (await api('/auth/me', null, p.token)); me = me.user || me;
-  assert.equal(me.verified, true);
-  const detail = await api(`/admin/users/${p.user.id}`, null, ADMIN);
-  assert.equal(detail.user.limits.kyc.status, 'verified');
+  assert.equal((await api('/auth/verify', { fullName: 'Ada Test' }, p.token)).status, 404);
+  assert.equal((await api('/admin/kyc', null, ADMIN)).status, 404);
 });
 
 test('Ghana: Mobile Money through the payment API – approve on the phone, webhook credits once', { skip }, async () => {
@@ -199,9 +188,9 @@ test('Ghana: payout through the API – paid by webhook, or refunded when it fai
 
 test('admin pages are admin-only', { skip }, async () => {
   const p = await player('NG');
-  for (const path of ['/admin/payments', '/admin/kyc', '/admin/payment-settings', '/admin/log', '/admin/overview']) assert.equal((await api(path, null, p.token)).status, 403, path);
+  for (const path of ['/admin/payments', '/admin/payment-settings', '/admin/log', '/admin/overview']) assert.equal((await api(path, null, p.token)).status, 403, path);
   const ov = await api('/admin/overview', null, ADMIN);
-  assert.ok('pending_deposits' in ov && 'pending_kyc' in ov && 'pending_withdrawals' in ov);
+  assert.ok('pending_deposits' in ov && 'pending_withdrawals' in ov);
 });
 
 test('support: an admin adds a deposit from the player’s profile – credited now or left pending; a transfer reference is credited once', { skip }, async () => {
@@ -316,17 +305,11 @@ test('no leaks: a deposit is credited only with its transfer reference; the play
   assert.equal((await api(`/admin/users/${other.user.id}/deposits`, { amount: 3000, reference: 'nip-proof-1', credit: true }, ADMIN)).error, 'duplicate_reference');
 });
 
-test('ID approved → the player’s Deposit 1 · 2 · 3 bonuses open, with a pop-up listing them', { skip }, async () => {
+test('No ID check: the player’s Deposit 1 · 2 · 3 bonuses are open from sign-up', { skip }, async () => {
   const p = await player('NG', { name: 'Ladder Player' });
   let o = await api('/wallet/options', null, p.token);
-  assert.equal(o.ladder.unlocked, false);
-  await api('/auth/verify', { fullName: 'Ladder Player', dob: '1990-01-01', idType: 'NIN', idNumber: '98765432101' }, p.token);
-  await api(`/admin/users/${p.user.id}/kyc`, { approve: true }, ADMIN);
-  const n = (await api('/auth/notices', null, p.token)).notices;
-  assert.ok(n.some(x => x.kind === 'kyc_approved'), 'pop-up for the player');
-  o = await api('/wallet/options', null, p.token);
   assert.equal(o.ladder.unlocked, true); assert.equal(o.ladder.next, 1); assert.equal(o.ladder.steps.length, 3);
-  // deposit 1 after the ID check earns the first bonus when the admin confirms it
+  // deposit 1 earns the first bonus when the admin confirms it
   const d = await api('/wallet/deposit', { amount: 2000, method: 'bank_transfer', details: { sender: 'LADDER PLAYER' } }, p.token);
   await api(`/admin/payments/${d.paymentId}/approve`, { reference: 'NIP-LADDER-' + RUN + Date.now() }, ADMIN);
   o = await api('/wallet/options', null, p.token);
@@ -353,7 +336,7 @@ test('Deposit 1·2·3 tracker: every step marked (✓ amount, being checked, nex
   // the admin's tracker
   const t = await api('/admin/ladder?q=' + tag, null, ADMIN);
   const row = name => t.players.find(x => x.full_name === name);
-  assert.ok(!row(tag + ' Unverified'), 'only players whose ID is approved');
+  assert.ok(row(tag + ' Unverified'), 'every player is tracked – no ID check');
   assert.equal(row(tag + ' None').done, 0); assert.equal(row(tag + ' None').next, 1); assert.equal(row(tag + ' None').left, 3);
   assert.deepEqual(row(tag + ' Two').steps.map(s => s.done), [true, true, false]); assert.equal(row(tag + ' Two').steps[1].deposit, 3000);
   assert.equal(row(tag + ' Two').steps[2].status, 'next');
