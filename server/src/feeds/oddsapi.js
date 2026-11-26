@@ -17,6 +17,7 @@
 //
 // Env: ODDS_API_KEY (required), ODDS_LEAGUES (comma list of sport keys),
 //      ODDS_REGION (default uk), ODDS_LIVE_FRESH_SEC, ODDS_MARGIN (default from settings).
+import { createHash } from 'node:crypto';
 import { q } from '../db/pool.js';
 import { upsertEvent } from './index.js';
 import { footballMarkets, marketNeeds, price } from './demo.js';
@@ -148,9 +149,13 @@ export function spreadDays(now = Date.now()) {
 /** Credits the feed may spend per day: the spare credits (above the reserve) over the spread days. */
 export const dailyAllowance = (startRemaining, now) => Math.max(0, startRemaining - reserve()) / spreadDays(now);
 const STALE_H = () => Math.max(6, +process.env.ODDS_STALE_HOURS || 72);
+// which key the saved credit count belongs to (a short hash, never the key itself): a new or switched key starts
+// with a fresh count, so an old key's empty balance never stops the feed from asking the new one
+const keyTag = () => createHash('sha256').update(String(KEY() || '')).digest('hex').slice(0, 10);
 async function budget() {
   const b = (await getSetting('oddsapi_budget')) || {};
   const today = new Date().toISOString().slice(0, 10);
+  if (b.keyTag !== keyTag()) { b.keyTag = keyTag(); b.remaining = null; b.startRemaining = null; b.spent = 0; b.day = today; }
   if (b.day !== today) { b.day = today; b.spent = 0; b.startRemaining = b.remaining ?? null; }
   return b;
 }
@@ -164,7 +169,6 @@ async function call(path, cost, retried) {
   const url = `${BASE}${path}${path.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(KEY())}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   const b = await budget();
-  if (b.keyIdx !== keyIdx) { b.keyIdx = keyIdx; b.remaining = null; b.startRemaining = null; b.spent = 0; }   // another key: its own count
   const rem = res.headers.get('x-requests-remaining'), last = res.headers.get('x-requests-last');
   if (rem != null) { b.remaining = +rem; if (b.startRemaining == null) b.startRemaining = +rem + (+last || cost); }
   b.spent = (b.spent || 0) + (+last || cost);
