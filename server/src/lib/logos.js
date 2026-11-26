@@ -70,15 +70,19 @@ async function espnTeams(path) {
   const c = espnCache.get(path); if (c && Date.now() - c.at < 24 * 3600e3) return c.teams;
   let teams = [];
   try {
-    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/teams?limit=500`, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/teams?limit=500`, { signal: AbortSignal.timeout(10000),
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; LetBetAfrika/1.0)', accept: 'application/json' } });
+    if (!res.ok) console.warn(`[logos] espn ${path} ${res.status}`);
     if (res.ok) {
       const d = await res.json();
       teams = (d?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => x.team).filter(t => t && t.logos && t.logos[0] && t.logos[0].href).map(t => ({
         names: new Set([t.displayName, t.shortDisplayName, t.name, t.location, t.nickname, t.location && t.name && t.location + ' ' + t.name].filter(Boolean).map(key2)),
         url: small(t.logos[0].href) }));
     }
-  } catch { /* ESPN unreachable: TheSportsDB still answers */ }
-  espnCache.set(path, { at: Date.now(), teams });
+  } catch (e) { console.warn(`[logos] espn ${path} ${e.message}`); }
+  console.log(`[logos] espn ${path}: ${teams.length} teams`);
+  // a failed or empty answer is retried after 10 minutes, a good one is kept for a day
+  espnCache.set(path, { at: teams.length ? Date.now() : Date.now() - 24 * 3600e3 + 10 * 60e3, teams });
   return teams;
 }
 function espnMatch(teams, name) {
@@ -108,13 +112,16 @@ export function attachLogos(leagueId, force) {
     const teams = path ? await espnTeams(path) : [];
     const { rows } = await q(`SELECT DISTINCT unnest(ARRAY[home, away]) AS name, sport FROM events WHERE league_id=$1 AND status IN ('scheduled','live')
       AND ($2 OR $3 OR home_logo IS NULL OR away_logo IS NULL)`, [leagueId, !!force, teams.length > 0]);
+    let hit = 0;
     for (const r of rows) {
       let url = teams.length ? espnMatch(teams, r.name) : null;
+      if (url) hit++; else if (teams.length) console.log(`[logos] no espn match: ${r.name} (${path})`);
       if (url) await q(`INSERT INTO team_logos (name, url, fetched_at) VALUES ($1,$2,now()) ON CONFLICT (name) DO UPDATE SET url=EXCLUDED.url, fetched_at=now()`, [r.name, url]);
       else url = await logoFor(r.name, r.sport);
       if (url) await q(`UPDATE events SET home_logo = CASE WHEN home=$1 THEN $2 ELSE home_logo END, away_logo = CASE WHEN away=$1 THEN $2 ELSE away_logo END
         WHERE league_id=$3 AND (home=$1 OR away=$1) AND status IN ('scheduled','live')`, [r.name, url, leagueId]);
     }
+    if (path) console.log(`[logos] ${path}: ${hit}/${rows.length} crests from espn`);
   }).catch(e => console.error('[logos]', e.message));
   return queue;
 }
