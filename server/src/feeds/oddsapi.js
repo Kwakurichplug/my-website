@@ -28,7 +28,12 @@ export const syncEvery = 60 * 1000;    // the scheduler decides what is actually
 export const tickEvery = 20 * 1000;
 
 const BASE = process.env.ODDS_API_BASE || 'https://api.the-odds-api.com/v4'; // override for tests (mock server)
-const KEY = () => process.env.ODDS_API_KEY;
+// Two keys: ODDS_API_KEY first; ODDS_API_KEY_FALLBACK takes over once the first one has no credits left (401 / 0
+// remaining). The first key is tried again at the start of each month, when its credits renew.
+const KEYS = () => [process.env.ODDS_API_KEY, process.env.ODDS_API_KEY_FALLBACK].map(k => String(k || '').trim()).filter(Boolean);
+let keyIdx = 0, keyMonth = new Date().toISOString().slice(0, 7);
+const KEY = () => { const m = new Date().toISOString().slice(0, 7); if (m !== keyMonth) { keyMonth = m; keyIdx = 0; } const k = KEYS(); return k[Math.min(keyIdx, k.length - 1)]; };
+export const activeKey = () => ({ index: keyIdx, of: KEYS().length, name: keyIdx ? 'ODDS_API_KEY_FALLBACK' : 'ODDS_API_KEY' });
 const REGION = () => process.env.ODDS_REGION || 'uk';
 const FRESH_MS = () => (+process.env.ODDS_LIVE_FRESH_SEC || 90) * 1000;
 
@@ -155,15 +160,22 @@ async function allowanceLeft() {
   const daily = Math.floor(dailyAllowance(b.startRemaining));
   return Math.max(0, daily - (b.spent || 0));
 }
-async function call(path, cost) {
+async function call(path, cost, retried) {
   const url = `${BASE}${path}${path.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(KEY())}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   const b = await budget();
+  if (b.keyIdx !== keyIdx) { b.keyIdx = keyIdx; b.remaining = null; b.startRemaining = null; b.spent = 0; }   // another key: its own count
   const rem = res.headers.get('x-requests-remaining'), last = res.headers.get('x-requests-last');
   if (rem != null) { b.remaining = +rem; if (b.startRemaining == null) b.startRemaining = +rem + (+last || cost); }
   b.spent = (b.spent || 0) + (+last || cost);
   b.lastCall = new Date().toISOString();
   await setSetting('oddsapi_budget', b);
+  // out of credits on this key (401 / 429 quota, or none left): move to the fallback key and try once more
+  const out = (!res.ok && (res.status === 401 || res.status === 429)) || (rem != null && +rem <= 0);
+  if (out && keyIdx < KEYS().length - 1) {
+    keyIdx++; console.warn(`[oddsapi] key ${keyIdx} out of credits – switching to ODDS_API_KEY_FALLBACK`);
+    if (!res.ok && !retried) return call(path, cost, true);
+  }
   if (!res.ok) throw new Error(`odds api ${res.status} ${await res.text().catch(() => '')}`.slice(0, 200));
   return res.json();
 }
@@ -455,5 +467,5 @@ async function retireDemo() {
 export async function status() {
   const b = await budget();
   return { provider: 'oddsapi', leagues: await enabled(), remaining: b.remaining ?? null, spentToday: b.spent || 0, allowanceLeftToday: await allowanceLeft(), daysLeft: daysLeftInMonth(),
-    reserve: reserve(), spreadDays: spreadDays(), spendUntil: process.env.ODDS_SPEND_UNTIL || null, lastCall: b.lastCall || null };
+    key: activeKey(), reserve: reserve(), spreadDays: spreadDays(), spendUntil: process.env.ODDS_SPEND_UNTIL || null, lastCall: b.lastCall || null };
 }
