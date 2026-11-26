@@ -87,7 +87,7 @@
     },
     agent: {
       dashboard: () => get('/agent'),                                            // the agent's own screen
-      payout: () => post('/agent/payout', {}),                                   // ask for everything available
+      payout: d => post('/agent/payout', d || {}),                               // ask for everything available, to MoMo / bank
     },
     support: {                                                                   // Live support (the player's chat)
       get: after => get('/support' + (after ? '?after=' + after : '')),

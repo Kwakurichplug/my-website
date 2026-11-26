@@ -2927,6 +2927,20 @@ html[data-theme="dark"] .sh-btn.wa{color:#fff}
 .ag-link small{font-size:11.5px;color:var(--muted)}
 .ag-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ag-h{margin:6px 0 0;font-size:14px}
+.ag-today{padding:14px;border-radius:12px;background:linear-gradient(135deg,#0a7d3e,#0f9d4f);color:#fff;display:grid;gap:10px}
+.ag-today-h{display:grid;gap:2px}.ag-today-h b{font-size:16px}.ag-today-h small{font-size:11.5px;opacity:.85}
+.ag-today-g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ag-today-g div{background:rgba(255,255,255,.14);border-radius:10px;padding:10px;display:grid;gap:2px}
+.ag-today-g b{font-size:18px;font-variant-numeric:tabular-nums}.ag-today-g small{font-size:11.5px;opacity:.9}
+.ag-pay{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.ag-pay label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.ag-pay input,.ag-pay select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:14px;background:#fff;color:var(--ink,#111)}
+.ag-days{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.ag-days table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.ag-days th{text-align:left;font-size:11px;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+.ag-days td{padding:8px 10px;border-bottom:1px solid var(--line)}.ag-days tr:last-child td{border-bottom:0}
+.ag-days .r{text-align:right}.ag-days tr.now td{font-weight:700;background:#f2faf5}
+.ag-mem small{display:block}.ag-today-dep{color:#0a7d3e;font-weight:700}
 
 /* v28 Virtual League: the round being played */
 .vl-now{margin:10px var(--side,12px);border-radius:12px;overflow:hidden;background:#1d2128;color:#fff}

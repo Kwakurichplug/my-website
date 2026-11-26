@@ -216,6 +216,8 @@ html[data-theme="dark"] .rc-nums b{color:#f4f5f6}
 html[data-theme="dark"] .rc-btn{background:#1d2127}
 html[data-theme="dark"] .ag-tiles div{background:#1d2127}
 html[data-theme="dark"] .ag-link input{background:#1d2127}
+html[data-theme="dark"] .ag-pay,html[data-theme="dark"] .ag-days,html[data-theme="dark"] .ag-pay input,html[data-theme="dark"] .ag-pay select{background:#1d2127;color:inherit}
+html[data-theme="dark"] .ag-days tr.now td{background:#16301f}
 html[data-theme="dark"] .vl-tag i{background:#1d2127}
 html[data-theme="dark"] .ev-paused{color:#a9aeb5}
 html[data-theme="dark"] .tk-mom-l{color:#9aa0a8}

@@ -3,9 +3,9 @@
 // Earnings: agents.pct % (default 70) of each player's FIRST deposit – once per player, recorded when the deposit is
 // credited. It becomes requestable ("available") once that player has staked agents.turnover × the deposit
 // (default 1×) on settled sports bets or games, so a deposit made only to be withdrawn again earns nothing.
-// Payouts: the agent requests everything available; the request waits on the admin screen; approving it credits the
-// agent's balance through the ledger (type agent_commission – they withdraw like any player); rejecting it puts the
-// earnings back to available.
+// Payouts: the agent requests everything available and says where to send it (Ghana: Mobile Money number + network +
+// name; Nigeria: bank account); the request waits on the admin screen; the admin sends the money there and marks it
+// paid; rejecting it puts the earnings back to available. The agent's screen counts days from 6 AM Ghana time.
 import { randomInt } from 'node:crypto';
 import { q, tx } from '../db/pool.js';
 import { getSetting } from './settings.js';
@@ -70,26 +70,68 @@ export async function release() {
 const mask = n => { const s = String(n || '').trim(); if (!s) return 'Player'; return s.split(/\s+/).map((w, i) => (i ? w[0] + '.' : w)).join(' '); };
 const sums = rows => rows.reduce((o, r) => { o[r.status] = r2((o[r.status] || 0) + Number(r.amount)); return o; }, { pending: 0, available: 0, requested: 0, paid: 0 });
 
-/** The agent's own screen. */
+// The agent's day runs from 6:00 AM to 6:00 AM Ghana time (Africa/Accra, GMT all year): at 6 AM the "Today" figures
+// start again from zero and the day before moves into the daily history.
+export const DAY_START_SQL = `(date_trunc('day', (now() AT TIME ZONE 'Africa/Accra') - interval '6 hours') + interval '6 hours') AT TIME ZONE 'Africa/Accra'`;
+const dayKey = col => `to_char((${col} AT TIME ZONE 'Africa/Accra') - interval '6 hours', 'YYYY-MM-DD')`;
+const DAYS = 14;
+export const NETWORKS = { mtn: 'MTN MoMo', telecel: 'Telecel Cash', at: 'AirtelTigo Money' };
+const accountOf = d => !d ? null : d.method === 'mobile_money' ? `${NETWORKS[d.network] || d.network} · 0${d.phone}` : `${d.bank} · ${d.acct}`;
+
+/** Where the agent wants to be paid: Ghana – Mobile Money (number, network, name); Nigeria – a bank account. */
+export function payoutDetails(agent, body) {
+  const b = body || {}, name = String(b.name || agent.full_name || '').trim().slice(0, 80);
+  if (agent.country === 'GH') {
+    const phone = String(b.phone || '').replace(/\D/g, '').replace(/^233/, '').replace(/^0/, ''), network = String(b.network || '').toLowerCase();
+    if (phone.length !== 9 || !NETWORKS[network]) throw fail(400, 'momo_details');
+    if (name.length < 3) throw fail(400, 'name_required');
+    return { method: 'mobile_money', phone, network, name };
+  }
+  const acct = String(b.acct || '').replace(/\D/g, ''), bank = String(b.bank || '').trim().slice(0, 60);
+  if (!bank || acct.length < 10 || acct.length > 16 || name.length < 3) throw fail(400, 'bank_details');
+  return { method: 'bank_transfer', bank, acct, name };
+}
+
+/** The agent's own screen: today (since 6 AM Ghana time), the last 14 days, every player with their deposits. */
 export async function dashboard(agent) {
   if (!agent.is_agent) throw fail(403, 'not_agent');
   const R = await rules();
-  const [players, earn, payouts] = await Promise.all([
-    q(`SELECT u.id, u.uid, u.full_name, u.created_at, e.deposit, e.amount, e.status, e.created_at AS deposited_at FROM users u LEFT JOIN agent_earnings e ON e.player_id=u.id
-       WHERE u.agent_id=$1 ORDER BY u.created_at DESC LIMIT 300`, [agent.id]),
+  const t0 = (await q(`SELECT ${DAY_START_SQL} AS t0`)).rows[0].t0, from = new Date(new Date(t0).getTime() - (DAYS - 1) * 864e5);
+  const [players, earn, payouts, joins, deps, firsts, last] = await Promise.all([
+    q(`SELECT u.id, u.uid, u.full_name, u.created_at, e.deposit, e.amount, e.status, d.n, d.total, d.last, d.today
+       FROM users u LEFT JOIN agent_earnings e ON e.player_id=u.id
+       LEFT JOIN LATERAL (SELECT count(*)::int AS n, coalesce(sum(t.amount),0) AS total, max(t.created_at) AS last,
+         coalesce(sum(t.amount) FILTER (WHERE t.created_at >= $2),0) AS today FROM transactions t WHERE t.user_id=u.id AND t.type='deposit') d ON true
+       WHERE u.agent_id=$1 ORDER BY coalesce(d.last, u.created_at) DESC LIMIT 300`, [agent.id, t0]),
     q(`SELECT status, amount FROM agent_earnings WHERE agent_id=$1`, [agent.id]),
-    q(`SELECT id, amount, status, reason, created_at, decided_at FROM agent_payouts WHERE agent_id=$1 ORDER BY id DESC LIMIT 50`, [agent.id]),
+    q(`SELECT id, amount, status, reason, details, created_at, decided_at FROM agent_payouts WHERE agent_id=$1 ORDER BY id DESC LIMIT 50`, [agent.id]),
+    q(`SELECT ${dayKey('created_at')} AS d, count(*)::int AS n FROM users WHERE agent_id=$1 AND created_at >= $2 GROUP BY 1`, [agent.id, from]),
+    q(`SELECT ${dayKey('t.created_at')} AS d, count(*)::int AS n, count(DISTINCT t.user_id)::int AS players, coalesce(sum(t.amount),0) AS amount
+       FROM transactions t JOIN users u ON u.id=t.user_id WHERE u.agent_id=$1 AND t.type='deposit' AND t.created_at >= $2 GROUP BY 1`, [agent.id, from]),
+    q(`SELECT ${dayKey('created_at')} AS d, count(*)::int AS n, coalesce(sum(amount),0) AS earned FROM agent_earnings WHERE agent_id=$1 AND created_at >= $2 GROUP BY 1`, [agent.id, from]),
+    q(`SELECT details FROM agent_payouts WHERE agent_id=$1 AND details IS NOT NULL ORDER BY id DESC LIMIT 1`, [agent.id]),
   ]);
+  const by = rows => Object.fromEntries(rows.map(r => [r.d, r]));
+  const J = by(joins.rows), D = by(deps.rows), F = by(firsts.rows);
+  const days = Array.from({ length: DAYS }, (_, i) => {
+    const start = new Date(new Date(t0).getTime() - i * 864e5), k = start.toISOString().slice(0, 10);
+    return { day: k, from: start.toISOString(), to: new Date(start.getTime() + 864e5).toISOString(), joined: J[k]?.n || 0,
+      deposits: D[k]?.n || 0, depositors: D[k]?.players || 0, amount: r2(D[k]?.amount || 0), firstDeposits: F[k]?.n || 0, earned: r2(F[k]?.earned || 0) };
+  });
   const s = sums(earn.rows);
   return { code: agent.agent_code, link: linkOf(agent.agent_code), pct: R.pct, turnover: R.turnover, minPayout: R.minPayout[agent.country] ?? 0,
-    totals: { players: players.rows.length, deposited: players.rows.filter(p => p.status).length, ...s, earned: r2(s.pending + s.available + s.requested + s.paid) },
-    players: players.rows.map(p => ({ uid: p.uid, name: mask(p.full_name), joined: p.created_at, deposit: p.deposit == null ? null : Number(p.deposit), earning: p.amount == null ? null : Number(p.amount), status: p.status || 'no_deposit' })),
-    payouts: payouts.rows.map(p => ({ id: Number(p.id), amount: Number(p.amount), status: p.status, reason: p.reason, at: p.created_at, decidedAt: p.decided_at })) };
+    dayStartsAt: '06:00 Ghana time', today: days[0], days, payTo: last.rows[0] ? last.rows[0].details : null,
+    totals: { players: players.rows.length, deposited: players.rows.filter(p => p.n > 0).length, ...s, earned: r2(s.pending + s.available + s.requested + s.paid),
+      allDeposits: r2(players.rows.reduce((a, p) => a + Number(p.total || 0), 0)) },
+    players: players.rows.map(p => ({ uid: p.uid, name: mask(p.full_name), joined: p.created_at, deposit: p.deposit == null ? null : Number(p.deposit), earning: p.amount == null ? null : Number(p.amount),
+      status: p.status || 'no_deposit', deposits: p.n || 0, totalDeposited: r2(p.total || 0), today: r2(p.today || 0), lastDeposit: p.last || null })),
+    payouts: payouts.rows.map(p => ({ id: Number(p.id), amount: Number(p.amount), status: p.status, reason: p.reason, to: accountOf(p.details), at: p.created_at, decidedAt: p.decided_at })) };
 }
 
-/** The agent asks for everything available to be paid. */
-export async function requestPayout(agent) {
+/** The agent asks for everything available to be paid to their Mobile Money (Ghana) or bank account (Nigeria). */
+export async function requestPayout(agent, body) {
   if (!agent.is_agent) throw fail(403, 'not_agent');
+  const details = payoutDetails(agent, body);
   const R = await rules(), min = R.minPayout[agent.country] ?? 0;
   return tx(async c => {
     await c.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [agent.id]);   // one request at a time per agent
@@ -97,9 +139,9 @@ export async function requestPayout(agent) {
     const total = r2(rows.reduce((a, r) => a + Number(r.amount), 0));
     if (!(total > 0)) throw fail(400, 'nothing_available');
     if (total < min) throw fail(400, 'below_minimum', { min });
-    const p = (await c.query(`INSERT INTO agent_payouts (agent_id, amount) VALUES ($1,$2) RETURNING *`, [agent.id, total])).rows[0];
+    const p = (await c.query(`INSERT INTO agent_payouts (agent_id, amount, details) VALUES ($1,$2,$3) RETURNING *`, [agent.id, total, details])).rows[0];
     await c.query(`UPDATE agent_earnings SET status='requested', payout_id=$2 WHERE id = ANY($1)`, [rows.map(r => r.id), p.id]);
-    return { id: Number(p.id), amount: total, status: 'pending', earnings: rows.length };
+    return { id: Number(p.id), amount: total, status: 'pending', earnings: rows.length, to: accountOf(details) };
   });
 }
 
@@ -120,7 +162,7 @@ export async function payoutQueue(status = 'pending') {
     ${status === 'all' ? '' : 'WHERE p.status=$1'} ORDER BY p.id DESC LIMIT 200`, status === 'all' ? [] : [status]);
   const ids = rows.map(r => r.id);
   const players = ids.length ? (await q(`SELECT e.payout_id, u.uid, u.full_name, e.deposit, e.amount FROM agent_earnings e JOIN users u ON u.id=e.player_id WHERE e.payout_id = ANY($1)`, [ids])).rows : [];
-  return rows.map(r => ({ ...r, id: Number(r.id), amount: Number(r.amount), players: players.filter(x => String(x.payout_id) === String(r.id)).map(x => ({ uid: x.uid, name: x.full_name, deposit: Number(x.deposit), earning: Number(x.amount) })) }));
+  return rows.map(r => ({ ...r, id: Number(r.id), amount: Number(r.amount), to: accountOf(r.details), players: players.filter(x => String(x.payout_id) === String(r.id)).map(x => ({ uid: x.uid, name: x.full_name, deposit: Number(x.deposit), earning: Number(x.amount) })) }));
 }
 /** Approve: the amount goes into the agent's balance (ledger) – once. Reject: earnings back to available. */
 export async function decide(payoutId, approve, adminId, reason) {
@@ -131,6 +173,9 @@ export async function decide(payoutId, approve, adminId, reason) {
     if (approve) {
       await c.query(`UPDATE agent_payouts SET status='paid', decided_by=$2, decided_at=now() WHERE id=$1`, [p.id, adminId]);
       await c.query(`UPDATE agent_earnings SET status='paid' WHERE payout_id=$1 AND status='requested'`, [p.id]);
+      // a request with Mobile Money / bank details: the admin sent the money there – nothing goes into the balance
+      if (p.details) return { ok: true, status: 'paid', sentTo: accountOf(p.details), agentId: p.agent_id, amount: Number(p.amount) };
+      // older requests (before 2026-11-25) had no details: paid into the agent's balance as before
       const balance = await move(c, p.agent_id, 'agent_commission', Number(p.amount), 'AGP' + p.id, { payout: Number(p.id) });
       return { ok: true, status: 'paid', balance, agentId: p.agent_id, amount: Number(p.amount) };
     }

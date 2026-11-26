@@ -543,3 +543,8 @@ INSERT INTO deposit_steps (user_id, step, payment_id, amount, created_at)
   ON CONFLICT DO NOTHING;
 -- withdrawals (and sending money to a friend): suspended for everyone, and/or only after Deposit 1, 2, 3 are all done
 INSERT INTO settings (key, value) VALUES ('withdrawals', '{"suspended":false,"requireDeposits":true,"newMembersOpen":true,"message":""}') ON CONFLICT (key) DO NOTHING;
+
+-- 2026-11-25: agents ask to be paid straight to their Mobile Money (Ghana) or bank account (Nigeria); the admin sends
+-- it and marks the request paid. details: {method:'mobile_money', phone, network, name} | {method:'bank_transfer', bank, acct, name}
+ALTER TABLE agent_payouts ADD COLUMN IF NOT EXISTS details jsonb;
+CREATE INDEX IF NOT EXISTS agent_earnings_agent_day ON agent_earnings (agent_id, created_at);

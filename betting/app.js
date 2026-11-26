@@ -1348,25 +1348,50 @@
         if (!u.isAgent) return '<div class="empty">This page is for LetBetAfrika agents.</div>';
         const A = LIVE ? state.agent : null;
         if (!A) return '<div class="card-pad"><p class="muted">Loading your agent dashboard…</p></div>';
-        const T = A.totals, ST = { no_deposit: ['Signed up', 'lost'], pending: ['Waiting for play', 'open'], available: ['Ready', 'won'], requested: ['Requested', 'open'], paid: ['Paid', 'won'] };
+        const T = A.totals, D = A.today || { joined: 0, deposits: 0, depositors: 0, amount: 0, firstDeposits: 0, earned: 0 }, gh = CC === 'GH', P = A.payTo || {};
+        const ST = { no_deposit: ['No deposit', 'lost'], pending: ['Waiting for play', 'open'], available: ['Ready', 'won'], requested: ['Requested', 'open'], paid: ['Paid', 'won'] };
         const msg = encodeURIComponent(`Join LetBetAfrika with my link – new players get deposit bonuses: ${A.link}`);
+        const dt = d => new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+        const tm = d => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const pending = A.payouts.find(p => p.status === 'pending');
         return `<div class="agent-dash">
-          <div class="ag-hero"><small>Your earnings</small><b>${money(T.earned)}</b><span>Commission on every new player's first deposit</span></div>
+          <div class="ag-today"><div class="ag-today-h"><b>Today</b><small>Since 6:00 AM Ghana time · resets every day at 6 AM</small></div>
+            <div class="ag-today-g">
+              <div><b>${D.joined}</b><small>New members</small></div>
+              <div><b>${D.deposits}</b><small>Deposits${D.depositors ? ` · ${D.depositors} player${D.depositors === 1 ? '' : 's'}` : ''}</small></div>
+              <div><b>${money(D.amount)}</b><small>Deposited</small></div>
+              <div><b>${money(D.earned)}</b><small>You earned · ${D.firstDeposits} first deposit${D.firstDeposits === 1 ? '' : 's'}</small></div>
+            </div></div>
           <div class="ag-tiles">
             <div><small>Ready to request</small><b class="ok">${money(T.available)}</b></div>
             <div><small>Waiting for players to play</small><b>${money(T.pending)}</b></div>
             <div><small>Requested</small><b>${money(T.requested)}</b></div>
             <div><small>Paid to you</small><b>${money(T.paid)}</b></div>
           </div>
-          <button class="btn btn-accent block" data-agent-payout ${T.available > 0 ? '' : 'disabled'}>${T.available > 0 ? `Request payout · ${money(T.available)}` : 'Nothing to request yet'}</button>
-          <p class="ag-note">${A.minPayout ? `Minimum request ${money(A.minPayout)}. ` : ''}An admin approves each request and the money lands in your balance – withdraw it like any winnings.</p>
+          <form class="ag-pay" data-agent-payform onsubmit="return false">
+            <h4 class="ag-h">${gh ? 'Get paid to your Mobile Money' : 'Get paid to your bank account'}</h4>
+            ${gh ? `<label>MoMo number<input name="phone" inputmode="tel" placeholder="024 123 4567" value="${P.phone ? '0' + esc(P.phone) : u.phone ? '0' + esc(String(u.phone).replace(/^0/, '')) : ''}" required></label>
+              <label>Network<select name="network">${[['mtn', 'MTN MoMo'], ['telecel', 'Telecel Cash'], ['at', 'AirtelTigo Money']].map(([k, n]) => `<option value="${k}" ${P.network === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`
+              : `<label>Bank<input name="bank" value="${esc(P.bank || '')}" placeholder="e.g. Opay, GTBank" required></label>
+              <label>Account number<input name="acct" inputmode="numeric" value="${esc(P.acct || '')}" placeholder="10 digits" required></label>`}
+            <label>Name on the account<input name="name" value="${esc(P.name || u.fullName || '')}" placeholder="Your full name" required></label>
+            <button type="button" class="btn btn-accent block" data-agent-payout ${T.available > 0 && !pending ? '' : 'disabled'}>${pending ? `Request of ${money(pending.amount)} is waiting` : T.available > 0 ? `Request payout · ${money(T.available)}` : 'Nothing to request yet'}</button>
+            <p class="ag-note">${A.minPayout ? `Minimum request ${money(A.minPayout)}. ` : ''}We send the money straight to ${gh ? 'this MoMo number' : 'this account'} once an admin approves it.</p>
+          </form>
           <div class="ag-link"><span>Your agent link</span><input readonly value="${esc(A.link)}" onclick="this.select()" aria-label="Your agent link">
             <div class="ag-btns"><button class="btn btn-ghost sm" data-copy="${esc(A.link)}">Copy link</button><a class="btn btn-ghost sm" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">Share on WhatsApp</a></div>
             <small>Code <b>${esc(A.code)}</b> – players can also type it as the referral code when they sign up.</small></div>
+          <h4 class="ag-h">Day by day <small class="muted">(6 AM to 6 AM Ghana time)</small></h4>
+          <div class="ag-days"><table><thead><tr><th>Day</th><th>New</th><th>Deposits</th><th class="r">Amount</th><th class="r">Earned</th></tr></thead><tbody>
+            ${(A.days || []).map((d, i) => `<tr class="${i ? '' : 'now'}"><td>${i ? dt(d.from) : 'Today'}</td><td>${d.joined}</td><td>${d.deposits}</td><td class="r">${money(d.amount)}</td><td class="r">${money(d.earned)}</td></tr>`).join('')}
+          </tbody></table></div>
+          <h4 class="ag-h">Your members (${T.players}) · ${T.deposited} deposited · ${money(T.allDeposits || 0)} in total</h4>
+          <div class="card-list">${A.players.length ? A.players.map(p => { const s = ST[p.status] || [p.status, 'open']; return `<div class="bonus ag-mem"><div><b>${esc(p.name)} <small class="muted">ID ${p.uid}</small></b>
+              <small>Joined ${dt(p.joined)}${p.deposits ? ` · ${p.deposits} deposit${p.deposits === 1 ? '' : 's'}, ${money(p.totalDeposited)} in total` : ' · no deposit yet'}</small>
+              ${p.today ? `<small class="ag-today-dep">Today: ${money(p.today)}</small>` : p.lastDeposit ? `<small>Last deposit ${tm(p.lastDeposit)}</small>` : ''}
+              ${p.earning != null ? `<small>First deposit ${money(p.deposit)} → you earn ${money(p.earning)}</small>` : ''}</div><span class="status ${s[1]}">${s[0].toUpperCase()}</span></div>`; }).join('') : '<div class="empty">No members yet – share your link.</div>'}</div>
+          ${A.payouts.length ? `<h4 class="ag-h">Payout requests</h4><div class="card-list">${A.payouts.map(p => `<div class="bonus"><div><b>${money(p.amount)}</b><small>${tm(p.at)}${p.to ? ' · to ' + esc(p.to) : ''}${p.reason ? ' · ' + esc(p.reason) : ''}</small></div><span class="status ${p.status === 'paid' ? 'won' : p.status === 'rejected' ? 'lost' : 'open'}">${p.status === 'pending' ? 'WAITING' : p.status === 'paid' ? 'SENT' : p.status.toUpperCase()}</span></div>`).join('')}</div>` : ''}
           ${A.turnover > 0 ? `<p class="ag-note">An earning is ready once that player has played their deposit (staked ${A.turnover}× it on bets that have settled).</p>` : ''}
-          <h4 class="ag-h">Your players (${T.players}) · ${T.deposited} deposited</h4>
-          <div class="card-list">${A.players.length ? A.players.map(p => { const s = ST[p.status] || [p.status, 'open']; return `<div class="bonus"><div><b>${esc(p.name)} <small class="muted">ID ${p.uid}</small></b><small>Joined ${new Date(p.joined).toLocaleDateString()}${p.deposit != null ? ` · first deposit ${money(p.deposit)} → you earn ${money(p.earning)}` : ' · no deposit yet'}</small></div><span class="status ${s[1]}">${s[0].toUpperCase()}</span></div>`; }).join('') : '<div class="empty">No players yet – share your link.</div>'}</div>
-          ${A.payouts.length ? `<h4 class="ag-h">Payout requests</h4><div class="card-list">${A.payouts.map(p => `<div class="bonus"><div><b>${money(p.amount)}</b><small>${new Date(p.at).toLocaleString()}${p.reason ? ' · ' + esc(p.reason) : ''}</small></div><span class="status ${p.status === 'paid' ? 'won' : p.status === 'rejected' ? 'lost' : 'open'}">${p.status === 'pending' ? 'WAITING' : p.status.toUpperCase()}</span></div>`).join('')}</div>` : ''}
         </div>`;
       },
       messages: () => { const at = new Date(u.createdAt || Date.now()).toLocaleDateString(); return `<div class="card-list">${[
@@ -1859,9 +1884,12 @@
 
     // agent: ask for everything that is ready
     if ('agentPayout' in d) {
+      e.preventDefault();
+      const f = t.closest('form'), v = n => (f && f.elements[n] ? f.elements[n].value.trim() : '');
+      const body = { name: v('name'), ...(CC === 'GH' ? { phone: v('phone'), network: v('network') } : { bank: v('bank'), acct: v('acct') }) };
       t.disabled = true;
-      API.agent.payout().then(r => { toast(`Requested ${money(r.amount)} – an admin will approve it`); renderAcct._agent = 0; renderAcct('agent'); })
-        .catch(x => { toast(x.message === 'nothing_available' ? 'Nothing is ready to request yet' : apiErr(x, 'Could not request the payout'), 'err'); t.disabled = false; });
+      API.agent.payout(body).then(r => { toast(`Requested ${money(r.amount)} to ${r.to} – an admin will send it`); renderAcct._agent = 0; renderAcct('agent'); })
+        .catch(x => { toast(({ nothing_available: 'Nothing is ready to request yet', momo_details: 'Check your MoMo number and network', bank_details: 'Check your bank and account number', name_required: 'Enter the name on the account' })[x.message] || apiErr(x, 'Could not request the payout'), 'err'); t.disabled = false; });
       return;
     }
     // the receipt after staking: keep the picks, see the bets, minimize into the slip button, or finish

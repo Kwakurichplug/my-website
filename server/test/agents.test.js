@@ -73,7 +73,11 @@ test('agents: link sign-up, 70% of the first deposit only, released after play, 
   assert.equal(d.players.find(x => x.uid === p1.user.uid).status, 'pending');
   assert.equal(d.players.find(x => x.uid === p2.user.uid).status, 'no_deposit');
   assert.ok(!/Kwame Player/.test(JSON.stringify(d.players)), 'player names are masked'); assert.ok(d.players.some(x => x.name === 'Kwame P.'));
-  assert.equal((await api('/agent/payout', {}, ag.token)).error, 'nothing_available', 'nothing before the player has played');
+  assert.equal((await api('/agent/payout', {}, ag.token)).error, 'momo_details', 'a Ghana agent must give a MoMo number');
+  assert.equal((await api('/agent/payout', { phone: ag.phone, network: 'mtn', name: 'Ama Agent' }, ag.token)).error, 'nothing_available', 'nothing before the player has played');
+  assert.equal(d.today.joined, 2, 'today (since 6 AM Ghana time): two new members'); assert.equal(d.today.deposits, 2); assert.equal(d.today.amount, 150);
+  assert.equal(d.today.firstDeposits, 1); assert.equal(d.today.earned, 70); assert.equal(d.days.length, 14);
+  assert.equal(d.players.find(x => x.uid === p1.user.uid).totalDeposited, 150); assert.equal(d.players.find(x => x.uid === p1.user.uid).today, 150);
 
   // the player plays their deposit: a GH₵100 single on a match that is then settled
   const m = await api('/admin/events', { league: { name: 'Agent Cup ' + tag(), country: 'Ghana', flag: 'gh' }, home: 'Home ' + tag(), away: 'Away ' + tag(), kickoff: new Date(Date.now() + 600000).toISOString(), odds: { home: 2, draw: 3.3, away: 3.6 } }, ADMIN);
@@ -84,23 +88,24 @@ test('agents: link sign-up, 70% of the first deposit only, released after play, 
   await api(`/admin/events/${m.id}/result`, { home: 2, away: 0 }, ADMIN);
   assert.ok(await until(async () => (await api('/agent', null, ag.token)).totals.available === 70), 'released once the deposit was played');
 
-  const req1 = await api('/agent/payout', {}, ag.token);
-  assert.equal(req1.amount, 70); assert.equal(req1.status, 'pending');
-  assert.equal((await api('/agent/payout', {}, ag.token)).error, 'nothing_available', 'no double request');
+  const req1 = await api('/agent/payout', { phone: ag.phone, network: 'mtn', name: 'Ama Agent' }, ag.token);
+  assert.equal(req1.amount, 70); assert.match(req1.to, /MTN MoMo · 0/); assert.equal(req1.status, 'pending');
+  assert.equal((await api('/agent/payout', { phone: ag.phone, network: 'mtn', name: 'Ama Agent' }, ag.token)).error, 'nothing_available', 'no double request');
   const q = (await api('/admin/agent-payouts?status=pending', null, ADMIN)).payouts.find(x => x.id === req1.id);
-  assert.ok(q); assert.equal(q.players.length, 1); assert.equal(q.players[0].deposit, 100);
+  assert.ok(q); assert.equal(q.details.method, 'mobile_money'); assert.equal(q.details.name, 'Ama Agent'); assert.equal(q.players.length, 1); assert.equal(q.players[0].deposit, 100);
   assert.equal((await api(`/admin/agent-payouts/${req1.id}/reject`, {}, ADMIN)).error, 'reason_required');
   assert.equal((await api(`/admin/agent-payouts/${req1.id}/reject`, { reason: 'Please confirm the player' }, ADMIN)).status, 'rejected');
   d = await api('/agent', null, ag.token);
   assert.equal(d.totals.available, 70, 'back to available'); assert.equal(d.payouts[0].status, 'rejected'); assert.equal(d.payouts[0].reason, 'Please confirm the player');
 
-  const req2 = await api('/agent/payout', {}, ag.token);
+  const req2 = await api('/agent/payout', { phone: ag.phone, network: 'mtn', name: 'Ama Agent' }, ag.token);
   const before = await bal(ag.token);
   assert.equal((await api(`/admin/agent-payouts/${req2.id}/approve`, {}, ADMIN)).status, 'paid');
   assert.equal((await api(`/admin/agent-payouts/${req2.id}/approve`, {}, ADMIN)).error, 'not_pending', 'paid once');
-  assert.equal(await bal(ag.token), before + 70, 'credited to the agent balance');
+  assert.equal(await bal(ag.token), before, 'sent to the MoMo number by the admin – nothing goes into the balance');
   const tx = (await db.query(`SELECT type, amount::float FROM transactions WHERE user_id=$1 AND type='agent_commission'`, [ag.user.id])).rows;
-  assert.deepEqual(tx, [{ type: 'agent_commission', amount: 70 }]);
+  assert.deepEqual(tx, []);
+  assert.equal((await api('/agent', null, ag.token)).payouts[0].to, req2.to);
   d = await api('/agent', null, ag.token);
   assert.equal(d.totals.paid, 70); assert.equal(d.totals.available, 0);
   await ledgerOk(ag.user.id);
@@ -109,6 +114,7 @@ test('agents: link sign-up, 70% of the first deposit only, released after play, 
   assert.equal(list.players, 2); assert.equal(list.deposited, 1); assert.equal(list.paid, 70);
   assert.equal((await api('/admin/agents', null, p1.token)).status, 403, 'players cannot see agents');
 
+  await deposit(ag, 50);   // money of their own to withdraw
   // agents withdraw without an ID check and without waiting for an admin: sent through the payment API at once
   const wa = await api('/wallet/withdraw', { amount: 20, method: 'mobile_money', details: { phone: ag.phone, network: 'mtn', name: 'Ama Agent' } }, ag.token);
   assert.ok(['sent', 'paid'].includes(wa.auto), JSON.stringify(wa));
