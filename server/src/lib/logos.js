@@ -63,7 +63,16 @@ const ESPN = {
   americanfootball_nfl: 'football/nfl', americanfootball_ncaaf: 'football/college-football', baseball_mlb: 'baseball/mlb',
 };
 // a sharper name key for matching ESPN's names with the bookmakers' ("Brighton and Hove Albion" = "Brighton & Hove Albion")
-const key2 = s => norm(String(s || '').replace(/&/g, ' and ').replace(/\b(utd)\b/gi, 'united').replace(/\b(hotspur|wanderers|albion)\b/gi, m => m));
+// letters NFD does not split, and the same club spelled differently by the bookmakers and by ESPN
+const LETTERS = { 'ø': 'o', 'Ø': 'O', 'æ': 'ae', 'Æ': 'Ae', 'ß': 'ss', 'ł': 'l', 'Ł': 'L', 'đ': 'd', 'ı': 'i' };
+const SAME = [[/\bwien\b/gi, 'vienna'], [/\bk[oø]benhavn\b/gi, 'copenhagen'], [/\bolympiakos\b/gi, 'olympiacos'], [/\bk[oö]ln\b/gi, 'cologne'],
+  [/\bm[uü]nchen\b/gi, 'munich'], [/\bthessaloniki\b/gi, ''], [/\bsalonika\b/gi, ''], [/\bpiraeus\b/gi, ''], [/\butd\b/gi, 'united'], [/&/g, ' and ']];
+const plain = s => { let t = String(s || '').replace(/[øØæÆßłŁđı]/g, c => LETTERS[c]); for (const [re, to] of SAME) t = t.replace(re, to); return t; };
+const key2 = s => norm(plain(s));
+// words that do not tell two clubs apart
+const GENERIC = new Set(['fc', 'afc', 'cf', 'sc', 'sk', 'fk', 'ac', 'as', 'if', 'bk', 'kv', 'kaa', 'krc', 'club', 'city', 'united', 'real', 'sporting', 'athletic', 'atletico', 'dynamo', 'dinamo',
+  'racing', 'olympique', 'inter', 'saint', 'st', 'town', 'rovers', 'county', 'de', 'la', 'al', 'the', 'and', 'b', 'ii', 'u23', 'u21', 'cd', 'ud', 'sd', 'rc', 'us', 'ss', 'calcio', '1']);
+const words = s => plain(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !GENERIC.has(w));
 const espnCache = new Map();   // league path -> { at, teams: [{ names:Set, url }] }
 const small = href => String(href).replace(/^http:/, 'https:');
 async function espnTeams(path) {
@@ -77,6 +86,7 @@ async function espnTeams(path) {
       const d = await res.json();
       teams = (d?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => x.team).filter(t => t && t.logos && t.logos[0] && t.logos[0].href).map(t => ({
         names: new Set([t.displayName, t.shortDisplayName, t.name, t.location, t.nickname, t.location && t.name && t.location + ' ' + t.name].filter(Boolean).map(key2)),
+        words: new Set([t.displayName, t.shortDisplayName, t.name, t.location, t.abbreviation].filter(Boolean).flatMap(words)),
         url: small(t.logos[0].href) }));
     }
   } catch (e) { console.warn(`[logos] espn ${path} ${e.message}`); }
@@ -90,7 +100,11 @@ function espnMatch(teams, name) {
   const exact = teams.find(t => t.names.has(k)); if (exact) return exact.url;
   // one name inside the other ("Inter" / "Internazionale" no; "Tottenham" / "Tottenham Hotspur" yes) – only when unambiguous
   const part = teams.filter(t => [...t.names].some(n => n.length >= 5 && k.length >= 5 && (n.includes(k) || k.includes(n))));
-  return part.length === 1 ? part[0].url : null;
+  if (part.length === 1) return part[0].url;
+  // a distinctive word only one club of the league has ("PAOK Thessaloniki" / "PAOK Salonika", "Gent" / "KAA Gent")
+  const mine = words(name); if (!mine.length || /\b(ii|b|u2[13])$/i.test(String(name).trim())) return null;   // a reserve side never takes the first team's crest
+  const byWord = teams.filter(t => mine.some(w => t.words.has(w)));
+  return byWord.length === 1 ? byWord[0].url : null;
 }
 
 /** Crest URL for one team (cached). */
