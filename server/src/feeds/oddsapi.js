@@ -114,6 +114,8 @@ const TIERS = [
 const creditsPerCall = key => (sportOf(key) === 'football' ? 2 : 3);
 async function enabled() {
   if (process.env.ODDS_LEAGUES) return process.env.ODDS_LEAGUES.split(',').map(s => s.trim()).filter(k => LEAGUES[k]);
+  // ODDS_ALL_LEAGUES=true: every league in season, whatever the plan (the owner's choice: a full board over saving credits)
+  if (process.env.ODDS_ALL_LEAGUES === 'true') { const act = await activeSports(); return Object.keys(LEAGUES).filter(k => !act || act.has(k)); }
   const b = await budget(), daily = b.startRemaining == null ? 0 : dailyAllowance(b.startRemaining);
   const keys = new Set(DEFAULT);
   for (const [min, list] of TIERS) if (daily >= min) (list || Object.keys(LEAGUES)).forEach(k => keys.add(k));
@@ -419,7 +421,9 @@ export async function sync() {
     const low = reserve() > 0 && spare <= 0;
     const MONEY = `(EXISTS (SELECT 1 FROM bet_legs g JOIN bets b ON b.id=g.bet_id WHERE g.event_id=e.id AND b.status='open')
       OR EXISTS (SELECT 1 FROM jackpot_rounds r WHERE r.status <> 'settled' AND e.id = ANY(r.event_ids)))`;
-    if (low) await q(`UPDATE events e SET status='cancelled', stats = e.stats || '{"noResult": true}'::jsonb, updated_at=now()
+    // old matches nobody bet on leave the board 2 h after they should be over – always (a clean board), not only when
+    // credits are low; matches with money on them stay until their result settles the bets
+    await q(`UPDATE events e SET status='cancelled', stats = e.stats || '{"noResult": true}'::jsonb, updated_at=now()
       WHERE e.ext_id LIKE 'oa:%' AND e.status IN ('scheduled','live') AND e.kickoff < now() - (${LENGTH_SQL} + 120) * interval '1 minute' AND NOT ${MONEY}`);
     // 1) results first: leagues with matches past ~110 min that are not finished yet
     // all_done: every started game of the league should be over by now (a night's NBA slate is fetched in one call)
