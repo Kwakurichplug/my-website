@@ -404,8 +404,9 @@ export async function sync() {
     if (!booted) {
       await retireDemo(); booted = true;
       // crests for fixtures already in the database (free – no Odds API credits)
-      const { rows } = await q(`SELECT DISTINCT league_id FROM events WHERE ext_id LIKE 'oa:%' AND status IN ('scheduled','live') AND (home_logo IS NULL OR away_logo IS NULL)`);
-      rows.forEach(r => attachLogos(r.league_id));
+      // every league on the board once at start: ESPN's crests replace missing or wrong ones
+      const { rows } = await q(`SELECT DISTINCT league_id FROM events WHERE ext_id LIKE 'oa:%' AND status IN ('scheduled','live')`);
+      rows.forEach(r => attachLogos(r.league_id, true));
     }
     const keys = await enabled();
     let left = await allowanceLeft();
