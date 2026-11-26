@@ -1,0 +1,81 @@
+[
+ {
+  "name": "home",
+  "ref": "https://www.sportybet.com/ng/m/",
+  "our": "#/home",
+  "screens": 3
+ },
+ {
+  "name": "live",
+  "ref": "https://www.sportybet.com/ng/m/sport/football/live_list",
+  "our": "#/live",
+  "screens": 2
+ },
+ {
+  "name": "sports",
+  "ref": "https://www.sportybet.com/ng/m/sports",
+  "our": "#/sports",
+  "screens": 2
+ },
+ {
+  "name": "league",
+  "ref": "https://www.sportybet.com/ng/m/sport/football/sr:category:1/sr:tournament:17?time=all&sort=2",
+  "our": "#/league/0",
+  "screens": 2
+ },
+ {
+  "name": "today",
+  "ref": "https://www.sportybet.com/ng/m/sport/football/today",
+  "our": "#/home",
+  "screens": 1
+ },
+ {
+  "name": "jackpot",
+  "ref": "https://www.sportybet.com/ng/m/jackpot",
+  "our": "#/jackpot",
+  "screens": 2
+ },
+ {
+  "name": "promos",
+  "ref": "https://www.sportybet.com/ng/m/promotions",
+  "our": "#/promos",
+  "screens": 2
+ },
+ {
+  "name": "results",
+  "ref": "https://www.sportybet.com/ng/m/liveResult",
+  "our": "#/results",
+  "screens": 1
+ },
+ {
+  "name": "games",
+  "ref": "https://www.sportybet.com/ng/m/games",
+  "our": "#/games",
+  "screens": 2
+ },
+ {
+  "name": "virtuals",
+  "ref": "https://www.sportybet.com/ng/m/virtuals-lobby",
+  "our": "#/virtuals",
+  "screens": 1
+ },
+ {
+  "name": "me",
+  "ref": "https://www.sportybet.com/ng/m/me",
+  "our": "#/me",
+  "screens": 1
+ },
+ {
+  "name": "codehub",
+  "ref": "https://www.sportybet.com/ng/m/code-hub/codes?category=featured",
+  "our": "#/codes",
+  "screens": 1
+ },
+ {
+  "name": "loadcode",
+  "ref": "https://www.sportybet.com/ng/m/load_code",
+  "our": "#/home",
+  "screens": 1,
+  "ourPrep": "document.querySelector('[data-open=codeModal]').click()"
+ }
+]

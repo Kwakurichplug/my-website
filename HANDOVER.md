@@ -1,0 +1,490 @@
+# LetBetAfrika – Project Handover (read this first)
+
+> **The standard:** this is a paid, commercial-grade product. Every task must meet `docs/QUALITY-BAR.md`
+> (Definition of Done) – official, professional, nothing fake, money always correct.
+>
+> **Live site:** https://letbetafrika.online (custom domain, certificate valid) and https://api-production-2673beb3.up.railway.app
+> (Railway project `letbetafrika` → service `api`, source branch `claude/bold-mccarthy-71siq8`).
+> **Deploys are NOT automatic on push** – trigger them as described in §8.
+>
+> **Admin portal:** https://letbetafrika.online/admin.html – deposits, withdrawals, ID checks, payment details, players,
+> trading, settings (guide: `docs/ADMIN.md`).
+>
+> **Version history – read before deploying.** The Nov 20–22 version (support chat, live desk, promo codes, Moolre,
+> agent dashboard, two-photo ID checks, play-through) was once deployed with `railway up` from outside git; a deploy
+> from git then replaced it. It was recovered from the running service and is now in git (commit "Nov 22 version as it
+> ran live"), with the Nov 23 work merged on top. **Always deploy from this branch – never upload from elsewhere**, or
+> work goes missing again. How the money rules combine now:
+> - withdrawals (and sending to a friend): new members with no deposit can withdraw; after a deposit, only once the ID
+>   is approved and Deposit 1, 2, 3 are done (settings `withdrawals`, emergency suspend switch); on top of that the Nov 22
+>   play-through rule keeps deposits not yet staked in the account – winnings are always free;
+> - bonuses: Deposit 1·2·3 (settings `deposit_bonuses`) replaces the first-deposit welcome bonus while enabled; promo
+>   codes still work; a stake counts towards one bonus at a time (the oldest);
+> - manual deposits need a transfer reference (credited once); a USSD deposit's reference is its transaction ID;
+> - agents: the Nov 22 system (codes and links, % of each new player's first deposit, payout requests); agents
+>   withdraw without the Deposit 1·2·3 rule and without play-through, but the suspend switch applies to everyone;
+> - the support assistant answers withdrawal and bonus questions from these same settings (never fixed figures).
+>
+> **New here?** Read this file, then `docs/LEARNING.md` (what to learn, where, and where it lives in the code),
+> then `betting/UI-HANDOVER.md` (design system). QA scripts: `tools/qa/README.md`.
+
+## 1. The vision
+
+LetBetAfrika is a **top-tier mobile-first sportsbook and games site for Nigeria (₦) and Ghana (GH₵)**, modelled screen
+by screen on SportyBet's mobile site, in our own brand (green `#0a7d3e`, gold `#ffc20e`, the **LB** monogram with the
+football, the **LetBet|Afrika** wordmark in Kanit italic). The goal is a **full working full-stack product**: real odds,
+real scores, real crests and flags, real money through a ledger, **every game playable for real money**, a trophy
+celebration on wins, and an architecture that holds **10,000 simultaneous users**.
+
+Rule of thumb for every decision: *does it look and behave like a top African sportsbook, and is the money correct?*
+Never copy another operator's brand assets – we match their quality and layout, with our own identity.
+
+## 2. Repository layout
+
+| Path | What it is |
+|---|---|
+| `betting/` | Static front end (HTML/CSS/JS, no build step). Served by the API server. |
+| `betting/index.html` | All page markup. Script order: `api → account → pages → motion → icons → markets → game-logic → games → scenes → arcade → app`. |
+| `betting/markets.js` | **Football market engine, one source of truth** for browser and server (`createRequire`): `football()` prices 85 markets / ~430 outcomes from a two-half Poisson model (Main, Goals, Corners, Half, Combo, Bookings), `grade()` settles every key (legacy keys too), `needs()`, `view()`, `guide()`, `order()`. Whole-number O/U lines are priced on the no-push chance; tables sum to exactly 1. Details: `MARKETS-FEATURE.md`. |
+| `betting/app.js` | Core: data model, router, betslip, home, match page, account sub-pages, live-API bridge, Virtual League client. Exposes `window.LBA_APP`. |
+| `betting/account.js` | Sign up / login / reset with mobile number or email (code by SMS or email); **deposit and withdraw** (one layout: balance card → method tiles → method details → amount → button → recent activity). |
+| `betting/pages.js` | Live, Sports filter, lists, league, **Jackpot** (server rounds, real results), Promotions, Results, Code Hub, bet detail, Instant Football, **YOU WON trophy** (`Pages.trophy()`), offline banner. |
+| `betting/game-logic.js` | **Shared game rules + pay tables + exact RTP** (`GameLogic.rtp(game)`), used by the browser demo and the server. |
+| `betting/games.js` | Games lobby (all 11 games live, thumbnails from `img/games/`) + **Rocket Crash** (canvas scene: parallax stars, rocket sprite, exhaust particles, explosion; live: shared server rounds; demo: browser rounds). |
+| `betting/arcade.js` | **Instant games shell** `#/game/<id>` (header + balance, results strip, stage, casino-chip stake bar, My plays, rules sheet) and the play flow (live API / demo). |
+| `betting/scenes.js` | **The game scenes** (`window.Scenes`): 3D CSS dice, SVG wheel with flapper physics, slot reels, keno ball globe (canvas physics), scratch foil (canvas), SVG playing cards with 3D flip, penalty stadium (canvas). Each scene: `html(ctx)`, `mount(el, ctx)`, `play(el, result, ctx)` → Promise. |
+| `betting/icons.js` | Flags (real flag-icons SVGs), crests (real logos when known, drawn fallback), sport icons. |
+| `betting/app.css` | Styles in versioned layers `v5…v22b` (v19 trophy, v21 market view/bonus/referral, v22 game shell + scenes, v22b Rocket Crash) – append new work at the end. |
+| `betting/dark.css` | **Generated** dark theme – run `python3 betting/tools/gen-dark.py` after any CSS change. |
+| `betting/img/trophy-lb.webp`, `trophy-lb-600.webp` | **Our 3D-rendered trophy** (gold cup with the LB monogram, green LetBet\|Afrika plinth, light burst). Source: `tools/trophy/`. |
+| `betting/img/games/` | Lobby thumbnails `thumb-<id>.webp` (captured from the real game scenes by `tools/assets/thumbs.js`), `rocket.webp`, `ball.webp` (our three.js renders). |
+| `betting/img/flags/` | flag-icons (MIT) – 270 country flags. |
+| `betting/UI-HANDOVER.md` | Detailed front-end guide (design tokens, screens, conventions). |
+| `betting/admin.html`, `admin.js`, `admin.css` | **Admin portal** (`/admin.html`): overview, trading desk, bets, players, payments, ID checks, payment settings, ledger, games, jackpot, settings, email, audit log. Guide: `docs/ADMIN.md`. |
+| `server/` | Node 20+ Express API + Postgres. `npm start` in repo root runs it and serves `betting/`. |
+| `server/src/feeds/oddsapi.js` | **Real odds + scores** from The Odds API (budget-aware): football, plus basketball, ice hockey, American football and baseball as the plan allows. Only touches its own `oa:` events. |
+| `server/src/feeds/demo.js` | Simulated feed for demos (`ODDS_PROVIDER=demo`). Only touches its own `demo:` events. |
+| `server/src/games/` | **Game engines**: `crash.js` (Rocket Crash rounds), `virtual.js` (Virtual League rounds), `vsports.js` (virtual basketball, tennis, ice hockey, volleyball, table tennis, handball, darts), `jackpot.js` (rounds, grading, payouts), `rng.js` (CSPRNG + shared rules), `index.js` (schedulers). |
+| `server/src/lib/leader.js` | Picks ONE replica (Postgres advisory lock) to run the game schedulers. |
+| `server/src/lib/logos.js` | Real club crests via TheSportsDB, cached in `team_logos`. |
+| `server/src/lib/settle.js` | Grading + settlement + cashout. |
+| `server/src/lib/bonus.js` | **Deposits + welcome bonus**: `creditDeposit()` (the ONLY way to credit a deposit – grants the bonus on the first one), `addTurnover()` (called by settlement), `expireBonuses()`. |
+| `server/src/emails/` | Transactional emails (23 templates) + sending (`console`, `smtp`, `resend`, `sendgrid`) – see `server/EMAILS.md`. |
+| `server/src/routes/*` | auth, wallet, bets, events, admin, jackpot, virtuals (Instant Football), **games** (instant games + Rocket Crash), **payments** (Paystack webhook). |
+| `server/src/lib/payments.js` | **Ways to pay per country** (what the deposit page offers, limits, the bank account / MoMo wallet the admin sets, the player's reference `LB` + account ID). |
+| `server/src/payments/` | `paystack.js` (Paystack API: MoMo charge, OTP, verify, transfers, balance, webhook signature), `flows.js` (credit / fail a deposit, payout result – idempotent, one row lock). |
+| `server/src/lib/admins.js`, `server/scripts/make-admin.js` | Admin accounts: `ADMIN_EMAILS` at boot / sign-up / login; promote or demote from a shell. |
+| `server/test/` | `grade.test.js`, `games.test.js`, `twoway.test.js`, `vsports.test.js`, `payments-unit.test.js` (unit); `payout.test.js`, `games-api.test.js`, `account-api.test.js`, `email-auth.test.js`, `payments-api.test.js` (money-flow integration). |
+| `docs/ADMIN.md` | **Admin portal guide** – access, the daily deposit/withdrawal routine, every page. |
+| `docs/QUALITY-BAR.md` | **Definition of Done** – professional acceptance checklist for every area. |
+| `docs/LEARNING.md` | **Learning guide** – topics, links, and code locations for every task. |
+| `tools/qa/` | Playwright QA scripts (incl. `e2e_games.js`, `e2e_games_demo.js`, `e2e_instant.js`), SportyBet side-by-side tool, mock Odds API. |
+| `tools/trophy/` | The trophy's three.js model + render + post-production scripts (re-render instructions inside). |
+| `tools/assets/` | three.js renders of the rocket and football (`asset.mjs`, `render_asset.js`) and the lobby thumbnail capture (`thumbs.js`). |
+
+## 3. Run it
+
+```bash
+# Postgres running somewhere; then
+cp server/.env.example server/.env      # fill values (never commit .env)
+npm install                             # root postinstall installs server deps
+npm start                               # http://127.0.0.1:8080  (use 127.0.0.1, not localhost – see api.js)
+```
+Opening `betting/index.html` as a file runs a full **demo mode** (everything simulated in localStorage, same pay tables).
+
+### Environment variables (Railway service `api`, project `letbetafrika`)
+`DATABASE_URL, JWT_SECRET, PORT, NODE_ENV, SITE_URL, SUPPORT_EMAIL, SMS_PROVIDER, EMAIL_PROVIDER, PAYMENTS_MODE, REQUIRE_KYC, PGSSL, LOG_LEVEL`
+plus for real data:
+- `ODDS_PROVIDER=oddsapi`
+- `ODDS_API_KEY=<The Odds API key>` – **set it in Railway variables only, never in git** (the owner has it)
+- `ODDS_LEAGUES` (optional, comma list of sport keys; overrides the automatic choice – default top 5 leagues + UCL + NBA, more on bigger plans, see §5), `ODDS_REGION` (default `uk`), `ODDS_LIVE_FRESH_SEC` (default 90)
+- `THESPORTSDB_KEY` (optional; free key `123` is the default)
+- `GAMES=off` (optional) stops the game schedulers on a replica (e.g. a worker that must not run them).
+- `SIGNUP_CODE` (default off): sign-up opens the account straight away with a phone or email and a password; `SIGNUP_CODE=on` asks for the 6-digit code again (only on channels that can deliver one). Password resets and email changes always need a code.
+- `ADMIN_ALERTS=off` (optional) stops the admin emails for withdrawals to review and manual deposits to confirm (they go to `ADMIN_EMAILS`). `EVENTS_CACHE_MS` (default 2000) – identical match-list requests share one database answer for this long.
+
+Email (see §7 step 1 and `server/EMAILS.md`): `EMAIL_PROVIDER` = `console` (default: logs only) | `smtp` | `resend` | `sendgrid`,
+`EMAIL_FROM`, and for SMTP `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 TLS), `SMTP_USER`, `SMTP_PASS`, optional `SMTP_SECURE=true`;
+or `RESEND_API_KEY` / `SENDGRID_API_KEY`. Secrets go in Railway variables only.
+**Live site (set):** `EMAIL_PROVIDER=smtp`, `EMAIL_FROM=LetBetAfrika <info@letbetafrika.online>`, `SMTP_HOST=mail.spacemail.com`,
+`SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=info@letbetafrika.online`, `SUPPORT_EMAIL=info@letbetafrika.online` (Spacemail
+mailbox, Railway Pro allows outbound SMTP), `SMTP_PASS` (set in Railway only – never in git), `SITE_URL=https://letbetafrika.online`
+(email buttons link there).
+`NODE_ENV=production` hides sign-up codes; outside production, a channel without a provider runs in test mode and
+shows the code on screen.
+
+**Payments** (§4 *Payments*): `PAYMENTS_MODE=live` on the live site (`demo` credits deposits instantly – local and
+test servers only, and it is ignored when `NODE_ENV=production`).
+- Nigeria – the account players transfer to: `NG_BANK_NAME`, `NG_BANK_ACCOUNT`, `NG_BANK_HOLDER` (**Railway variables
+  only, never in git**; the admin portal's *Payment settings* can change them and what an admin saves wins).
+- Ghana – **Moolre** (preferred; used ahead of Paystack): setting all four of `MOOLRE_USER` (the Moolre username),
+  `MOOLRE_PUBLIC_KEY`, `MOOLRE_PRIVATE_KEY` and `MOOLRE_ACCOUNT_NUMBER` turns on Mobile Money deposits, which are
+  credited automatically once Moolre's status call confirms them, and one-click payouts. Then run
+  `node server/scripts/moolre-setup.js` with those variables and `SITE_URL`: it registers
+  `https://letbetafrika.online/api/payments/moolre/webhook` on the wallet and prints the secret for
+  `MOOLRE_WEBHOOK_SECRET`. For payouts, whitelist the server's outbound IP in Moolre (API Services → Security →
+  Whitelist IP for Disbursement; on Railway, turn on static outbound IPs first). `MOOLRE_BASE` is for the sandbox and tests only.
+- Ghana – `PAYSTACK_SECRET_KEY` (`sk_test_…` for testing, `sk_live_…` for real money) turns on Mobile Money deposits and
+  payouts; then paste the webhook URL `https://letbetafrika.online/api/payments/paystack/webhook` in Paystack →
+  Settings → API Keys & Webhooks. Optional manual fallback: `GH_MOMO_NETWORK`, `GH_MOMO_NUMBER`, `GH_MOMO_NAME`.
+  `PAYSTACK_BASE` is for tests only (the mock).
+- `ADMIN_EMAILS` – accounts with these emails become admins (live site: `info@letbetafrika.online`). `ADMIN_PASSWORD`
+  (Railway only) creates that account with this password if it does not exist; it is applied again only when the
+  variable changes, so a password changed in the app is kept (`ADMIN_COUNTRY` GH by default).
+
+Game limits and prizes live in the `settings` table (editable with `PUT /api/admin/settings/:key`):
+`games` = min/max stake per country (NG ₦100–₦500,000, GH GH₵1–GH₵5,000), `max_payout`, `jackpot` = jackpot,
+11-correct and 10-correct prize and line price per country, `welcome_bonus` = 200% of the first deposit (max ₦100,000 /
+GH₵1,000), released after 5× turnover on multiples with every selection at 1.50+ within 14 days, `referral` = Refer &
+Earn reward per country (₦1,000 / GH₵10).
+
+## 4. Status – what works (tested)
+
+- **All UI screens** rebuilt side by side against SportyBet at iPhone size: home, live, sports filter, lists, league,
+  match, betslip, jackpot, promotions + detail, results, Code Hub, bet detail, Me, account pages, deposit/withdraw,
+  games lobby, every game. Dark mode. Desktop 3-column with Over/Under 2.5 column. WCAG AA contrast pass.
+- **Real odds feed** (`oddsapi.js`): h2h + totals per league (2 credits); goal model fitted to de-vigged bookmaker
+  consensus; every other market derived (DC, GG/NG, O/U lines, team totals, odd/even, correct score, handicaps).
+  Credits spread evenly over the month. Live markets **suspended unless score is fresh** (anti-exploitation).
+  Finished → settled automatically; postponed → cancelled/refunded. Admin: `GET /api/admin/feed`.
+  **No past-posting:** a pre-match price is refused once the game has kicked off.
+- **Other sports on the real feed** (`oddsapi.js` → `syncTwoWay`): NBA, NCAAB, WNBA, NHL, NFL, NCAAF, MLB. One call per
+  league for h2h + spreads + totals (3 credits). Winner / Handicap / Total come straight from the bookmakers' own lines
+  (de-vigged median per line; a line is offered when ≥30% of the books on the most popular line quote it), with our
+  margin. Handicap keys carry the home line (`-5.5|1` home, `-5.5|2` away – the same format as football's Asian
+  Handicap). Betting closes at the start (no in-play for these sports); the result comes from the scores call once the
+  night's slate should be over; settled on the final score **including overtime**, a result on the line is refunded,
+  a level game refunds Winner bets. Tennis, MMA and boxing are **not** offered: the feed has no results for them.
+- **Only real fixtures are listed**: on a real feed, matches left over from the built-in demo generator are hidden from
+  lists, results and search (`events.js` `REAL`); players keep their own bet history. The Sports page, A–Z menu and
+  desktop rail list only sports and leagues that have a match to bet on.
+- **Real crests** for clubs (TheSportsDB thumbnails, cached, pinned IDs for ambiguous names) and **real flags** everywhere.
+- **Accounts**: sign up / log in / reset the password with a **mobile number or an email address** – a 6-digit code by
+  SMS or by email. The app asks `GET /api/auth/methods` which channels can deliver a code right now and offers only
+  those (production without an SMS provider = email only). Emails are unique site-wide; adding or changing an email
+  (Me → Email & Password) needs a code sent to the new address. Email-only players get their account ID as payment
+  reference and type their mobile-money number when they need it.
+- **Full market set + match page** (merged from `claude/sports-betting-ui-design-rdaeo4`, see `MARKETS-FEATURE.md`): 85
+  football markets per match, SportyBet-style match page (light pre-match "Details" page, group tabs ★ All Main Goals
+  Corners Half Combo Bookings, market info sheets, favourite markets, O/U and handicap tables), list tabs 1X2 | O/U |
+  DC | Home O/U | Away O/U with a line picker. The Odds API events offer every market settleable from the full-time
+  score; settlement goes through `markets.grade()`. Pricing fix on merge: whole-number Over/Under lines (1, 2, 3)
+  were priced as if the refund on an exact landing did not exist (free value for players) – now priced correctly and
+  covered by `test/grade.test.js`.
+- **Booking codes – load anywhere, share anywhere**: *Book Bet* opens a share sheet (big code, total odds, the link,
+  WhatsApp, the phone's own Share menu, Copy link, Copy code). Links look like `https://letbetafrika.online/#/code/LB7K2Q`
+  (`?code=LB7K2Q` works too): opening one lands on the home page with the code in the betslip. Loading a code fetches
+  every match in full, so picks from any market (correct score, handicaps, HT/FT…) arrive live – before, anything
+  outside the main list showed as suspended, also after a page reload (fixed for every betslip). Games that have
+  started are left out and counted (`GET /api/bets/book/:code` → `{ code, selections, expired }`); `POST /book` only
+  accepts selections that can be bet right now and retries on the rare code clash. Code Hub *Share* uses the same
+  sheet. Test: `tools/qa/e2e_codes.js`.
+- **Virtual sports** (`server/src/games/vsports.js`): vBasketball, vTennis, vIce Hockey, vVolleyball, vTable Tennis,
+  vHandball, vDarts – a round of 4 matches every 3 minutes per sport, all day, with fictional teams and players and
+  leagues named *Virtual …* under *LetBet Virtuals*. Winner (1X2 for handball) / Handicap / Total are priced from the
+  same score model that decides the match (30 000-run Monte Carlo, `price = 0.94 / p`, lines only between 7% and 93%),
+  the result is drawn with the CSPRNG when betting closes (kept in `events.model`, never sent to players), played out
+  over a minute (period labels, set/leg scores) and settled by `settleEvent()`. Virtual games stay out of the main
+  results list and the live counters/home live strip. `VIRTUAL_ROUND_SEC` / `VIRTUAL_PLAY_SEC` shorten rounds for
+  tests. Finished rounds without bets are deleted after a day. Tests: `server/test/vsports.test.js` (valid results,
+  margin on every market, every outcome returns ~94% over 40 000 draws), `tools/qa/e2e_vsports.js`.
+- **More sports, no empty spots**: NBA basketball from the real feed (more sports switch on with a bigger odds plan,
+  §5); sports and leagues without a match are no longer listed (the empty Tennis tab is gone); old demo results are
+  hidden on the live site. Lists show Winner | Handicap | Total, with the same line picker as football's Over/Under.
+- **Match page like the reference**: the header shows *Home vs Away* with search and home buttons; a market search
+  (magnifier first in the group row); a *Teams* group with every market about one team. Bookings, shots, player and
+  minute markets are not offered: the feed has no data to settle them.
+- **Match page on our design**: green header bar, our tab style, market groups stay pinned under the header while
+  scrolling, line icons for info and favourites, and the list's Over/Under line cell opens a picker with every open
+  line and its prices. Desktop shows only the betslip column (no floating betslip button).
+- **Betslip sheet follows the finger** on phones: swipe up on the betslip pill to pull it open, drag the header (or
+  pull down on the list at the top) to close, springs open/closed by distance and flick speed; selections slide in
+  and fold away when removed; the page behind is locked while it is open (`tools/qa/e2e_slip.js`).
+- **Bonuses**: see *Deposit bonuses 1 · 2 · 3* under Payments below (the 200% first-deposit welcome bonus is used only
+  when the ladder is switched off).
+- **Payments – real money, nothing that cannot complete** (`lib/payments.js`, `GET /api/wallet/options` tells the
+  deposit page what is open for the player's country, with the limits):
+  - **Nigeria – bank transfer, confirmed by an admin.** The deposit page shows the account from *Payment settings*
+    (copy button) and the player's reference `LB` + account ID for the narration; the player types the sender's name
+    and taps **I have sent ₦X** → a `pending` payment (provider `manual`, at most 3 at a time) + "we are checking"
+    email. The admin confirms the amount that arrived in the portal → `creditDeposit()` (welcome bonus included) +
+    receipt email; or rejects with a reason. No account set = Nigerian deposits closed (the page says so, the portal
+    warns).
+  - **Ghana – Mobile Money through Paystack.** With `PAYSTACK_SECRET_KEY`: Paystack Charge API (`mtn`, `vod`, `atl`) →
+    "approve the prompt on your phone" (or the OTP Paystack asks for), the page polls the payment, the webhook
+    (HMAC-SHA512 signature) or the status check credits it – idempotent, so a repeated webhook never pays twice. Admins
+    cannot confirm API deposits by hand. Without the key: a manual MoMo wallet if the admin set one, else closed.
+  - **Withdrawals**: Nigeria to a bank account, Ghana to Mobile Money; the balance is held when requested; the admin
+    marks it paid (with the bank / MoMo reference), sends it through Paystack (Ghana – refunded automatically if the
+    transfer fails), or rejects (refunded at once). ID check: the admin approves or rejects it with a reason the
+    player sees.
+  - **When withdrawals open** (settings `withdrawals {suspended, requireDeposits, newMembersOpen, message}`, validated;
+    portal *Payment settings → Withdrawals*; `withdrawBlock()` in `lib/payments.js`, enforced by
+    `POST /api/wallet/withdraw` **and** `POST /api/wallet/transfer` – 403 `deposits_first` / `withdrawals_suspended`):
+    once a player has a credited deposit, withdrawals and sending to a friend open only when their ID is approved and
+    Deposit 1, 2, 3 are done (steps recorded in `deposit_steps`, so a 0% step still counts). New members with no
+    credited deposit can withdraw (`newMembersOpen`, default on); the deposit page tells them before they pay
+    (`withdrawRuleAhead`). *Suspend all* is an emergency switch (default off) with an optional message to players.
+    The withdraw page shows the locked card (1 · 2 · 3 ✓ and *Make deposit N now*) or the paused card instead of the form.
+  - **Money-leak fixes**: `move()` rounds halves symmetrically to whole kobo / pesewas; stakes (sports and virtuals)
+    and friend transfers are rounded once at the boundary (max 100,000,000), so a ticket keeps exactly what the balance
+    paid and both sides of a transfer match the ledger.
+  - **Transfer screenshots + references (no leaks)**: the deposit page asks for a screenshot of the transfer on manual
+    deposits (shrunk to a JPEG in the browser, `POST /api/wallet/payments/:id/proof`, table `payment_proofs`, type
+    checked by the file's bytes, only the owner, only while being checked; *Add screenshot* later from Recent deposits).
+    The admin sees it in the queue and the Confirm dialog (`GET /api/admin/payments/:id/proof`). Crediting a manual
+    deposit **requires the bank / MoMo transfer reference** (`reference_required`), and each reference is credited once.
+  - **Deposit bonuses 1 · 2 · 3** (`lib/bonus.js`, settings `deposit_bonuses`, validated on save): a bonus on each of the
+    first three deposits after the ID check (% and cap per step and country), locked until wagered; a stake counts
+    towards the oldest active bonus only; an old welcome bonus counts as Deposit 1. `GET /api/wallet/options` →
+    `ladder` (steps, next, unlocked); ID approval sends a `kyc_approved` pop-up listing them. Replaces the welcome bonus
+    while enabled (default on, after ID approval). Every step is marked (`done`, the deposit amount and date, or
+    `checking` while a deposit waits for the admin); the player gets a **sticky next-deposit bar** (`#ladBar`) until all
+    three are done; the portal's **Deposit 1·2·3** page (`GET /api/admin/ladder`, `buildLadder()`) lists every player with
+    an approved ID – deposits left first, filters with counts, Request deposit N.
+  - **Support adds a deposit** (portal: player profile → *Add deposit*, `POST /api/admin/users/:id/deposits`): for a
+    player whose deposit did not go through – credited now (`creditDeposit()`, receipt email) or left pending. A bank /
+    MoMo transfer reference (`details.transferRef`, also recorded when confirming a player's request) can be credited
+    once only – unique index `payments_transfer_ref_key`; a rejected deposit frees it.
+  - **Pop-ups for players** (`lib/notices.js`, table `notices`, `GET /api/auth/notices`, `account.js` `Account.notices()`):
+    shown when the app opens, after login and at most once a minute while browsing – never during a payment, sign-up or
+    game. *Request deposit* (portal, player profile → `POST /api/admin/users/:id/deposit-request`, plus the
+    `depositRequest` email) shows how to pay in the player's country – Nigeria: the bank account, their reference and 3
+    steps; Ghana: the MoMo steps – and opens the deposit page with the amount filled in; it closes when they deposit (or
+    after 7 days). One-time pop-ups follow every admin payment decision: deposit confirmed / added by support /
+    rejected, withdrawal paid / returned (also Paystack payouts).
+  - **Clean start**: deposit requests left `pending` by the old demo flow are cancelled on boot (new status
+    `cancelled`), so no player sees a deposit stuck "pending".
+- **Deposit & withdraw pages** to a professional standard: balance card, method tiles (NG: Bank Transfer · GH: Mobile
+  Money; withdrawals NG bank / GH MoMo, plus *To a Friend*), big amount entry with quick amounts, a button that names
+  what is missing ("Enter the sender's name", "Verify your ID to withdraw") or the exact amount, live welcome-bonus
+  preview, and recent deposits/withdrawals with real statuses ("Being checked", "Successful", the rejection reason).
+  **No fake content**: no card, USSD or wallet tiles that cannot complete, no "simulate"/"TEST"/"SOON" wording, no
+  faked account-name check. Send money to a friend by mobile number **or email** (same country, from ₦100 / GH₵1).
+- **Admin portal** (`/admin.html`, `docs/ADMIN.md`): sign in with an admin account; overview per currency, payments
+  queue (confirm / mark paid / send via Paystack / reject with quick reasons), ID checks, payment settings (the bank
+  account and limits – editable), players (drawer with deposit reference, ID details, balance adjustment, suspend,
+  make admin), trading desk, bets, ledger, games, jackpot, settings, email, and an audit log in plain words.
+- **Money**: register/login, deposit, withdraw, transfer to friend, bets single/multiple with win boost, cashout,
+  booking codes. Payout tests pass (exact to the cent, void legs, refunds, cashout, no double pay, ledger = balance).
+- **All 11 games are live for real money** – see §6. Nothing simulated in live mode: Rocket Crash shows only real
+  players' bets, the jackpot shows only real settled rounds.
+- **Game screens look and move like real casino games** (`scenes.js`): rolling 3D dice, a wheel that decelerates with a
+  ticking flapper, blurred slot reels that bounce to a stop, a keno globe that blows balls out, scratch foil you rub off
+  with a finger, flipping playing cards, a penalty taker in a floodlit stadium, and a Rocket Crash rocket that climbs
+  through a star field and explodes. Casino chips set the stake. **Players never see technical internals** (no seeds,
+  hashes, formulas or server names) – each game has a plain-language *How to play* sheet with its pay table and RTP.
+- **Only real data in live mode**: the match *Market view* shows the fair chances implied by the live prices (margin
+  removed), not invented statistics; Code Hub lists real booking codes with real load counts; the **welcome bonus**
+  (200% of the first deposit, released after wagering) and **Refer & Earn** (paid once the friend has staked the reward
+  amount) are fully automatic; Acca Win Boost counts only selections at odds 1.20+. Pre-match odds lock at kick-off.
+- **YOU WON trophy** (`Pages.trophy({ amount, source, ref, href })`): full-screen celebration over the dimmed app with
+  **our own 3D-rendered trophy** (gold cup engraved with the LB monogram + ball in a laurel, green lacquer plinth with
+  the LetBet|Afrika wordmark, light bursting out of the cup), counting amount, confetti, *Details* and *Show Off*.
+  Fires on: sports and Virtual League bets settling as won (live polling every 30 s anywhere in the app, once per
+  ticket), Instant Football wins, and every game win of **2x or more** (smaller game wins get an in-game banner +
+  confetti, so the screen is not shown for a 1.2x spin). The image is pre-cached when the app is idle.
+
+## 5. The Odds API – important facts
+
+- **Spending knobs** (Railway variables): `ODDS_RESERVE` (credits kept for results only; once only the reserve is left, results are fetched only for matches with open bets or a jackpot round, and matches nobody bet on leave the board 2 h after they should be over), `ODDS_SPEND_UNTIL` (ISO date: spread the spare credits up to it, e.g. a weekend burst), `ODDS_STALE_HOURS` (default 72: real fixtures whose prices are older are locked). Set on 2026-11-20: reserve 100, spend until 2026-11-23.
+- Owner's key is on the **FREE plan: 500 credits/month**. With the NBA added, prices refresh about every 1–2 days for
+  the 6 football leagues + NBA; live scores ~every 10–30 min, so live betting stays suspended. **Upgrading the plan
+  speeds everything up and switches more sports on automatically** – no code change, same key:
+  daily allowance (credits left ÷ days left) ≥ 60 → + NHL, NFL, Europa League, AFCON, Championship, Eredivisie,
+  Primeira Liga, Süper Lig, Saudi Pro League; ≥ 400 → + NCAAF, NCAAB, MLB, WNBA and 15 more football leagues;
+  ≥ 2000 → every league in `LEAGUES`. Out-of-season sports are skipped (the free `/v4/sports` list, checked twice a day).
+  ($30 = 20K credits, $59 = 100K credits per month – confirm on the-odds-api.com).
+- It has **no crests, no flags, no match minute, no NPFL / Ghana Premier League**. Minute is estimated from kick-off.
+- Test without spending credits: run the mock (`ODDS_API_BASE=http://127.0.0.1:9099/v4`) – see §9.
+
+## 6. How the games work (all server-authoritative)
+
+Golden rules: the stake is taken **before** the result is drawn; results come from the OS **CSPRNG**
+(`crypto.randomInt`) or a committed seed; money only moves through `wallet.js` in one transaction with the
+`game_bets` record; nothing is trusted from the client. Return to player (exact, `GameLogic.rtp()`):
+
+| Game | Route | Server | RTP |
+|---|---|---|---|
+| Rocket Crash | `#/play` | shared rounds, `GET /api/games/crash/state`, `POST crash/bet` `{stake, auto}`, `crash/cancel`, `crash/cashout` | 97% at any target |
+| Lucky Dice | `#/game/dice` | `POST /api/games/dice/play {stake, choice: under\|seven\|over}` | 95.0% |
+| Spin & Win | `#/game/spin` | `POST /api/games/spin/play {stake}` | 95.5% |
+| Penalty Kick | `#/game/penalty` | `{stake, choice: left\|centre\|right}` | 96.0% |
+| Number Rush (slot) | `#/game/rush` | `{stake}` | 94.8% |
+| Keno | `#/game/keno` | `{stake, choice: [1–5 numbers 1–40]}` | 94.4–95.0% |
+| Scratch Cards | `#/game/scratch` | `{stake}` – the card is decided at purchase, the player scratches to reveal | 95.0% |
+| Hi-Lo | `#/game/hilo` | `POST /api/games/hilo/deal` → signed single-use card; `POST hilo/play {stake, choice, deal}` | 94.9% |
+| Instant Football | `#/instant` | `GET /api/virtuals/instant/round` (sealed round token), `POST /api/virtuals/instant/play` | ~92% margin pricing |
+| Virtual League | `#/virtuals` | rounds of 6 matches every 2 min are **normal events** (sport `vfootball`), bet via `/api/bets/place`, settled by `settleEvent()` | ~94% margin pricing |
+| Virtual sports | Sports page / A–Z (`vbasketball`, `vtennis`, `vicehockey`, `vvolleyball`, `vtabletennis`, `vhandball`, `vdarts`) | a round of 4 matches every 3 min per sport (sports staggered 20 s), fictional teams; normal events, `/api/bets/place`, `settleEvent()` | 94% (every outcome, tested) |
+| Weekly Jackpot | `#/jackpot` | `GET /api/jackpot/round`, `POST /api/jackpot/tickets`, `GET /api/jackpot/results` | prize table |
+
+- **Rocket Crash**: every round is fixed before betting opens – a random seed is drawn and stored with `hash = SHA-256(seed)`;
+  `point = crashPoint(HMAC-SHA256(seed, "LetBetAfrika Rocket Crash")` first 13 hex digits `/ 2^52)`. **Players only see
+  round ids, phases and crash points** – seeds, hashes and formulas are never sent to the browser. For disputes and
+  regulator checks the admin audit `GET /api/admin/games/crash/verify/:id` recomputes the point from the stored seed.
+  Bets close at take-off (checked in SQL), cash-out uses the server clock, auto cash-outs are paid by the scheduler as
+  the multiplier passes them, one live bet per player per round, a cancelled bet can be replaced. Rounds: 6 s betting,
+  flight `crashFlyMs(point)`, 2.2 s pause.
+- **Virtual League play-out** (`games/virtual.js`): at kick-off betting closes, the result is drawn (CSPRNG) with
+  goals, corners and the **added time of each half** (1–3 and 2–5 min) and kept server-side; the match then plays
+  over `VLEAGUE_PLAY_SEC` (default 60 s): 1'…45+x', HT, 46'…90+x', FT, then `settleEvent()`. Players only ever see
+  what has happened by the current minute (`stats.goals` with `min` and optional `plus`, `stats.plus` = current
+  added minute, `stats.added` = added time per half, `stats.playMs` = play-out length).
+- **Match clock (one clock, every screen)**: `betting/app.js` `clockOf()` runs the server's rules to the second on
+  the **server's time** (`API.now()`, from each answer's `Date` header – phones are often minutes off), and a 250 ms
+  ticker updates clocks, scores and progress bars in place (`data-clk`, `data-sc`, `data-bar`; rows are not
+  re-rendered, so taps are never lost). Rules, kept in step with the server (`test/clock.test.js`):
+  real fixtures (`oddsapi.js liveClock`) 00:00–44:59, 45+1'…45+3', HT 15 min, 46:00–89:59, 90+1'…90+8', then
+  **"Awaiting result"** (in-play markets closed) until the feed reports full time; hand-added matches (`manual.js
+  clockOf`) first half from kick-off, HT / second half when the admin calls them, up to +15'; Virtual League as above.
+  The Virtual League clock runs 5 s behind the server (`VLAG`) so a goal – sent only once it has happened – appears
+  **exactly at its minute**, full time shows when the clock gets there (`pendingFT`), and "Last round" / winning-ticket
+  trophies wait for that moment (no spoilers). Rows on "Now playing" keep a fixed order.
+- **Full-time exit (front end)**: a match that goes live → finished keeps its row on the live screens for ~9 s with
+  an FT badge, the final score (winner highlighted) and a shrinking bar, then fades and collapses (`justFT`, CSS
+  `ft-out`). A real match that drops out of the live list is fetched once for its final score first.
+- **Instant Football** rounds are **sealed tokens** (AES-256-GCM, key derived from `JWT_SECRET`): opaque to the player,
+  tamper-proof, valid 15 min, and held in no server memory – any replica can serve the play. The token's nonce is the
+  `game_bets` id, so a round can be played once (tested across two servers).
+- **Schedulers** (`server/src/games/index.js`) run only on the **leader** replica (Postgres advisory lock,
+  `lib/leader.js`): crash every 200 ms, Virtual League every 1 s (opens the next round before playing the due one),
+  jackpot settlement every 30 s, welcome-bonus expiry every 60 s. Every replica serves the API; crash state is cached
+  for 150 ms. **`GET /health` reports them**: `schedulers.leader` (is this replica the leader), `ok.<name>` (last
+  successful run) and `err.<name>` (last error, cleared on the next success).
+- **Weekly Jackpot**: the server fixes each round's 12 games (next 12 football fixtures with prices, created on
+  demand); a round closes at its first kick-off; tickets must cover exactly those games. When all 12 are over it is
+  graded with the line polynomial (`tiers()`): 12 correct share the jackpot equally, 11 and 10 correct win a fixed
+  prize per line (settings `jackpot`). A cancelled game, or one unfinished 48 h after kick-off, gets a random result
+  weighted by its 1X2 prices. Tickets bought before rounds existed are graded on their own 12 games.
+  Admin: `POST /api/admin/jackpot/settle {round}` settles now; `GET /api/admin/games` shows today's turnover/payouts.
+- **Rate limits**: plays are limited **per player** (150/min) because many players share one mobile-carrier IP;
+  the crash state feed is not limited (it is a shared cached response). Sign-in, sign-up, code and password-reset
+  requests are limited **per phone number** (6 codes / 10 attempts per 15 min → `too_many_attempts`) with a generous
+  per-IP cap (1,000 per 15 min); signed-in account calls such as `/auth/me` are never capped (the app polls them).
+
+## 7. NEXT DEV – priority work list (owner's plan, in order)
+
+The site is wired end to end. The owner's next steps are **SMTP → payments → admin portal**. Exact hook points:
+
+1. **SMTP email – DONE: Spacemail (`info@letbetafrika.online`) is live.** The boot log prints
+     `[email] smtp mail.spacemail.com:465 as LetBetAfrika <info@letbetafrika.online> – ready` (or the exact problem:
+     `EAUTH` = wrong password, `NOT reachable` = network). It re-checks every 10 minutes until it works. If the mailbox
+     password changes, update `SMTP_PASS` in Railway and redeploy the branch (see the warning in §8).
+   - Admin checks: `GET /api/admin/email/status?check=1` (provider, server, ready, last error), `GET /api/admin/email/log`
+     (sent / logged / failed with reason), `POST /api/admin/email/test {"to": "you@example.com"}`.
+   - Everything sends through it: sign-up / reset / email-change codes, welcome, deposits, withdrawals, bets, cashout,
+     KYC, password changes, limits, self-exclusion, jackpot tickets and the welcome bonus turning into cash.
+   - Deliverability: Spaceship DNS for `letbetafrika.online` must have SPF, DKIM and DMARC (Spacemail sets them when
+     the domain uses Spaceship DNS – check in the Spacemail dashboard).
+2. **Payments – MVP DONE** (§4 *Payments*). **Ghana: Moolre integrated** (`server/src/payments/moolre.js`,
+   `gateway.js` picks Moolre → Paystack → none). Deposits are credited only by `flows.creditApi()` after the provider's
+   status call says paid. That check runs on the webhook (signature checked, then confirmed with the status call), on
+   the player's poll, and in the leader's `payments` sweep every minute. Payouts are sent from the admin portal, get a
+   new reference for every attempt and an Idempotency-Key, and an unknown outcome stays pending until Moolre answers.
+   Next:
+   - **Ghana live**: set the four Moolre variables, run `scripts/moolre-setup.js`, set `MOOLRE_WEBHOOK_SECRET`,
+     whitelist the static outbound IP for payouts, then do one small real deposit and payout to your own number.
+   - **Nigeria automatic** (when volume grows): a dedicated virtual account per player (Paystack DVA / Monnify /
+     Flutterwave) – the transfer webhook calls `creditPaystack()`-style code in `payments/flows.js` (lock the row, only
+     if `pending`, `creditDeposit()`), so admins no longer confirm transfers by hand. Bank payouts through the same
+     provider's transfer API + name enquiry.
+   - Cards: a hosted checkout (`next = {url}` – the deposit page already redirects for it) once a provider is approved.
+   - **Promo codes – DONE** (`server/src/lib/promos.js`, tables `promo_codes` / `promo_redemptions`, admin page *Promo
+     codes*, player box on Me → Bonuses). A code becomes a locked bonus (`bonuses.kind = 'promo:<CODE>'`) released
+     by `bonus.addTurnover()` like the welcome bonus, or cash at once with wagering 0. Each player can use a code
+     once, and the code row is locked during redemption so `max_uses` is exact. Codes need a deposit first by default.
+   - **Matches added by hand – DONE** (`server/src/lib/manual.js`, Trading desk → *Add match*, `ext_id 'man:…'`).
+     They are priced from the admin's 1X2 with the feed's model (FT markets only; under 2% or over 35% margin is
+     refused). Betting closes at kick-off, and the leader's `manual` tick marks them started with markets closed;
+     reopening after kick-off is refused. Results are accepted only after kick-off, for every event. Cancel refunds.
+3. **Admin portal – DONE** (`/admin.html`, `docs/ADMIN.md`). Next: two-factor sign-in for admins (TOTP), roles
+   (support vs finance vs trading), and alerts (email/Slack) for large withdrawals and a long payments queue.
+4. **10,000 concurrent users**:
+   - Every route is already replica-safe (no server memory; Instant Football and Hi-Lo use signed/sealed tokens; the
+     schedulers run on one elected leader).
+   - Cache `/api/events` in memory per replica, rebuilt every 2–5 s, pre-gzipped, with ETag/304 (clients poll every 5 s).
+   - Rocket Crash: replace polling with Server-Sent Events from the leader (state changes ~5 times per round).
+   - Postgres pool size per replica (pool × replicas < max_connections); Railway: raise `numReplicas`.
+   - Load test with autocannon/k6 (e.g. 2,000 req/s on events, 50 bets/s, 500 crash players) → `docs/LOADTEST.md`.
+5. **Trophy extras**: a "My Wins" list and badge on the Me page; optional win sound with a mute toggle; a "Show Off"
+   share image (canvas → PNG with amount, trophy and booking code) instead of plain text.
+6. **Crests from team websites (owner request)**: research each club's official site for its crest, store the URL
+   (or a licensed copy) in `team_logos` / the `PIN` map in `server/src/lib/logos.js`. Club crests are trademarks –
+   the operator must confirm usage rights. Cover all clubs in enabled leagues; keep thumbnails ~40 KB.
+7. **Games polish**: game history page on Me (data: `GET /api/games/history`), jackpot roll-over policy if the
+   operator wants one (today the jackpot is guaranteed every round and shared, no roll-over is promised anywhere),
+   responsible-gambling limits per game (loss limits).
+8. Other providers: SMS (Termii), KYC (Smile ID) – search for `PROVIDER:`.
+
+## 8. Deploy
+
+Railway project `letbetafrika` (workspace "My Projects"), environment `production`, service `api`
+(source: GitHub `kwakurichplug/my-website`, branch **`claude/bold-mccarthy-71siq8`**, root `/`, builder Railpack,
+start `npm start`, healthcheck `/health`). Postgres is the `Postgres` service in the same project.
+The schema (`server/src/db/schema.sql`) is applied on every boot, so it must stay **idempotent** – when you change an
+index or constraint, edit the original statement too (a later `DROP` is not enough: the original line runs first).
+
+**Pushing does NOT deploy automatically** (the GitHub trigger did not fire for this branch).
+
+> **Warning – variable changes deploy the wrong branch.** The repository's default branch is named `(/root)` and only
+> holds an old two-file upload. Railway's service source has no branch saved, so when a variable is changed in Railway
+> its automatic redeploy builds `(/root)`, **fails**, and the site keeps running the previous deployment *without* the
+> new variable. Fix once: Railway → `api` → *Settings → Source* → set the branch to `claude/bold-mccarthy-71siq8`
+> (or make that the GitHub default branch). Until then: change variables with *skip deploy* (or ignore the failed
+> build) and deploy the branch as below.
+
+To deploy:
+- Railway dashboard → `api` → *Deployments* → *Deploy latest commit*; or
+- reconnect the source to the branch (dashboard *Settings → Source*, or the Railway MCP `connect-service-source`),
+  which builds the branch head; or the CLI `railway up` from the repo root.
+Then check *Deployments* shows the new commit hash, open `/health` (`schedulers.ok` shows crash, virtual, jackpot and
+bonuses with recent times), and `GET /api/games/crash/state` (a round id that keeps increasing).
+
+`ODDS_PROVIDER=oddsapi` and `ODDS_API_KEY` are set in Railway variables. Recommended: fix the GitHub trigger
+(Railway *Settings → Source → Branch / Wait for CI*), create a `staging` environment, and only promote to
+production after QA.
+
+## 9. Testing
+
+- `cd server && node --test test/grade.test.js test/games.test.js` – market grading; game maths (exact RTP of every
+  table, Monte Carlo check of the real `play()` code with the CSPRNG, crash fairness, jackpot line counting).
+- `API_URL=… DATABASE_URL=<test db> node --test --test-concurrency=1 test/payout.test.js test/games-api.test.js test/account-api.test.js test/email-auth.test.js`
+  – money flow through the API (needs a running server on a **test** database with `PAYMENTS_MODE=demo`; each run uses
+  ~20 open football fixtures – the jackpot and past-posting tests skip with a message when the test database has run out).
+  Covers every game, the crash audit (admin only), welcome bonus, referral, Code Hub, boost, payouts, the ledger, and
+  email sign-up / login / reset / verified email change.
+- **Payments without demo shortcuts**: `node tools/qa/mock_paystack.js 9098 http://127.0.0.1:8096` (mock Paystack),
+  a server with `PORT=8096 PAYMENTS_MODE=live PAYSTACK_BASE=http://127.0.0.1:9098 PAYSTACK_SECRET_KEY=sk_test_mock` on a
+  fresh test database, then `PAY_API_URL=http://127.0.0.1:8096 DATABASE_URL=<that db> node --test test/payments-api.test.js test/payments-unit.test.js`
+  (manual bank deposit confirmed / corrected / rejected, withdrawals paid / refunded, ID checks, Ghana MoMo approve,
+  OTP, decline, webhook signature + replay, Paystack payout success / failure → refund, demo mode off in production)
+  and the browser walk-through `node tools/qa/e2e_admin.js <outDir> http://127.0.0.1:8096/ <dbUrl>` (portal sign-in,
+  bank account saved, player deposit → admin credit, ID approval, payout, Ghana MoMo, every portal page, audit log).
+- **Moolre** (no demo shortcuts): `node tools/qa/mock_moolre.js 9099 http://127.0.0.1:8097`, a server with
+  `PORT=8097 MOOLRE_BASE=http://127.0.0.1:9099 MOOLRE_USER=letbet MOOLRE_PUBLIC_KEY=pub_mock MOOLRE_PRIVATE_KEY=priv_mock
+  MOOLRE_ACCOUNT_NUMBER=10000000001 MOOLRE_WEBHOOK_SECRET=whsec_mock PAYMENTS_SWEEP_MS=1500 PAYMENTS_SWEEP_AGE_SEC=2` on a
+  fresh test database, then `MOOLRE_API_URL=http://127.0.0.1:8097 DATABASE_URL=<that db> node --test test/moolre-api.test.js`.
+  It covers the prompt, the first-time SMS code, wrong code, forged / unsigned / stale / replayed webhooks, a signed
+  webhook while Moolre still says pending, declines, a missed webhook credited by the poll and by the sweep, admin hand
+  credits refused, and payouts paid / failed → refunded / refused → back to the queue / dropped answer → settled by webhook.
+  No local Postgres? `npm i embedded-postgres` in a scratch folder starts one.
+  `test/promos-matches.test.js` runs on the same server (start it with `MANUAL_TICK_MS=1000`). It covers promo
+  validation, deposit first, once per player, country, use limit, concurrent last use, cash codes, pause, unlocking
+  through settled bets, and hand-added matches: pricing, unsafe odds, duplicates, closing at kick-off, no reopen, no
+  result before kick-off, settlement and cancel refunds. The older API suites now move a match's kick-off into the
+  past before entering its result.
+- Browser (Playwright, pre-installed in cloud sessions): `tools/qa/smoke.js` (every route, demo + live: no JS errors,
+  no horizontal scroll, no empty page), `e2e_games.js` (every game against the real API, server balance checked
+  after each play), `e2e_games_demo.js`, `e2e_instant.js`, `e2e_email.js` (email sign-up, login, reset, email change –
+  live, demo, or production mode reading codes from a local SMTP sink), plus account/pages e2e, axe-core, alignment.
+- Two-replica check: start a second server on another port against the same database – only one reports
+  `schedulers.leader: true`, and an Instant Football round opened on one can be played on the other (once).
+- Mock Odds API: serve a recorded `/v4/sports/<key>/odds` sample and `/scores`, point `ODDS_API_BASE` at it.
+- In sandboxed cloud sessions Node `fetch` needs `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`.
+
+## 10. Conventions
+
+No build tools or frameworks. Escape all data with `esc()`. Money only moves through `server/src/lib/wallet.js`
+(`move`/`debit`) inside a transaction. Results are drawn only after the stake is taken. Never put secrets in git.
+No model names in commits. Our brand only – never another operator's logo, mascot or artwork.
